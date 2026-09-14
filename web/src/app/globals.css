@@ -1,0 +1,213 @@
+@import "tailwindcss";
+
+/*
+ * Colour lives in custom properties, defined once for dark and once for light. Dark is
+ * the default: the tokens on :root are the dark set, and a stored preference of "light"
+ * stamps data-theme="light" on the html element before first paint.
+ */
+:root {
+  color-scheme: dark;
+
+  --bg: #0a0c10;
+  --bg-raised: #11151b;
+  --bg-sunken: #070910;
+  --bg-hover: #171d25;
+  --fg: #e7ebf0;
+  --fg-muted: #9aa6b5;
+  --fg-dim: #6c7887;
+  --line: #222a35;
+  --line-strong: #313c4a;
+  --accent: #62a9ff;
+  --accent-bg: #12233c;
+  --accent-line: #24446e;
+  --ok: #46b26a;
+  --ok-bg: #0f2418;
+  --warn: #cf9a2c;
+  --warn-bg: #2a2110;
+  --bad: #e35d6a;
+  --bad-bg: #2c1418;
+  --focus: #7cb8ff;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f7f8fa;
+  --bg-raised: #ffffff;
+  --bg-sunken: #f0f2f5;
+  --bg-hover: #eef1f5;
+  --fg: #12171d;
+  --fg-muted: #57626f;
+  --fg-dim: #78828f;
+  --line: #dde2e9;
+  --line-strong: #c3ccd7;
+  --accent: #1b5fbd;
+  --accent-bg: #e8f0fc;
+  --accent-line: #b6cdf0;
+  --ok: #197742;
+  --ok-bg: #e6f4ec;
+  --warn: #8a5f06;
+  --warn-bg: #fbf1dc;
+  --bad: #b4262f;
+  --bad-bg: #fbeaec;
+  --focus: #1b5fbd;
+  --shadow: 0 1px 2px rgb(16 24 40 / 0.08);
+}
+
+/* Expose the tokens to Tailwind so utilities such as bg-raised and text-muted exist. */
+@theme inline {
+  --color-page: var(--bg);
+  --color-raised: var(--bg-raised);
+  --color-sunken: var(--bg-sunken);
+  --color-hover: var(--bg-hover);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-dim: var(--fg-dim);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-bg: var(--accent-bg);
+  --color-accent-line: var(--accent-line);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0;
+  /* Nothing scrolls sideways except the containers that opt in. */
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+/* Numbers in tables and metric cells line up column to column. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Skip link, visible once it takes focus. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 60;
+}
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+  padding: 8px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--accent-line);
+  border-radius: 6px;
+}
+
+/* The one place horizontal scrolling is allowed: code, terminal output and wide tables. */
+.scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.scroll-x::-webkit-scrollbar,
+.scroll-y::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.scroll-x::-webkit-scrollbar-thumb,
+.scroll-y::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 6px;
+}
+.scroll-x::-webkit-scrollbar-track,
+.scroll-y::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* JSON syntax highlighting. Hue carries the token type, weight carries the key. */
+.tok-key {
+  color: var(--accent);
+}
+.tok-str {
+  color: var(--ok);
+}
+.tok-num {
+  color: var(--warn);
+}
+.tok-bool,
+.tok-null {
+  color: var(--bad);
+}
+.tok-punct {
+  color: var(--fg-dim);
+}
+
+/* Recharts leaves its own focus outline off; put ours back. */
+.recharts-wrapper:focus-visible,
+.recharts-surface:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.recharts-cartesian-axis-tick-value,
+.recharts-label,
+.recharts-legend-item-text {
+  fill: var(--fg-muted);
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* The focused step in the trajectory replay. Driven by state, not by :focus, so the ring
+   is visible whether the focus move came from a key, a click or the jump control. */
+.step-focused {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

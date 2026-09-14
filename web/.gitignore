@@ -1,0 +1,14 @@
+# Local build output, on top of the rules in the repository root .gitignore.
+.next/
+out/
+node_modules/
+next-env.d.ts
+*.tsbuildinfo
+test-results/
+playwright-report/
+tests/screenshots/
+
+# public/data is generated from the committed runs in fixtures/recorded-runs by
+# scripts/build_web_bundle.py, and the build regenerates it. Committing both copies
+# would put the same six megabytes in the repository twice.
+public/data/
