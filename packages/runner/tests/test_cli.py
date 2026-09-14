@@ -25,6 +25,45 @@ def invoke(*args: str, env: dict[str, str] | None = None):
     return runner.invoke(app, list(args), env=merged, catch_exceptions=False)
 
 
+class TestLogging:
+    def test_a_log_call_never_raises_when_the_stream_was_swapped(self):
+        """structlog's own factory caches sys.stderr, which turns a warning into a crash."""
+        import io
+        import sys as sys_module
+
+        import structlog
+
+        from trajectory_runner.cli import configure_logging
+
+        original = sys_module.stderr
+        replacement = io.StringIO()
+        try:
+            sys_module.stderr = replacement
+            configure_logging(verbose=True)
+            replacement.close()
+            structlog.get_logger("test").warning("this must not raise")
+        finally:
+            sys_module.stderr = original
+
+    def test_log_output_goes_to_the_current_stream(self):
+        import io
+        import sys as sys_module
+
+        import structlog
+
+        from trajectory_runner.cli import configure_logging
+
+        original = sys_module.stderr
+        captured = io.StringIO()
+        try:
+            sys_module.stderr = captured
+            configure_logging(verbose=True)
+            structlog.get_logger("test").warning("a distinctive message")
+        finally:
+            sys_module.stderr = original
+        assert "a distinctive message" in captured.getvalue()
+
+
 class TestPlumbing:
     def test_version_reports_what_it_can_reach(self):
         result = invoke("version")

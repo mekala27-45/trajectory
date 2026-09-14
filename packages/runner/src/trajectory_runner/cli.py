@@ -81,6 +81,31 @@ error_console = Console(stderr=True, no_color=bool(os.environ.get("NO_COLOR")))
 DEFAULT_RUNS_ROOT = Path("runs")
 
 
+class _StderrLogger:
+    """A structlog sink that resolves `sys.stderr` at write time.
+
+    structlog's own PrintLoggerFactory captures the stream when it is constructed. Any
+    caller that swaps `sys.stderr` afterwards, which is to say any test harness and any
+    code capturing output, then gets an exception from inside a log call. That turns a
+    logged warning into a crash in whatever was being logged about, which is exactly
+    backwards. Resolving the stream per write costs an attribute lookup and removes the
+    whole failure mode.
+    """
+
+    def msg(self, message: str) -> None:
+        """Write one line to the current stderr."""
+        stream = sys.stderr
+        try:
+            stream.write(message + "\n")
+            stream.flush()
+        except (ValueError, OSError):
+            # The stream went away mid-run. Losing a log line is acceptable; raising from
+            # inside a logging call is not.
+            pass
+
+    log = debug = info = warn = warning = error = critical = exception = fatal = msg
+
+
 def configure_logging(verbose: bool) -> None:
     """Pretty logs in a terminal, JSON when piped, quiet unless asked."""
     level = 10 if verbose else 30
@@ -96,8 +121,8 @@ def configure_logging(verbose: bool) -> None:
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.make_filtering_bound_logger(level),
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
-        cache_logger_on_first_use=True,
+        logger_factory=lambda *args: _StderrLogger(),
+        cache_logger_on_first_use=False,
     )
 
 
