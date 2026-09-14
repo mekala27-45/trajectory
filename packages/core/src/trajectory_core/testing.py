@@ -16,6 +16,8 @@ from typing import Any
 
 from trajectory_core.models import (
     Language,
+    PlaybookStep,
+    ReferencePlaybook,
     Run,
     RunConfig,
     RunnerFingerprint,
@@ -56,7 +58,6 @@ def make_task(**overrides: Any) -> Task:  # noqa: ANN401  overrides mirror arbit
         "verify_cmd": "pytest -q /verify",
         "verify_parser": VerifyParser.PYTEST,
         "reference_step_count": 6,
-        "reference_cmd": "bash /reference/apply.sh",
     }
     defaults.update(overrides)
     return Task(**defaults)
@@ -204,6 +205,27 @@ def make_run(
     )
 
 
+def make_playbook(
+    *,
+    task_id: str = "demo-task-01",
+    commands: list[str] | None = None,
+    summary: str = "Fixed the off by one and the tests pass.",
+) -> ReferencePlaybook:
+    """Build a reference playbook from a list of shell commands, closed with finish."""
+    resolved = commands or [
+        "ls -la",
+        "pytest -q",
+        "sed -i 's/<=/</' src/dates.py",
+        "pytest -q",
+    ]
+    steps = [
+        PlaybookStep(tool=ToolName.BASH, args={"command": cmd}, note=f"Step {i + 1}: {cmd}")
+        for i, cmd in enumerate(resolved)
+    ]
+    steps.append(PlaybookStep(tool=ToolName.FINISH, args={"summary": summary}, note=summary))
+    return ReferencePlaybook(task_id=task_id, steps=steps, notes="Test playbook.")
+
+
 def utc(seconds: float) -> datetime:
     """Return the fixed test clock advanced by `seconds`."""
     return START + timedelta(seconds=seconds)
@@ -214,6 +236,7 @@ __all__ = [
     "bash_steps",
     "finish_step",
     "make_config",
+    "make_playbook",
     "make_run",
     "make_step",
     "make_task",

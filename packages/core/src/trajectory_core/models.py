@@ -260,15 +260,21 @@ class Task(StrictModel):
     reference_step_count: int = Field(
         ge=1,
         description=(
-            "Steps the reference solution took, measured by its author. This is the "
-            "denominator of step efficiency, so an inflated value flatters every agent."
+            "Steps in the reference playbook, including its closing finish call. This is the "
+            "numerator of step efficiency, so an inflated value flatters every agent. Task "
+            "validation refuses to accept a value that does not equal the length of "
+            "reference/playbook.yaml, which means the only way to raise it is to write the "
+            "extra steps and keep the solution passing."
         ),
     )
-    reference_cmd: str | None = Field(
-        default=None,
+
+    relevant_paths: list[str] = Field(
+        default_factory=list,
         description=(
-            "Command that applies the reference solution to the workspace. CI runs it and "
-            "then runs verify_cmd, so a task whose own solution stops working fails the build."
+            "Glob patterns, relative to the workspace, naming the files this task is about. "
+            "Anything the agent changes outside them is scope creep, which is how F09 is "
+            "detected without a heuristic. An empty list disables that check, and task "
+            "validation warns when it is empty."
         ),
     )
 
@@ -384,6 +390,42 @@ class RunConfig(StrictModel):
     sandbox_backend: SandboxBackend = Field(
         default=SandboxBackend.DOCKER, description="Which sandbox implementation to use."
     )
+
+
+# ---------------------------------------------------------------- workspace state
+
+
+class WorkspaceManifest(StrictModel):
+    """A content hash of every file in the agent workspace at a point in time.
+
+    Captured once before the agent starts and once after it stops. Two rules depend on
+    it: path hallucination compares the paths an agent referenced against the paths that
+    actually existed, and scope creep compares what changed against what the task said it
+    was about. Both live in the run record rather than in a side file, so rescoring a run
+    a month later needs nothing but the run itself.
+    """
+
+    files: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Workspace relative path to a truncated SHA-256 of the file contents. Truncated "
+            "to 16 hex characters, which is ample for change detection and keeps a run "
+            "record with a few hundred files small enough to read."
+        ),
+    )
+    truncated: bool = Field(
+        default=False,
+        description="True when the workspace had more files than the capture limit allowed.",
+    )
+
+    def paths(self) -> set[str]:
+        """Return the set of workspace relative paths."""
+        return set(self.files)
+
+    def changed_against(self, other: WorkspaceManifest) -> set[str]:
+        """Return paths added, removed or modified relative to `other`."""
+        changed = {p for p, h in self.files.items() if other.files.get(p) != h}
+        return changed | (other.paths() - self.paths())
 
 
 # ----------------------------------------------------------------------------- step
@@ -656,6 +698,15 @@ class Run(StrictModel):
     )
     runner_fingerprint: RunnerFingerprint = Field(description="Machine the run was produced on.")
 
+    initial_workspace: WorkspaceManifest = Field(
+        default_factory=WorkspaceManifest,
+        description="Workspace contents captured immediately before the agent's first step.",
+    )
+    final_workspace: WorkspaceManifest = Field(
+        default_factory=WorkspaceManifest,
+        description="Workspace contents captured immediately after the agent phase ended.",
+    )
+
     context_compressed: bool = Field(
         default=False,
         description=(
@@ -722,6 +773,59 @@ class ResultsBundle(StrictModel):
 
     manifest: BundleManifest = Field(description="Bundle header.")
     runs: list[Run] = Field(description="Run records, expected in id order.")
+
+
+# ---------------------------------------------------------------- reference playbook
+
+
+class PlaybookStep(StrictModel):
+    """One step of the reference solution for a task."""
+
+    tool: ToolName = Field(description="Tool an expert would reach for at this point.")
+    args: dict[str, Any] = Field(default_factory=dict, description="Arguments for the tool.")
+    note: str = Field(
+        default="",
+        description=(
+            "Why this step exists. Read by nobody at runtime and by every contributor who "
+            "wants to understand what the task is really testing."
+        ),
+    )
+
+
+class ReferencePlaybook(StrictModel):
+    """The reference solution, expressed as the trajectory an expert would produce.
+
+    Kept as a trajectory rather than a patch file for three reasons. It is what the
+    offline reference policies replay, so the harness can be exercised end to end with no
+    provider and no spend. It is the definition of `reference_step_count`, which removes
+    the temptation to guess that number. And it doubles as the CI gate: replay the
+    playbook, run the hidden tests, and a task whose own solution has rotted fails the
+    build instead of quietly flattering every agent that attempts it.
+    """
+
+    task_id: str = Field(description="Task the playbook solves.")
+    steps: list[PlaybookStep] = Field(
+        min_length=2, description="Ordered steps, ending with a finish call."
+    )
+    notes: str = Field(default="", description="Author notes about the intended approach.")
+
+    @model_validator(mode="after")
+    def _must_end_with_finish(self) -> Self:
+        """A playbook that never declares itself done is not a complete trajectory."""
+        if self.steps[-1].tool is not ToolName.FINISH:
+            raise ValueError(
+                f"playbook for {self.task_id} ends with {self.steps[-1].tool.value}, "
+                "but the last step of a reference solution has to be finish"
+            )
+        if any(step.tool is ToolName.FINISH for step in self.steps[:-1]):
+            raise ValueError(f"playbook for {self.task_id} calls finish before its last step")
+        return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def step_count(self) -> int:
+        """Number of steps including the closing finish call."""
+        return len(self.steps)
 
 
 # ---------------------------------------------------------------------- aggregates

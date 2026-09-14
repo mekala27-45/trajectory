@@ -49,6 +49,8 @@ select = [
     "RUF",        # ruff
     "ANN",        # annotations
     "ASYNC",      # async correctness
+    "BLE",        # blind except
+    "DTZ",        # timezone aware datetimes
     "S",          # bandit
     "PTH",        # pathlib
     "TID",        # tidy imports
