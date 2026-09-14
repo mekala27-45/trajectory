@@ -34,6 +34,7 @@ from trajectory_core.models import (
     Detector,
     FailureModeHit,
     FailureModeId,
+    FailureModeSpec,
     Run,
     Task,
     ToolName,
@@ -534,3 +535,17 @@ def classify_rules(run: Run, task: Task) -> list[FailureModeHit]:
 def taxonomy_table() -> list[FailureMode]:
     """The taxonomy in identifier order, for the docs and the API."""
     return [TAXONOMY[mode_id] for mode_id in FailureModeId]
+
+
+def taxonomy_specs() -> list[FailureModeSpec]:
+    """The taxonomy as serialisable models, for the API and the static bundle."""
+    return [
+        FailureModeSpec(
+            id=mode.id,
+            name=mode.name,
+            definition=mode.definition,
+            detection=mode.detection,
+            example=mode.example,
+        )
+        for mode in taxonomy_table()
+    ]

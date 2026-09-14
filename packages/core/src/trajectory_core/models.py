@@ -132,9 +132,12 @@ class VerifyParser(StrEnum):
 class SandboxBackend(StrEnum):
     """Which sandbox produced a run.
 
-    `DOCKER` is the only backend whose results are accepted onto a leaderboard. `LOCAL`
-    exists so a task author without a Docker daemon can still iterate, and every run it
-    produces carries this marker so it can never be quietly mixed into published numbers.
+    `LOCAL` exists so a task author without a Docker daemon can still iterate. Every run
+    it produces carries this marker, and the marker is part of a leaderboard row's
+    identity, so local runs form their own rows and are never averaged together with
+    container runs. Labelling rather than hiding is the honest choice: the local backend
+    cannot promise the agent never saw the hidden tests, and a reader deserves to know
+    which of those two things they are looking at.
     """
 
     DOCKER = "docker"
@@ -871,6 +874,16 @@ class LeaderboardRow(StrictModel):
 
     model: str = Field(description="Model identifier.")
     suite: str = Field(description="Suite the numbers cover.")
+    backend: SandboxBackend = Field(
+        default=SandboxBackend.DOCKER,
+        description=(
+            "Sandbox the runs came from. Part of the row's identity, not a footnote. Runs "
+            "from the unisolated local backend are never merged with isolated ones, because "
+            "the local backend cannot guarantee the agent did not see the hidden tests. "
+            "Labelling them is honest; hiding them would leave a demo with nothing in it, "
+            "and merging them would publish a number that cannot be defended."
+        ),
+    )
     runs: int = Field(ge=0, description="Runs behind the row.")
     tasks: int = Field(ge=0, description="Distinct tasks attempted.")
     seeds: int = Field(ge=0, description="Distinct seeds attempted.")
@@ -906,3 +919,164 @@ class FailureModeCount(StrictModel):
     share_of_failed_runs: float = Field(
         ge=0.0, le=1.0, description="Count divided by the number of unsolved runs in the slice."
     )
+
+
+# ------------------------------------------------------------------- responses
+
+
+class RunSummary(StrictModel):
+    """A run without its trajectory.
+
+    The leaderboard and the task pages list hundreds of these, and a full trajectory is
+    tens of kilobytes. Serving the summary separately from the steps is what keeps the
+    task detail page a single small request.
+    """
+
+    id: str = Field(description="Run identifier.")
+    task_id: str = Field(description="Task attempted.")
+    suite: str = Field(description="Suite the task belongs to.")
+    model: str = Field(description="Model identifier.")
+    seed: int = Field(description="Seed the run used.")
+    backend: SandboxBackend = Field(description="Sandbox the run came from.")
+    status: RunStatus = Field(description="Why the agent loop stopped.")
+    solved: bool = Field(description="Whether every hidden test passed.")
+    tests_passed: int = Field(ge=0, description="Hidden tests that passed.")
+    tests_total: int = Field(ge=0, description="Hidden tests discovered.")
+    partial_credit: float = Field(ge=0.0, le=1.0, description="Metric 2.")
+    step_efficiency: float | None = Field(default=None, description="Metric 3, null on failures.")
+    tool_call_validity: float = Field(ge=0.0, le=1.0, description="Metric 4.")
+    redundant_action_rate: float = Field(ge=0.0, le=1.0, description="Metric 5.")
+    recovery_rate: float | None = Field(
+        default=None, description="Metric 6, null with no failures."
+    )
+    premature_termination: bool = Field(description="Metric 7.")
+    context_drift: float | None = Field(default=None, description="Metric 8, null without a judge.")
+    destructive_attempts: int = Field(ge=0, description="Metric 10.")
+    steps: int = Field(ge=0, description="Steps in the trajectory.")
+    cost_usd: float = Field(ge=0.0, description="Provider spend.")
+    wall_clock_s: float = Field(ge=0.0, description="Wall clock seconds.")
+    failure_modes: list[FailureModeId] = Field(
+        default_factory=list, description="Modes found, ranked by confidence."
+    )
+    started_at: datetime = Field(description="When the run started.")
+
+    @classmethod
+    def from_run(cls, run: Run) -> RunSummary:
+        """Project a run down to its summary fields."""
+        verification = run.verification
+        metrics = run.score
+        return cls(
+            id=run.id,
+            task_id=run.task_id,
+            suite=run.suite,
+            model=run.config.model,
+            seed=run.config.seed,
+            backend=run.runner_fingerprint.sandbox_backend,
+            status=run.status,
+            solved=run.solved,
+            tests_passed=verification.tests_passed if verification else 0,
+            tests_total=verification.tests_total if verification else 0,
+            partial_credit=metrics.partial_credit if metrics else 0.0,
+            step_efficiency=metrics.step_efficiency if metrics else None,
+            tool_call_validity=metrics.tool_call_validity if metrics else 1.0,
+            redundant_action_rate=metrics.redundant_action_rate if metrics else 0.0,
+            recovery_rate=metrics.recovery_rate if metrics else None,
+            premature_termination=metrics.premature_termination if metrics else False,
+            context_drift=metrics.context_drift if metrics else None,
+            destructive_attempts=metrics.destructive_attempts if metrics else 0,
+            steps=len(run.steps),
+            cost_usd=run.total_cost_usd,
+            wall_clock_s=run.wall_clock_s,
+            failure_modes=[hit.id for hit in run.failure_modes],
+            started_at=run.started_at,
+        )
+
+
+class FailureModeSpec(StrictModel):
+    """One taxonomy entry, as the API and the docs serve it."""
+
+    id: FailureModeId = Field(description="Identifier, F01 to F10.")
+    name: str = Field(description="Short human readable name.")
+    definition: str = Field(description="What the mode is.")
+    detection: Detector = Field(description="Whether a rule or the judge decides it.")
+    example: str = Field(description="A concrete instance a reader can picture.")
+
+
+class LeaderboardResponse(StrictModel):
+    """The leaderboard, with enough context to interpret it."""
+
+    generated_at: datetime = Field(description="When this view was computed.")
+    harness_version: str = Field(description="Harness that produced the underlying runs.")
+    suite: str | None = Field(default=None, description="Suite filter applied, if any.")
+    rows: list[LeaderboardRow] = Field(description="One row per model, suite and backend.")
+    last_run_at: datetime | None = Field(
+        default=None, description="Start time of the most recent run behind any row."
+    )
+    note: str = Field(
+        default="",
+        description=(
+            "Anything a reader needs in order not to misread the table, for example that "
+            "some rows came from an unisolated sandbox."
+        ),
+    )
+
+
+class TaskResults(StrictModel):
+    """Per model results for one task."""
+
+    task: TaskSummary = Field(description="The task, without its hidden tests.")
+    solve_rate_by_model: dict[str, MetricStat] = Field(
+        default_factory=dict, description="Solve rate per model, with spread across seeds."
+    )
+    runs: list[RunSummary] = Field(default_factory=list, description="Every run on this task.")
+
+
+class FailureModeBreakdown(StrictModel):
+    """The taxonomy plus counts, sliced the two ways that are actionable."""
+
+    taxonomy: list[FailureModeSpec] = Field(description="All ten modes with their definitions.")
+    overall: list[FailureModeCount] = Field(description="Counts across every unsolved run.")
+    on_solved_runs: list[FailureModeCount] = Field(
+        default_factory=list,
+        description=(
+            "Counts across runs that passed every hidden test. This is the view a pass rate "
+            "cannot produce: a run that made malformed tool calls, invented paths, and got "
+            "the tests green anyway is a process problem that succeeded, and it is invisible "
+            "in any aggregate that only looks at failures."
+        ),
+    )
+    by_model: dict[str, list[FailureModeCount]] = Field(
+        default_factory=dict, description="Counts per model."
+    )
+    by_difficulty: dict[str, list[FailureModeCount]] = Field(
+        default_factory=dict,
+        description="Counts per difficulty tier, keyed by the tier as a string.",
+    )
+    unsolved_runs: int = Field(ge=0, description="Denominator behind the unsolved shares.")
+    solved_runs: int = Field(ge=0, description="Denominator behind the solved shares.")
+
+
+class DatasetIndex(StrictModel):
+    """What the static demo bundle contains.
+
+    The web app reads this first. When it is served from a live API the same numbers come
+    from the database, which is why both paths produce this one shape.
+    """
+
+    generated_at: datetime = Field(description="When the bundle was built.")
+    harness_version: str = Field(description="Harness that produced the runs.")
+    schema_version: int = Field(default=SCHEMA_VERSION, description="Contract version.")
+    suites: list[str] = Field(default_factory=list, description="Suites present.")
+    models: list[str] = Field(default_factory=list, description="Model identifiers present.")
+    backends: list[SandboxBackend] = Field(
+        default_factory=list, description="Sandbox backends present."
+    )
+    run_count: int = Field(ge=0, description="Runs in the bundle.")
+    task_count: int = Field(ge=0, description="Tasks covered.")
+    solved_count: int = Field(ge=0, description="Runs that passed every hidden test.")
+    total_cost_usd: float = Field(ge=0.0, description="Summed provider spend.")
+    total_wall_clock_s: float = Field(ge=0.0, description="Summed wall clock.")
+    judge_model: str | None = Field(
+        default=None, description="Model used for the rubric judge, null when it did not run."
+    )
+    note: str = Field(default="", description="How to read these numbers.")

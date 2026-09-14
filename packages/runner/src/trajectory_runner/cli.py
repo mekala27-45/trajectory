@@ -933,6 +933,7 @@ def report(
 
     rows = leaderboard(runs)
     modes = failure_mode_counts(runs)
+    modes_on_solved = failure_mode_counts(runs, among="solved")
 
     if output_format == "json":
         payload = {
@@ -941,6 +942,9 @@ def report(
             "harness_version": HARNESS_VERSION,
             "leaderboard": [row.model_dump(mode="json") for row in rows],
             "failure_modes": [mode.model_dump(mode="json") for mode in modes],
+            "failure_modes_on_solved_runs": [
+                mode.model_dump(mode="json") for mode in modes_on_solved
+            ],
         }
         text = json.dumps(payload, indent=2)
     elif output_format == "csv":
@@ -977,7 +981,7 @@ def report(
             )
         text = "\n".join(lines)
     elif output_format == "md":
-        text = _markdown_report(directory, runs, rows, modes)
+        text = _markdown_report(directory, runs, rows, modes, modes_on_solved)
     else:
         fail(f"unknown format {output_format!r}. Use md, json or csv.")
         raise AssertionError("unreachable")  # pragma: no cover
@@ -999,7 +1003,13 @@ def _newest_run_dir(runs_root: Path) -> Path:
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
-def _markdown_report(directory: Path, runs: list[Run], rows: list[Any], modes: list[Any]) -> str:
+def _markdown_report(
+    directory: Path,
+    runs: list[Run],
+    rows: list[Any],
+    modes: list[Any],
+    modes_on_solved: list[Any],
+) -> str:
     """Render a report as markdown, ready to paste into RESULTS.md."""
     unsolved = sum(1 for r in runs if not r.solved)
     lines = [
@@ -1052,6 +1062,29 @@ def _markdown_report(directory: Path, runs: list[Run], rows: list[Any], modes: l
         )
     if not modes:
         lines.append("| | no failure modes recorded | 0 | 0.0% |")
+
+    solved_count = len(runs) - unsolved
+    lines += [
+        "",
+        "## Failure modes on runs that passed",
+        "",
+        "This is the view a pass rate cannot produce. A run that made malformed tool calls, "
+        "invented paths, or reached for a destructive command and still got the hidden tests "
+        "green is a process problem that succeeded, and it is invisible in any aggregate that "
+        "only looks at failures.",
+        "",
+        f"Share is of the {solved_count} solved run(s).",
+        "",
+        "| id | mode | runs | share of solved |",
+        "| --- | --- | --- | --- |",
+    ]
+    for mode in modes_on_solved:
+        lines.append(
+            f"| {mode.id.value} | {mode.name} | {mode.count} | "
+            f"{mode.share_of_failed_runs * 100:.1f}% |"
+        )
+    if not modes_on_solved:
+        lines.append("| | no failure modes on solved runs | 0 | 0.0% |")
     return "\n".join(lines)
 
 
@@ -1091,9 +1124,10 @@ def push(
     local_runs = [r for r in runs if r.runner_fingerprint.sandbox_backend.value == "local"]
     if local_runs:
         console.print(
-            f"[yellow]{len(local_runs)} of {len(runs)} run(s) were produced by the local "
-            "backend. The API accepts them but keeps them off the leaderboard, because they "
-            "are not isolated and the hidden tests were reachable from inside them.[/yellow]"
+            f"[yellow]{len(local_runs)} of {len(runs)} run(s) came from the local backend. "
+            "They will appear on the leaderboard as their own rows, labelled local, and "
+            "never merged with container runs, because the local backend cannot promise the "
+            "agent did not see the hidden tests.[/yellow]"
         )
 
     console.print(f"pushing {len(runs)} run(s) from {directory} to {url}")

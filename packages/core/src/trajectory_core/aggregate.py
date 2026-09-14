@@ -16,6 +16,7 @@ from __future__ import annotations
 import statistics
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
+from typing import Literal
 
 from trajectory_core.failure_modes import TAXONOMY
 from trajectory_core.models import (
@@ -24,6 +25,7 @@ from trajectory_core.models import (
     LeaderboardRow,
     MetricStat,
     Run,
+    SandboxBackend,
 )
 
 
@@ -85,13 +87,16 @@ def _values(runs: Iterable[Run], metric: str) -> list[float]:
     return out
 
 
-def leaderboard_row(model: str, suite: str, runs: Sequence[Run]) -> LeaderboardRow:
+def leaderboard_row(
+    model: str, suite: str, runs: Sequence[Run], *, backend: SandboxBackend | None = None
+) -> LeaderboardRow:
     """Aggregate one model's runs on one suite.
 
     Args:
         model: Model identifier.
         suite: Suite name.
-        runs: Every run for that model and suite.
+        runs: Every run for that model, suite and backend.
+        backend: Sandbox the runs came from, taken from the runs when omitted.
 
     Returns:
         One leaderboard row.
@@ -100,9 +105,14 @@ def leaderboard_row(model: str, suite: str, runs: Sequence[Run]) -> LeaderboardR
     solved = [run for run in scored if run.score is not None and run.score.solved]
     total_cost = round(sum(run.total_cost_usd for run in runs), 6)
 
+    resolved_backend = backend or (
+        runs[0].runner_fingerprint.sandbox_backend if runs else SandboxBackend.DOCKER
+    )
+
     return LeaderboardRow(
         model=model,
         suite=suite,
+        backend=resolved_backend,
         runs=len(runs),
         tasks=len({run.task_id for run in runs}),
         seeds=len({run.config.seed for run in runs}),
@@ -129,29 +139,46 @@ def leaderboard_row(model: str, suite: str, runs: Sequence[Run]) -> LeaderboardR
     )
 
 
-def leaderboard(runs: Sequence[Run], *, suite: str | None = None) -> list[LeaderboardRow]:
+def leaderboard(
+    runs: Sequence[Run],
+    *,
+    suite: str | None = None,
+    backend: SandboxBackend | None = None,
+) -> list[LeaderboardRow]:
     """Build a full leaderboard, sorted by solve rate descending.
+
+    Rows are keyed by model, suite and sandbox backend. Two runs of the same model in
+    different sandboxes are two rows, never one: the local backend is not isolated and
+    cannot promise the agent never saw the hidden tests, so averaging it together with a
+    container run would produce a number nobody could defend. Local rows sort last.
 
     Args:
         runs: Runs to aggregate.
         suite: Restrict to one suite.
+        backend: Restrict to one sandbox backend.
 
     Returns:
-        One row per model, best solve rate first, then by cost per solved task ascending so
-        two models with the same solve rate are separated by something meaningful.
+        One row per model, suite and backend, best solve rate first, then by cost per
+        solved task ascending so two models with the same solve rate are separated by
+        something meaningful.
     """
-    grouped: dict[tuple[str, str], list[Run]] = defaultdict(list)
+    grouped: dict[tuple[str, str, SandboxBackend], list[Run]] = defaultdict(list)
     for run in runs:
         if suite is not None and run.suite != suite:
             continue
-        grouped[(run.config.model, run.suite)].append(run)
+        run_backend = run.runner_fingerprint.sandbox_backend
+        if backend is not None and run_backend != backend:
+            continue
+        grouped[(run.config.model, run.suite, run_backend)].append(run)
 
     rows = [
-        leaderboard_row(model, suite_name, group) for (model, suite_name), group in grouped.items()
+        leaderboard_row(model, suite_name, group, backend=row_backend)
+        for (model, suite_name, row_backend), group in grouped.items()
     ]
     return sorted(
         rows,
         key=lambda row: (
+            row.backend is SandboxBackend.LOCAL,
             -row.solve_rate.mean,
             row.cost_per_solved_usd if row.cost_per_solved_usd is not None else float("inf"),
             row.model,
@@ -159,20 +186,41 @@ def leaderboard(runs: Sequence[Run], *, suite: str | None = None) -> list[Leader
     )
 
 
-def failure_mode_counts(runs: Sequence[Run]) -> list[FailureModeCount]:
+def failure_mode_counts(
+    runs: Sequence[Run], *, among: Literal["unsolved", "solved", "all"] = "unsolved"
+) -> list[FailureModeCount]:
     """Count how many runs carry each failure mode.
 
-    The denominator is unsolved runs, not all runs. A mode firing on 19 percent of failed
-    runs is an actionable number; the same count expressed as a share of every run buries
-    it under the tasks that went fine.
+    The default denominator is unsolved runs, which is the triage view: a mode firing on
+    19 percent of failed runs is an actionable number, and the same count expressed as a
+    share of every run buries it under the tasks that went fine.
+
+    `among="solved"` is the view no pass-rate benchmark has. A run that made three
+    malformed tool calls, invented two paths, and still got the tests green is a process
+    problem that succeeded by luck or by persistence, and it is completely invisible in
+    every aggregate that only looks at failures. Measuring it is most of the point of
+    scoring trajectories at all.
+
+    Args:
+        runs: Runs to aggregate.
+        among: Which runs form the population and the denominator.
+
+    Returns:
+        Counts sorted by frequency descending, then by identifier.
     """
-    unsolved = [run for run in runs if not run.solved]
+    if among == "unsolved":
+        population = [run for run in runs if not run.solved]
+    elif among == "solved":
+        population = [run for run in runs if run.solved]
+    else:
+        population = list(runs)
+
     counts: Counter[FailureModeId] = Counter()
-    for run in unsolved:
+    for run in population:
         for hit in {mode.id for mode in run.failure_modes}:
             counts[hit] += 1
 
-    denominator = len(unsolved) or 1
+    denominator = len(population) or 1
     return sorted(
         (
             FailureModeCount(
@@ -187,22 +235,30 @@ def failure_mode_counts(runs: Sequence[Run]) -> list[FailureModeCount]:
     )
 
 
-def failure_modes_by_model(runs: Sequence[Run]) -> dict[str, list[FailureModeCount]]:
+def failure_modes_by_model(
+    runs: Sequence[Run], *, among: Literal["unsolved", "solved", "all"] = "unsolved"
+) -> dict[str, list[FailureModeCount]]:
     """Failure mode distribution per model."""
     grouped: dict[str, list[Run]] = defaultdict(list)
     for run in runs:
         grouped[run.config.model].append(run)
-    return {model: failure_mode_counts(group) for model, group in sorted(grouped.items())}
+    return {
+        model: failure_mode_counts(group, among=among) for model, group in sorted(grouped.items())
+    }
 
 
 def failure_modes_by_difficulty(
-    runs: Sequence[Run], difficulty_of: dict[str, int]
+    runs: Sequence[Run],
+    difficulty_of: dict[str, int],
+    *,
+    among: Literal["unsolved", "solved", "all"] = "unsolved",
 ) -> dict[int, list[FailureModeCount]]:
     """Failure mode distribution per task difficulty tier.
 
     Args:
         runs: Runs to aggregate.
         difficulty_of: Task identifier to difficulty tier.
+        among: Which runs form the population and the denominator.
 
     Returns:
         Counts keyed by tier, for tiers that actually appear in the runs.
@@ -212,7 +268,9 @@ def failure_modes_by_difficulty(
         tier = difficulty_of.get(run.task_id)
         if tier is not None:
             grouped[tier].append(run)
-    return {tier: failure_mode_counts(group) for tier, group in sorted(grouped.items())}
+    return {
+        tier: failure_mode_counts(group, among=among) for tier, group in sorted(grouped.items())
+    }
 
 
 def per_task_breakdown(runs: Sequence[Run]) -> dict[str, dict[str, MetricStat]]:

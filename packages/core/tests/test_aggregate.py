@@ -156,6 +156,33 @@ class TestLeaderboardRow:
 
 
 class TestLeaderboard:
+    def test_local_backend_runs_form_their_own_rows(self):
+        """Never merged with container runs, because the isolation guarantee differs."""
+        from trajectory_core.models import RunnerFingerprint, SandboxBackend
+
+        docker_run = scored_run(model="m", seed=0, solved=True)
+        docker_run.runner_fingerprint = RunnerFingerprint(
+            os="Linux",
+            os_release="t",
+            arch="x86_64",
+            python_version="3.12.3",
+            cpu_count=2,
+            docker_version="27.3.1",
+            sandbox_backend=SandboxBackend.DOCKER,
+        )
+        local_run = scored_run(model="m", seed=0, solved=False)
+        rows = leaderboard([docker_run, local_run])
+        assert len(rows) == 2
+        assert {row.backend.value for row in rows} == {"docker", "local"}
+        assert rows[0].backend is SandboxBackend.DOCKER
+
+    def test_the_backend_filter_narrows_the_board(self):
+        from trajectory_core.models import SandboxBackend
+
+        runs = [scored_run(model="m", seed=0, solved=True)]
+        assert leaderboard(runs, backend=SandboxBackend.DOCKER) == []
+        assert len(leaderboard(runs, backend=SandboxBackend.LOCAL)) == 1
+
     def test_sorted_by_solve_rate_then_cost(self):
         runs = [
             *[scored_run(model="strong", seed=s, solved=True, cost=1.0) for s in range(2)],
@@ -209,9 +236,46 @@ class TestFailureModeCounts:
         counts = failure_mode_counts([run])
         assert counts[0].count == 1
 
-    def test_solved_runs_contribute_nothing(self):
+    def test_solved_runs_contribute_nothing_to_the_default_view(self):
         run = scored_run(model="m", seed=0, solved=True, modes=[FailureModeId.SCOPE_CREEP])
         assert failure_mode_counts([run]) == []
+
+    def test_the_solved_view_is_the_one_a_pass_rate_cannot_produce(self):
+        """A run that made malformed calls and passed anyway is a process problem.
+
+        Two solved runs, one carrying F01. Share of solved is 1/2, and the default
+        unsolved view reports nothing at all, which is exactly the blind spot.
+        """
+        runs = [
+            scored_run(
+                model="m",
+                seed=0,
+                task_id="a",
+                solved=True,
+                modes=[FailureModeId.TOOL_SCHEMA_VIOLATION],
+            ),
+            scored_run(model="m", seed=0, task_id="b", solved=True),
+        ]
+        assert failure_mode_counts(runs) == []
+        on_solved = failure_mode_counts(runs, among="solved")
+        assert len(on_solved) == 1
+        assert on_solved[0].id is FailureModeId.TOOL_SCHEMA_VIOLATION
+        assert on_solved[0].share_of_failed_runs == pytest.approx(0.5)
+
+    def test_the_all_view_uses_every_run_as_the_denominator(self):
+        runs = [
+            scored_run(
+                model="m", seed=0, task_id="a", solved=True, modes=[FailureModeId.RETRY_LOOP]
+            ),
+            scored_run(model="m", seed=0, task_id="b", solved=False),
+            scored_run(model="m", seed=0, task_id="c", solved=True),
+            scored_run(model="m", seed=0, task_id="d", solved=True),
+        ]
+        counts = failure_mode_counts(runs, among="all")
+        assert counts[0].share_of_failed_runs == pytest.approx(0.25)
+
+    def test_an_empty_population_does_not_divide_by_zero(self):
+        assert failure_mode_counts([], among="solved") == []
 
     def test_sorted_by_count_descending(self):
         runs = [
@@ -233,6 +297,11 @@ class TestFailureModeCounts:
     def test_names_come_from_the_taxonomy(self):
         run = scored_run(model="m", seed=0, solved=False, modes=[FailureModeId.RETRY_LOOP])
         assert failure_mode_counts([run])[0].name == "retry loop"
+
+    def test_grouping_by_model_can_use_any_population(self):
+        run = scored_run(model="a", seed=0, solved=True, modes=[FailureModeId.RETRY_LOOP])
+        assert failure_modes_by_model([run])["a"] == []
+        assert failure_modes_by_model([run], among="all")["a"][0].id is FailureModeId.RETRY_LOOP
 
     def test_grouped_by_model(self):
         runs = [

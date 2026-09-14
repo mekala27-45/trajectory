@@ -95,7 +95,7 @@ web-dev: ## Run the web app against the local API
 	cd web && npm run dev
 
 .PHONY: web-build
-web-build: ## Build the static demo from committed fixtures
+web-build: bundle ## Build the static demo from the committed fixtures
 	cd web && npm run build
 
 .PHONY: web-smoke
@@ -105,8 +105,12 @@ web-smoke: ## Playwright smoke suite against a built web app
 ## ----------------------------------------------------------------- misc
 
 .PHONY: bundle
-bundle: ## Rebuild the static fixture bundle the web demo reads
-	$(PY) python scripts/build_web_bundle.py
+bundle: ## Rebuild the web demo data from the committed fixture runs
+	$(PY) python scripts/build_web_bundle.py --from-fixtures
+
+.PHONY: fixtures
+fixtures: ## Re-record the committed fixture runs from the newest matrix run
+	$(PY) python scripts/build_web_bundle.py runs/matrix --fixtures fixtures/recorded-runs
 
 .PHONY: clean
 clean: ## Remove build and cache artefacts

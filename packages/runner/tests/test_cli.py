@@ -280,7 +280,7 @@ class TestRunAndInspect:
         _, out = self._run_once(tmp_path)
         result = invoke("push", str(out), "--api-url", "http://localhost:8000", "--dry-run")
         assert result.exit_code == 0
-        assert "keeps them off the leaderboard" in result.output
+        assert "never merged with container runs" in result.output
 
     def test_push_without_a_url_is_an_error(self, tmp_path: Path):
         (tmp_path / "runs").mkdir(parents=True)

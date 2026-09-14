@@ -16,6 +16,7 @@ htmlcov/
 
 # harness output
 runs/
+!fixtures/recorded-runs/
 .trajectory-cache/
 bundles/
 
@@ -24,6 +25,9 @@ node_modules/
 .next/
 out/
 .turbo/
+
+# generated from fixtures/recorded-runs by scripts/build_web_bundle.py
+web/public/data/
 *.tsbuildinfo
 playwright-report/
 test-results/
