@@ -190,7 +190,9 @@ def validate(loaded: LoadedTask) -> list[Issue]:
             )
         if re.search(r"^\s*COPY\s+.*\breference\b", text, re.IGNORECASE | re.MULTILINE):
             error("the Dockerfile copies reference/ into the image, which leaks the solution")
-        if "USER" not in text:
+        # A USER instruction at the start of a line. A substring check matches
+        # ARG AGENT_USER and would pass a Dockerfile that never drops root.
+        if not re.search(r"^\s*USER\s+\S+", text, re.IGNORECASE | re.MULTILINE):
             error("the Dockerfile never switches to a non-root USER")
         for match in _UNPINNED_FROM.finditer(text):
             image = match.group(1)
