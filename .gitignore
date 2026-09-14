@@ -14,9 +14,10 @@ build/
 coverage.xml
 htmlcov/
 
-# harness output
-runs/
-!fixtures/recorded-runs/
+# Harness output. Anchored to the repository root on purpose: an unanchored runs/
+# pattern also matches web/src/app/runs, which is a route directory, and git will not
+# tell you it swallowed it.
+/runs/
 .trajectory-cache/
 bundles/
 

@@ -84,7 +84,7 @@ db-migrate: ## Apply Alembic migrations to DATABASE_URL
 
 .PHONY: api-dev
 api-dev: ## Run the API with reload
-	$(PY) uvicorn trajectory_api.main:app --reload --port 8000
+	$(PY) uvicorn --factory trajectory_api.main:create_app --reload --port 8000
 
 .PHONY: seed
 seed: ## Load the recorded fixture runs into the database
