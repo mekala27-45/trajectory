@@ -140,10 +140,11 @@ The trajectory metrics separate them on the first glance:
   **0.664**, the worst of any policy that solved anything.
 - `methodical` sits at the ceiling on all three.
 
-Six failure modes fired across those runs, 177 hits in total, every one of them on a run
-that passed. The failure mode table as a benchmark normally reports it, scoped to unsolved
-runs, shows **none of them**. That gap is the entire argument for scoring trajectories, and
-it is the reason this repository reports both populations.
+Six failure modes fired on runs that passed, **213 hits** spread over **106 of the 155
+solved runs**, which is 68.4 percent of every run this suite counts as a success. The
+failure mode table as a benchmark normally reports it, scoped to unsolved runs, shows
+**none of them**. That gap is the entire argument for scoring trajectories, and it is the
+reason this repository reports both populations.
 
 ### 2. A single-seed pass rate for one policy could have been published as anything from 0% to 50%.
 

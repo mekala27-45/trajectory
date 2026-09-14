@@ -28,8 +28,8 @@ to make agent failures legible.
 The published matrix shows the problem directly. Three of the five agents scored **100.0%
 +/- 0.0%**, identical rows on any conventional leaderboard. One of them made a malformed
 tool call on every single run. Another repeated roughly half of every command it issued.
-Six failure modes fired 177 times across runs that all passed their hidden tests, and a
-failure table scoped to failures shows none of them.
+Six failure modes fired 213 times on runs that passed every hidden test, on 106 of the 155
+solved runs, and a failure table scoped to failures shows none of them.
 
 ## Results
 
