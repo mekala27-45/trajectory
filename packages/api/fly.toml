@@ -1,0 +1,57 @@
+# Fly.io configuration for the results API.
+#
+# Deliberately one small machine. The service is read mostly, the reads are cheap, and a
+# second machine would mean the in-process rate limiter becomes per machine for no benefit.
+#
+# Secrets are never in this file. Set them once:
+#   fly secrets set DATABASE_URL='postgresql+psycopg://...' TRAJECTORY_API_KEY='...'
+
+app = "trajectory-api"
+primary_region = "ewr"
+kill_signal = "SIGINT"
+kill_timeout = "10s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[build.args]
+  APP_USER = "trajectory"
+
+[env]
+  PORT = "8000"
+  TRAJECTORY_LOG_FORMAT = "json"
+  TRAJECTORY_LOG_LEVEL = "INFO"
+  TRAJECTORY_RATE_LIMIT_WRITES_PER_MINUTE = "30"
+  TRAJECTORY_DB_POOL_SIZE = "3"
+  # Set this to the deployed web app's origin before going live. A wrong value here does
+  # not break the API, it breaks the browser calling it, which is harder to diagnose.
+  TRAJECTORY_CORS_ORIGINS = "http://localhost:3000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Scale to zero and accept the cold start. The free allowance covers one machine that is
+  # mostly idle, and a leaderboard that takes two seconds to wake is a better trade than a
+  # bill. Raise this to 1 if the wake time ever matters more than the cost.
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 60
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1
+  cpu_kind = "shared"
