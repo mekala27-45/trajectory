@@ -1,0 +1,74 @@
+name: New task proposal
+description: Propose a task for a suite.
+labels: [task]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read `docs/writing-tasks.md` first. The short version: a good task has
+        unambiguous success criteria, hidden tests the agent cannot read, a reference
+        solution that actually passes, no network access, and a plausible wrong fix that
+        the hidden tests reject.
+
+        A task whose starting state already passes is scored by every agent. A task whose
+        own reference solution has rotted can be scored by none. CI checks both, so a
+        proposal that has not been run through `trajectory tasks verify-references` is
+        not ready.
+
+  - type: input
+    id: task_id
+    attributes:
+      label: Proposed identifier
+      placeholder: py-import-cycle-01
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_breaks
+    attributes:
+      label: What is broken
+      description: The defect, and what "fixed" means in terms a test can check.
+    validations:
+      required: true
+
+  - type: textarea
+    id: wrong_fix
+    attributes:
+      label: The plausible wrong fix
+      description: >
+        The shortcut that silences the symptom without fixing the cause, and how the
+        hidden tests reject it. A task without one of these mostly measures typing speed.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Difficulty tier
+      options: ["1", "2", "3", "4", "5"]
+    validations:
+      required: true
+
+  - type: input
+    id: reference_steps
+    attributes:
+      label: Reference step count
+      description: >
+        Steps in your reference playbook, including the closing finish call. This is the
+        numerator of step efficiency, so an inflated value flatters every agent.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you open this
+      options:
+        - label: The task needs no network access during the agent phase.
+          required: true
+        - label: The Dockerfile drops root and does not copy verify/ or reference/.
+          required: true
+        - label: "`trajectory tasks validate --strict` is clean."
+          required: true
+        - label: "`trajectory tasks verify-references` passes for this task."
+          required: true

@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in the harness does not behave the way it says it does.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the problem is a number that looks wrong, the run record is the most useful
+        thing you can attach. It carries the harness version, the resolved image ID, the
+        sandbox backend and the full trajectory, which together answer most questions
+        about whether the harness or the environment moved.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The exact command, including the model and the seed.
+      placeholder: trajectory run --task py-perf-01 --model anthropic/... --seed 0
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: version
+    attributes:
+      label: Environment
+      description: Output of `trajectory version`.
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Sandbox backend
+      options:
+        - docker
+        - local (unisolated, task authoring only)
+    validations:
+      required: true
+
+  - type: textarea
+    id: record
+    attributes:
+      label: Run record
+      description: >
+        Attach the run JSON from your run directory, or paste the relevant part. Redact
+        anything you do not want public.

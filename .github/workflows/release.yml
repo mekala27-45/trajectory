@@ -1,0 +1,130 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16.6-bookworm
+        env:
+          POSTGRES_USER: trajectory
+          POSTGRES_PASSWORD: trajectory
+          POSTGRES_DB: trajectory_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U trajectory -d trajectory_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TRAJECTORY_TEST_DATABASE_URL: postgresql+psycopg://trajectory:trajectory@127.0.0.1:5432/trajectory_test
+      TRAJECTORY_ALLOW_LOCAL_SANDBOX: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.24"
+          enable-cache: true
+      - run: uv sync --all-packages --all-extras --frozen
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends postgresql-16
+          python3 -m pip install --quiet --break-system-packages "pytest==8.3.4"
+          npm install --global typescript@5.7.2
+      - run: uv run ruff check .
+      - run: uv run mypy
+      - run: uv run python scripts/check_no_em_dash.py
+      - run: uv run pytest --cov --cov-fail-under=80 -q
+
+  pypi:
+    name: publish to pypi
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/trajectory-eval/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.24"
+
+      - name: build both distributions
+        # trajectory-core carries the schemas, scoring and taxonomy. trajectory-eval is
+        # the harness and the CLI, and depends on core. Publishing core first means
+        # `pip install trajectory-eval` resolves on the first try.
+        run: |
+          uv build --package trajectory-core --out-dir dist
+          uv build --package trajectory-eval --out-dir dist
+          ls -la dist
+
+      - name: check the metadata
+        run: uvx twine check dist/*
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+  ghcr:
+    name: publish the api image
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/api
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/api/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    name: github release
+    needs: [pypi, ghcr]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body_path: .github/release-notes.md
+          fail_on_unmatched_files: false

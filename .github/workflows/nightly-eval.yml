@@ -1,0 +1,118 @@
+name: nightly-eval
+
+# A benchmark whose numbers only move when someone remembers to run it is a benchmark
+# that quietly goes stale. This runs the suite on a schedule and opens a pull request with
+# the refreshed results, so the published figures are dated and reviewable rather than
+# whatever was true the day someone last cared.
+#
+# Guarded on a repository secret so a fork does not fail on every cron tick.
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "Space separated model identifiers. Defaults to two offline policies."
+        required: false
+        default: "stub:methodical stub:hasty"
+      seeds:
+        description: "Number of seeds per task."
+        required: false
+        default: "1"
+      budget_usd:
+        description: "Hard spend ceiling for the whole run."
+        required: false
+        default: "3.00"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: nightly-eval
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: skip on forks without the secret
+        id: guard
+        run: |
+          if [ -z "${{ secrets.TRAJECTORY_API_KEY }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "TRAJECTORY_API_KEY is not set in this repository, skipping."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.run == 'true'
+
+      - uses: astral-sh/setup-uv@v5
+        if: steps.guard.outputs.run == 'true'
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+        if: steps.guard.outputs.run == 'true'
+
+      - name: run the matrix
+        if: steps.guard.outputs.run == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          models=""
+          for model in ${{ github.event.inputs.models || 'stub:methodical stub:hasty' }}; do
+            models="$models --model $model"
+          done
+          uv run python scripts/run_matrix.py \
+            --label nightly \
+            --seeds "${{ github.event.inputs.seeds || '1' }}" \
+            --parallel 2 \
+            --budget-usd "${{ github.event.inputs.budget_usd || '3.00' }}" \
+            $models
+
+      - name: classify the unsolved runs with the judge
+        if: steps.guard.outputs.run == 'true' && env.JUDGE_MODEL != ''
+        env:
+          JUDGE_MODEL: ${{ vars.TRAJECTORY_JUDGE_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run trajectory judge runs/nightly --model "$JUDGE_MODEL" --sample 0.2
+
+      - name: refresh RESULTS.md
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          uv run trajectory report runs/nightly --format md --out RESULTS.generated.md
+          uv run trajectory report runs/nightly --format json --out results.json
+
+      - name: push the results to the api
+        if: steps.guard.outputs.run == 'true' && vars.TRAJECTORY_API_URL != ''
+        env:
+          TRAJECTORY_API_URL: ${{ vars.TRAJECTORY_API_URL }}
+          TRAJECTORY_API_KEY: ${{ secrets.TRAJECTORY_API_KEY }}
+        run: uv run trajectory push runs/nightly
+
+      - name: open a pull request with the refreshed numbers
+        if: steps.guard.outputs.run == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: nightly-results
+          title: "docs: refresh the nightly evaluation results"
+          commit-message: "docs: refresh the nightly evaluation results"
+          body: |
+            Automated by `nightly-eval`.
+
+            Generated numbers are in `RESULTS.generated.md`. Read them against the
+            limitations section of `RESULTS.md` before merging, and check the seed spread
+            rather than only the means: a solve rate that moved by less than its own
+            standard deviation has not moved.
+          add-paths: |
+            RESULTS.generated.md
+            results.json
+          delete-branch: true

@@ -1,0 +1,77 @@
+name: pages
+
+# Deploys the static demo. The web app reads the committed fixture runs rather than a live
+# API, which is what makes the public URL work for a visitor with no key, no account and
+# nothing to configure. The bundle is generated here rather than committed, so the
+# repository holds those six megabytes once.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "fixtures/recorded-runs/**"
+      - "tasks/**"
+      - "packages/core/**"
+      - "scripts/build_web_bundle.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+        id: pages
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: build the data bundle from the committed fixture runs
+        run: uv run python scripts/build_web_bundle.py --from-fixtures
+
+      - run: npm ci
+        working-directory: web
+
+      - name: build the static export
+        # Pages serves from a repository subpath, so every link and asset needs the prefix.
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: npm run build
+        working-directory: web
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

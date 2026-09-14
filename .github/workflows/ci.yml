@@ -1,0 +1,263 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.5.24"
+  FORCE_COLOR: "1"
+
+jobs:
+  lint:
+    name: lint and types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format
+        run: uv run ruff format --check .
+
+      - name: mypy strict
+        run: uv run mypy
+
+      - name: no em dashes anywhere
+        run: uv run python scripts/check_no_em_dash.py
+
+  test:
+    name: tests and coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16.6-bookworm
+        env:
+          POSTGRES_USER: trajectory
+          POSTGRES_PASSWORD: trajectory
+          POSTGRES_DB: trajectory_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U trajectory -d trajectory_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # A real Postgres, never SQLite. The service uses JSONB and timezone aware
+      # timestamps, so a SQLite substitute would be testing a database it never talks to.
+      TRAJECTORY_TEST_DATABASE_URL: postgresql+psycopg://trajectory:trajectory@127.0.0.1:5432/trajectory_test
+      # The Docker sandbox tests run here, because the runner has a daemon.
+      TRAJECTORY_ALLOW_LOCAL_SANDBOX: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: install the runtimes the local sandbox tests need
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends postgresql-16
+          python3 -m pip install --quiet --break-system-packages "pytest==8.3.4"
+          npm install --global typescript@5.7.2
+
+      - name: pytest with the coverage floor
+        run: >-
+          uv run pytest
+          --cov --cov-report=term-missing --cov-report=xml
+          --cov-fail-under=80
+          -p no:randomly
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: warn
+
+  tasks:
+    name: task images and reference solutions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: validate every task definition
+        run: uv run trajectory tasks validate --strict
+
+      - name: build every task image and replay every reference solution
+        # This is the gate that matters most. It catches a task whose starting state
+        # already passes, which every agent then scores, and a task whose own reference
+        # solution has rotted, which no agent can score and which moves the suite average
+        # for reasons that have nothing to do with any model.
+        run: uv run trajectory tasks verify-references --suite core-12 --backend docker
+
+      - name: record the image digests the run actually used
+        if: always()
+        run: |
+          docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | sort | tee image-ids.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: task-image-ids
+          path: image-ids.txt
+          if-no-files-found: warn
+
+  offline-suite:
+    name: offline suite with no network
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: run the whole suite against a scripted policy
+        # Exercises sandbox, agent loop, verifier, scorer, classifier, bundle and storage
+        # end to end with zero API calls and zero spend. Exits non-zero if nothing solved.
+        run: uv run trajectory run --suite core-12 --model stub:methodical --backend docker --parallel 2
+
+      - name: report
+        run: uv run trajectory report --format md
+
+  web:
+    name: web app
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: build the data bundle from the committed fixture runs
+        run: uv run python scripts/build_web_bundle.py --from-fixtures
+
+      - run: npm ci
+        working-directory: web
+
+      - run: npm run typecheck
+        working-directory: web
+
+      - run: npm run lint
+        working-directory: web
+
+      - run: npm run build
+        working-directory: web
+
+      - name: install the playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: web
+
+      - name: playwright smoke
+        run: npx playwright test
+        working-directory: web
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          if-no-files-found: ignore
+
+  api-image:
+    name: api container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16.6-bookworm
+        env:
+          POSTGRES_USER: trajectory
+          POSTGRES_PASSWORD: trajectory
+          POSTGRES_DB: trajectory
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U trajectory -d trajectory"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build the api image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/api/Dockerfile
+          push: false
+          load: true
+          tags: trajectory-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: run it and check it is healthy
+        run: |
+          docker run -d --name api --network host \
+            -e DATABASE_URL='postgresql+psycopg://trajectory:trajectory@127.0.0.1:5432/trajectory' \
+            -e TRAJECTORY_API_KEY='ci-api-key-value' \
+            trajectory-api:ci
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/healthz > /tmp/health.json; then
+              cat /tmp/health.json
+              break
+            fi
+            sleep 2
+          done
+          test -s /tmp/health.json
+          grep -q '"status":"ok"' /tmp/health.json
+
+      - name: the container must not run as root
+        run: test "$(docker exec api id -u)" != "0"
+
+      - name: the openapi document must render
+        run: curl -fsS http://127.0.0.1:8000/openapi.json | head -c 200
+
+      - name: logs on failure
+        if: failure()
+        run: docker logs api
