@@ -693,6 +693,15 @@ class Run(StrictModel):
         default_factory=list, description="Classified failures, ranked by confidence descending."
     )
 
+    image_id: str | None = Field(
+        default=None,
+        description=(
+            "Content address of the image the run executed in, as reported by the daemon. "
+            "A version tag in a Dockerfile can move; this cannot. When a published number "
+            "shifts, this is what tells you whether the environment changed or the model did."
+        ),
+    )
+
     harness_version: str = Field(
         default=HARNESS_VERSION, description="Version of the harness that produced the run."
     )

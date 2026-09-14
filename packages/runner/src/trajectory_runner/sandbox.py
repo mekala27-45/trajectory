@@ -159,6 +159,10 @@ class Sandbox(Protocol):
         """Copy the hidden tests in. Only ever called after the agent phase."""
         ...
 
+    def image_id(self) -> str | None:
+        """Content address of the environment, when there is one."""
+        ...
+
     def close(self) -> None:
         """Tear the sandbox down. Must be safe to call more than once."""
         ...
@@ -607,6 +611,16 @@ class DockerSandbox:
         result = self.exec(f"test -d {VERIFY_CONTAINER_PATH}", timeout_s=15, cap_bytes=1024)
         return result.exit_code == 0
 
+    def image_id(self) -> str | None:
+        """Content address of the image this container was created from.
+
+        Recorded on the run. A Dockerfile tag can move under you; this cannot, so it is
+        what answers "did the environment change or did the model" when a number shifts.
+        """
+        container = self._require()
+        image = container.image
+        return str(image.id) if image is not None else None
+
 
 # ------------------------------------------------------------------------- local
 
@@ -846,6 +860,13 @@ class LocalSandbox:
     def verify_present(self) -> bool:
         """True when the hidden tests exist inside the sandbox."""
         return (self.root / "verify").is_dir()
+
+    def image_id(self) -> str | None:
+        """There is no image. Local runs have no content addressed environment at all.
+
+        Which is a third reason they do not belong on a leaderboard.
+        """
+        return None
 
 
 # ----------------------------------------------------------------------- factory
