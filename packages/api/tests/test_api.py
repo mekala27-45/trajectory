@@ -480,3 +480,68 @@ class TestCors:
         )
         assert response.status_code == 200
         assert "authorization" in response.headers["access-control-allow-headers"].lower()
+
+
+class TestConfigurationSurface:
+    """A setting the service reads and the example file omits is a deployment that fails."""
+
+    def test_every_setting_appears_in_the_example_env_file(self):
+        from pathlib import Path
+
+        from trajectory_api.settings import Settings
+
+        repo = Path(__file__).resolve().parents[3]
+        example = (repo / ".env.example").read_text()
+        documented = {
+            line.split("=", 1)[0].strip()
+            for line in example.splitlines()
+            if "=" in line and not line.strip().startswith("#")
+        }
+        missing = {name.upper() for name in Settings.model_fields} - documented
+        assert not missing, f".env.example does not mention {sorted(missing)}"
+
+    def test_the_service_refuses_to_start_without_its_required_settings(self):
+        import pydantic
+        import pytest as pytest_module
+
+        from trajectory_api.settings import Settings
+
+        with pytest_module.raises(pydantic.ValidationError, match="database_url"):
+            Settings(trajectory_api_key="x" * 12)  # type: ignore[call-arg]
+
+    def test_a_non_postgres_url_is_refused_at_startup(self):
+        """SQLite would appear to work and lose the data on the next deploy."""
+        import pydantic
+        import pytest as pytest_module
+
+        from trajectory_api.settings import Settings
+
+        with pytest_module.raises(pydantic.ValidationError, match="must be a Postgres URL"):
+            Settings(database_url="sqlite:///results.db", trajectory_api_key="x" * 12)
+
+    def test_a_short_api_key_is_refused_at_startup(self):
+        import pydantic
+        import pytest as pytest_module
+
+        from trajectory_api.settings import Settings
+
+        with pytest_module.raises(pydantic.ValidationError):
+            Settings(database_url="postgresql+psycopg://a/b", trajectory_api_key="short")
+
+    def test_a_bare_postgres_url_is_normalised_to_the_shipped_driver(self):
+        from trajectory_api.settings import Settings
+
+        settings = Settings(
+            database_url="postgresql://user:pass@host/db", trajectory_api_key="x" * 12
+        )
+        assert settings.sqlalchemy_url.startswith("postgresql+psycopg://")
+
+    def test_cors_origins_are_split_and_stripped(self):
+        from trajectory_api.settings import Settings
+
+        settings = Settings(
+            database_url="postgresql+psycopg://a/b",
+            trajectory_api_key="x" * 12,
+            trajectory_cors_origins=" http://a.test , https://b.test ,, ",
+        )
+        assert settings.cors_origins == ["http://a.test", "https://b.test"]
