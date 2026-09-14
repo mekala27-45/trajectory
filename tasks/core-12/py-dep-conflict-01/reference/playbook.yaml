@@ -1,0 +1,62 @@
+notes: >
+  The conflict is stated plainly by pip, but the resolution is not: downgrading plugina to
+  1.0.0 would satisfy the resolver and break app.py, which calls slug and export_with_ids.
+  Both only exist in the versions built against the 2.x core. The reference reads the
+  wheelhouse to see what versions exist before choosing.
+steps:
+  - tool: bash
+    args:
+      command: cat requirements.txt && sh check.sh 2>&1 | tail -25
+    note: Reproduce the failure and read the resolver's explanation of the conflict.
+
+  - tool: bash
+    args:
+      command: ls wheelhouse/
+    note: See which versions actually exist. This is the constraint set.
+
+  - tool: bash
+    args:
+      command: 'for w in wheelhouse/*.whl; do echo "== $w"; python -c "import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); print([n for n in z.namelist() if n.endswith(\"METADATA\")][0]); print(z.read([n for n in z.namelist() if n.endswith(\"METADATA\")][0]).decode())" "$w" | grep -E "^(Name|Version|Requires-Dist)"; done'
+    note: >
+      Read each wheel's requirements. plugina 2.0.0 and pluginb 3.0.0 both want the 2.x
+      core; plugina 1.0.0 and pluginb 1.0.0 both want 1.x.
+
+  - tool: bash
+    args:
+      command: grep -n "slug\|export_with_ids" app.py
+    note: >
+      Check which API the application actually uses before choosing a direction. slug and
+      export_with_ids exist only in the 2.x line, so downgrading is not an option.
+
+  - tool: write_file
+    args:
+      path: requirements.txt
+      content: |
+        # Pinned to the versions built against the 2.x core. app.py uses plugina.slug and
+        # pluginb.export_with_ids, neither of which exists in the 1.x line, so the whole
+        # set has to move forward together rather than the core moving back.
+        #   pip install --no-index --find-links wheelhouse -r requirements.txt
+        plugina==2.0.0
+        pluginb==3.0.0
+        libcore==2.1.0
+    note: Move the whole set forward together, with the reason written down.
+
+  - tool: bash
+    args:
+      command: sh check.sh
+    note: Confirm the requirements resolve and the application runs.
+
+  - tool: bash
+    args:
+      command: git diff --stat 2>/dev/null || echo "no git repository"
+    note: Confirm nothing else was touched.
+
+  - tool: finish
+    args:
+      summary: >
+        requirements.txt pinned plugina 2.0.0 (needs libcore 2.x) alongside pluginb 1.0.0
+        and libcore 1.4.0 (both 1.x), which is unsatisfiable. app.py calls plugina.slug and
+        pluginb.export_with_ids, which exist only in the versions built against the 2.x
+        core, so the resolution was to move the whole set forward: plugina 2.0.0, pluginb
+        3.0.0, libcore 2.1.0. check.sh passes and only requirements.txt changed.
+    note: State why the set moved forward rather than the core moving back.

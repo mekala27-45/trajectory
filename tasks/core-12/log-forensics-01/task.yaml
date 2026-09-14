@@ -1,0 +1,36 @@
+title: Find the root cause of an outage in 40,000 lines of logs
+description: >
+  A 95 minute window of logs from five services covers a customer facing outage. One
+  configuration change shrank a connection pool from 40 to 4, which exhausted the pool in
+  the inventory service and cascaded into timeouts in checkout and 503s at the gateway. The
+  log also contains three plausible distractions: a certificate expiry warning that fires
+  throughout, a burst of scanner 404s twenty minutes before the incident, and an operator
+  restarting an unrelated service in the middle of it. The deliverable is a findings file
+  in a specified schema, so the answer is checked field by field rather than by eye.
+language: any
+difficulty: 2
+tags: [log-analysis, forensics, root-cause, data-extraction]
+
+image_tag: trajectory/log-forensics-01
+setup_cmd: gunzip -f app.log.gz
+agent_prompt: |
+  `app.log` in this directory covers a customer facing outage.
+
+  Work out what caused it, and write your conclusions to `findings.json` exactly as
+  `SCHEMA.md` specifies. Every field is checked, including the counts.
+
+  There is no network access. Standard command line tools and Python 3 are available.
+
+max_steps: 40
+timeout_seconds: 900
+command_timeout_seconds: 240
+
+verify_cmd: python -m pytest -q "$VERIFY_DIR"
+verify_parser: pytest
+verify_timeout_seconds: 300
+
+reference_step_count: 11
+relevant_paths:
+  - findings.json
+  - "*.py"
+  - "*.sh"

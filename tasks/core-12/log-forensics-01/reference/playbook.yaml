@@ -1,0 +1,118 @@
+notes: >
+  The shape of the incident is visible from a minute by minute error histogram, and the
+  cause is the only self inflicted change in the window. The three distractions are all
+  plausible and all ruled out by timing: the certificate warning fires before and after
+  the errors, the 404 burst ends twenty minutes before them, and the payments restart
+  happens mid incident and changes nothing. The counts are computed rather than eyeballed,
+  because the schema checks them.
+steps:
+  - tool: bash
+    args:
+      command: ls -la && wc -l app.log && head -3 app.log
+    note: "Confirm the log decompressed and learn the line format."
+
+  - tool: bash
+    args:
+      command: cat SCHEMA.md
+    note: "Read the deliverable spec before analysing anything, so nothing has to be redone."
+
+  - tool: bash
+    args:
+      command: grep -oE '^\S+ (WARN|ERROR)' app.log | awk '{print $2}' | sort | uniq -c
+    note: "Get a sense of scale: how much of the log is warnings versus errors."
+
+  - tool: bash
+    args:
+      command: grep -E 'status=5[0-9][0-9]' app.log | cut -c1-16 | uniq -c | head -60
+    note: >
+      Histogram the 5xx lines by minute. The errors start abruptly and stop abruptly, which
+      bounds the incident window without any guessing.
+
+  - tool: bash
+    args:
+      command: grep -E 'status=5[0-9][0-9]' app.log | grep -oE '\[[a-z-]+\]' | sort | uniq -c | sort -rn
+    note: "Which services emitted 5xx, and in what proportion. inventory leads, so look there first."
+
+  - tool: bash
+    args:
+      command: grep -E 'status=5[0-9][0-9]' app.log | sed -E 's/^\S+ \S+ \[[a-z-]+\] //; s/ [a-z_]+=.*//' | sort | uniq -c | sort -rn
+    note: "Collapse the 5xx lines to their messages. Three distinct failures, one of them upstream of the other two."
+
+  - tool: bash
+    args:
+      command: grep -nE 'config.reload|restarted|expires soon' app.log | head -20
+    note: >
+      Look for anything self inflicted in the window. One config change lands seconds
+      before the first error and its inverse lands seconds before the last one.
+
+  - tool: bash
+    args:
+      command: grep -E 'pool exhausted' app.log | head -2 && grep -E 'config.reload' app.log
+    note: >
+      Confirm the mechanism rather than assuming it. pool_max=4 on the error lines matches
+      the new value on the config line, and the revert restores 40.
+
+  - tool: write_file
+    args:
+      path: analyse.py
+      content: |
+        """Derive the findings file from the log.
+
+        Every number in the schema is computed here rather than read off the screen, so a
+        miscount is not possible and the work is reproducible by whoever reviews it.
+        """
+
+        import json
+        import re
+        from pathlib import Path
+
+        LINES = Path("app.log").read_text().splitlines()
+
+        SERVICE = re.compile(r"\[([a-z-]+)\]")
+        STATUS = re.compile(r"\bstatus=(\d{3})\b")
+        FIELD = re.compile(r"\b{}=(\S+)")
+
+
+        def field(line: str, key: str) -> str:
+            match = re.search(rf"\b{key}=(\S+)", line)
+            return match.group(1) if match else ""
+
+
+        five_xx = [line for line in LINES if (m := STATUS.search(line)) and int(m.group(1)) >= 500]
+        impacted = sorted({SERVICE.search(line).group(1) for line in five_xx})
+
+        reloads = [line for line in LINES if "config.reload" in line]
+        trigger = next(line for line in reloads if field(line, "new") == "4")
+        revert = next(line for line in reloads if field(line, "old") == "4")
+
+        findings = {
+            "root_cause_service": SERVICE.search(trigger).group(1),
+            "trigger_event_id": field(trigger, "event_id"),
+            "trigger_timestamp": trigger.split(".")[0] + "Z",
+            "resolution_event_id": field(revert, "event_id"),
+            "error_signature": "pool exhausted",
+            "impacted_services": impacted,
+            "total_5xx": len(five_xx),
+            "line_count": len(LINES),
+        }
+
+        Path("findings.json").write_text(json.dumps(findings, indent=2) + "\n")
+        print(json.dumps(findings, indent=2))
+    note: "Compute every field, including the counts, rather than transcribing them."
+
+  - tool: bash
+    args:
+      command: python3 analyse.py && cat findings.json
+    note: "Produce the deliverable and read it back before declaring anything."
+
+  - tool: finish
+    args:
+      summary: >
+        Root cause was a configuration reload in the inventory service (event cfg-004821 at
+        14:32:07) that cut db.pool.max_size from 40 to 4. Inventory immediately began
+        logging "pool exhausted, waiting for connection" with pool_max=4, which surfaced as
+        deadline exceeded in checkout and 503s at the gateway. Errors stop after the inverse
+        reload, cfg-004822. The certificate warning, the scanner 404 burst and the payments
+        restart are all present in the window and none of them correlate with the error
+        envelope. findings.json written with every count computed from the log.
+    note: "State the mechanism and say explicitly why the distractions were ruled out."

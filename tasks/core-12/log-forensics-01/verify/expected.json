@@ -1,0 +1,14 @@
+{
+  "root_cause_service": "inventory",
+  "trigger_event_id": "cfg-004821",
+  "trigger_timestamp": "2026-04-12T14:32:07Z",
+  "resolution_event_id": "cfg-004822",
+  "error_signature": "pool exhausted",
+  "impacted_services": [
+    "api-gateway",
+    "checkout",
+    "inventory"
+  ],
+  "total_5xx": 3550,
+  "line_count": 40029
+}

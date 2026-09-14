@@ -1,0 +1,32 @@
+title: Fix the off by one in an inclusive date range
+description: >
+  A small date utility library has one off by one error in the function that expands a
+  start and end date into a list of dates. The library documents the range as inclusive of
+  both ends, and three of its tests fail because the implementation excludes the end date.
+  Everything needed to diagnose this is visible in the workspace, including a test suite
+  that reproduces the failure.
+language: python
+difficulty: 1
+tags: [off-by-one, dates, entry-level]
+
+image_tag: trajectory/py-failing-suite-01
+agent_prompt: |
+  The `daterange` library in this repository has failing tests.
+
+  Run the test suite, find the cause, and fix it. The docstrings describe the intended
+  behaviour: `date_range` returns every date from `start` to `end` with both ends
+  included.
+
+  Do not change the tests. Fix the implementation.
+
+max_steps: 25
+timeout_seconds: 420
+command_timeout_seconds: 120
+
+verify_cmd: python -m pytest -q "$VERIFY_DIR"
+verify_parser: pytest
+verify_timeout_seconds: 180
+
+reference_step_count: 6
+relevant_paths:
+  - src/daterange/**

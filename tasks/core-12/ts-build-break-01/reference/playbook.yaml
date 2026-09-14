@@ -1,0 +1,107 @@
+notes: >
+  Two problems, and the second only appears once the first is fixed. The path alias is a
+  dead end without a bundler: TypeScript rewrites the type resolution but not the emitted
+  import, so even a correct alias target produces JavaScript that cannot resolve at
+  runtime. The convention the README documents, a project reference plus an import of the
+  dependency's built entry point, is the resolution. The undefined check is the part where
+  turning strict off is tempting.
+steps:
+  - tool: bash
+    args:
+      command: sh build.sh 2>&1 | head -20
+    note: Reproduce the failure. TS2307, the app cannot resolve its import of core.
+
+  - tool: read_file
+    args:
+      path: packages/app/tsconfig.json
+    note: >
+      The paths target is written relative to the repository root while baseUrl is the
+      package directory, and the references array is gone.
+
+  - tool: bash
+    args:
+      command: sed -n '1,20p' README.md
+    note: >
+      Check the documented convention before inventing one. Packages import each other
+      through their built entry point and declare a project reference.
+
+  - tool: write_file
+    args:
+      path: packages/app/tsconfig.json
+      content: |
+        {
+          "extends": "../../tsconfig.base.json",
+          "compilerOptions": {
+            "rootDir": "src",
+            "outDir": "dist"
+          },
+          "include": ["src/**/*.ts"],
+          "references": [{ "path": "../core" }]
+        }
+    note: >
+      Drop the alias and restore the project reference, so tsc -b builds core first and
+      redirects the import to its source for type checking.
+
+  - tool: bash
+    args:
+      command: sed -i 's|from "@core/index.js"|from "../../core/dist/index.js"|' packages/app/src/main.ts
+    note: >
+      Import the built entry point. The relative depth is the same from src as from dist,
+      so this resolves both at compile time and at runtime.
+
+  - tool: bash
+    args:
+      command: sh build.sh 2>&1 | head -20
+    note: "Resolution is fixed, which surfaces the real type error: shape can be undefined."
+
+  - tool: read_file
+    args:
+      path: packages/core/src/shapes.ts
+    note: >
+      Confirm the signature is deliberate. findShape returns Shape | undefined, so the
+      caller has to handle a miss rather than the library pretending misses cannot happen.
+
+  - tool: write_file
+    args:
+      path: packages/app/src/main.ts
+      content: |
+        import { findShape, shapeNames } from "../../core/dist/index.js";
+
+        export function report(): string[] {
+          const lines: string[] = [];
+          for (const name of shapeNames()) {
+            const shape = findShape(name);
+            if (shape === undefined) {
+              continue;
+            }
+            lines.push(
+              `${shape.name} has ${shape.sides} sides and an area of ${shape.area().toFixed(2)}`,
+            );
+          }
+          return lines;
+        }
+
+        if (process.argv[1]?.endsWith("main.js")) {
+          for (const line of report()) {
+            console.log(line);
+          }
+        }
+    note: Handle the miss in the caller. Narrowing keeps strict satisfied with no suppression.
+
+  - tool: bash
+    args:
+      command: sh build.sh && node packages/app/dist/main.js
+    note: Build and run. Both have to be checked, because the build passing is not the goal.
+
+  - tool: finish
+    args:
+      summary: >
+        The app's tsconfig had a paths alias whose target was relative to the repository
+        root instead of the package, and had lost its project reference to core, so tsc
+        could not resolve the import and never built the dependency. Restored the reference
+        and imported core through its built entry point, which is the convention the README
+        documents and the only form that resolves at runtime too. That surfaced a real
+        strict null error, since findShape returns Shape | undefined, so the caller now
+        narrows instead of assuming. strict is untouched, no suppressions added, core
+        unchanged. Build passes and the report matches.
+    note: Name both problems and say why the alias was the wrong direction.

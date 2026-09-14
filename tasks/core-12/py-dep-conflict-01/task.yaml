@@ -1,0 +1,33 @@
+title: Resolve an unsatisfiable set of pinned dependencies
+description: >
+  A report builder depends on two plugins that both depend on a shared core library. The
+  pins in requirements.txt are unsatisfiable: one plugin requires the 2.x core, the other
+  requires the 1.x core, and the core itself is pinned to 1.x. The application uses
+  functions that only exist in the 2.x core, so downgrading is not a resolution. Every
+  package is available offline from a vendored wheelhouse, with several versions of each.
+language: python
+difficulty: 2
+tags: [dependencies, resolution, offline]
+
+image_tag: trajectory/py-dep-conflict-01
+agent_prompt: |
+  `sh check.sh` fails in this repository. Make it pass.
+
+  There is no network access. Every package version you might need is already in
+  `wheelhouse/`, and pip is configured to install from there with `--no-index
+  --find-links wheelhouse`.
+
+  Do not change `app.py` and do not change anything in `wheelhouse/`. The application code
+  is correct, and the versions available to you are fixed.
+
+max_steps: 30
+timeout_seconds: 600
+command_timeout_seconds: 180
+
+verify_cmd: python -m pytest -q "$VERIFY_DIR"
+verify_parser: pytest
+verify_timeout_seconds: 300
+
+reference_step_count: 8
+relevant_paths:
+  - requirements.txt

@@ -1,0 +1,36 @@
+title: Repair a TypeScript project reference build without weakening strict
+description: >
+  A two package TypeScript workspace stopped building after someone replaced its project
+  reference imports with a path alias. The app's tsconfig gained a paths entry whose target
+  is written relative to the repository root rather than to the package, and its references
+  array was removed, so the compiler cannot resolve the import and never builds the
+  dependency first. Once resolution is restored a second error surfaces, because the
+  catalogue lookup returns a value that can be undefined and strict mode is on. The obvious
+  shortcut is to turn strict off, and the hidden tests check that it is still on.
+language: typescript
+difficulty: 2
+tags: [typescript, monorepo, project-references, strict]
+
+image_tag: trajectory/ts-build-break-01
+agent_prompt: |
+  `sh build.sh` fails in this workspace. Make it pass, and make
+  `node packages/app/dist/main.js` print the report shown in the README.
+
+  There is no node_modules and no network. The TypeScript compiler is installed globally,
+  so `tsc` works.
+
+  Keep `strict` on for the whole workspace. Do not disable or loosen any compiler check,
+  and do not suppress errors with `@ts-ignore`, `@ts-expect-error` or a cast to `any`.
+  Do not change anything under `packages/core`.
+
+max_steps: 35
+timeout_seconds: 720
+command_timeout_seconds: 240
+
+verify_cmd: node --test "$VERIFY_DIR"/*.test.mjs
+verify_parser: node_tap
+verify_timeout_seconds: 420
+
+reference_step_count: 10
+relevant_paths:
+  - packages/app/**

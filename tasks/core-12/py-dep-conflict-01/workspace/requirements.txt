@@ -1,0 +1,6 @@
+# Pinned by hand during an incident and never revisited.
+# Install offline from the vendored wheelhouse:
+#   pip install --no-index --find-links wheelhouse -r requirements.txt
+plugina==2.0.0
+pluginb==1.0.0
+libcore==1.4.0

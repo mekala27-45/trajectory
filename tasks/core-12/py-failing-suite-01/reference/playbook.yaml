@@ -1,0 +1,39 @@
+notes: >
+  The failure is visible from one test run. The only judgement call is resolving it in
+  date_range rather than patching days_between, which would leave business_days and
+  split_months still wrong.
+steps:
+  - tool: bash
+    args:
+      command: ls -R . | head -40
+    note: See the shape of the repository before touching anything.
+
+  - tool: bash
+    args:
+      command: python -m pytest -q tests
+    note: Reproduce the failure. Three tests fail, all involving the end of a range.
+
+  - tool: read_file
+    args:
+      path: src/daterange/core.py
+    note: Read the implementation. date_range iterates range(span), which drops the end date.
+
+  - tool: bash
+    args:
+      command: sed -i 's/for offset in range(span)/for offset in range(span + 1)/' src/daterange/core.py
+    note: >
+      Fix the range expansion itself. days_between, business_days and split_months all
+      build on date_range, so one change resolves every failure.
+
+  - tool: bash
+    args:
+      command: python -m pytest -q tests
+    note: Confirm the suite is green before declaring anything.
+
+  - tool: finish
+    args:
+      summary: >
+        date_range iterated range(span) instead of range(span + 1), so the end date was
+        excluded from every inclusive range. Fixed in date_range, which also resolves
+        days_between and business_days. Full suite passes.
+    note: Close out with the cause, not just the change.

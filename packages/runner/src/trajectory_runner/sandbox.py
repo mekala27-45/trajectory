@@ -30,6 +30,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -737,13 +738,34 @@ class LocalSandbox:
             shutil.rmtree(root, ignore_errors=True)
             log.debug("sandbox.removed", task=self.task.id, backend="local")
 
+    @staticmethod
+    def _sanitised_path() -> str:
+        """Return PATH with the harness's own virtualenv removed.
+
+        Without this a task's `python` resolves to the interpreter running the harness,
+        which has a different set of installed packages than the task image does. That
+        produces failures that exist only on the local backend and look like task bugs.
+        The Docker backend never sees the host PATH at all, so this only brings the local
+        backend closer to it.
+        """
+        virtual_env = os.environ.get("VIRTUAL_ENV")
+        shadowed = {p for p in (virtual_env, sys.prefix) if p and p != sys.base_prefix}
+        parts = [
+            part
+            for part in os.environ.get("PATH", "").split(os.pathsep)
+            if part
+            and not any(part.startswith(f"{prefix}/") or part == prefix for prefix in shadowed)
+        ]
+        return os.pathsep.join(parts) or "/usr/local/bin:/usr/bin:/bin"
+
     def _env(self) -> dict[str, str]:
         """Environment for commands, pointed at the sandbox rather than the real home."""
         env = {
             k: v
             for k, v in os.environ.items()
-            if k in ("PATH", "LANG", "LC_ALL", "SYSTEMROOT", "GOCACHE", "GOMODCACHE", "GOPATH")
+            if k in ("LANG", "LC_ALL", "SYSTEMROOT", "GOCACHE", "GOMODCACHE", "GOPATH")
         }
+        env["PATH"] = self._sanitised_path()
         env.update(
             {
                 "HOME": str(self.root),
