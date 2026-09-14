@@ -852,7 +852,15 @@ class MetricStat(StrictModel):
     n: int = Field(ge=0, description="Number of runs behind the mean.")
 
     def render(self, *, digits: int = 3, percent: bool = False) -> str:
-        """Format as `mean +/- stdev` for a table cell."""
+        """Format as `mean +/- stdev` for a table cell.
+
+        A group with nothing in it renders as `n/a`, never as `0.000 +/- 0.000`. Step
+        efficiency is undefined on unsolved runs, so a model that solved nothing has no
+        efficiency at all, and printing a zero would read as a measurement of terrible
+        efficiency rather than as the absence of one.
+        """
+        if self.n == 0:
+            return "n/a"
         scale = 100.0 if percent else 1.0
         suffix = "%" if percent else ""
         return f"{self.mean * scale:.{digits}f}{suffix} +/- {self.stdev * scale:.{digits}f}{suffix}"

@@ -8,6 +8,7 @@ from trajectory_core.models import RunStatus, ToolName
 from trajectory_runner.agent import (
     MAX_CONSECUTIVE_NO_TOOL,
     AgentOutcome,
+    Budget,
     ChatMessage,
     compress,
     run_agent,
@@ -74,7 +75,7 @@ class TestTermination:
             [PlannedCall(name="bash", arguments={"command": "true"})] * 20,
             price_per_1k_tokens=50.0,
         )
-        outcome = drive(sample_task, sandbox, [], provider=provider, budget_usd=0.05)
+        outcome = drive(sample_task, sandbox, [], provider=provider, budget=Budget(0.05))
         assert outcome.status is RunStatus.BUDGET_EXCEEDED
         assert outcome.error is not None
         assert "ceiling" in outcome.error

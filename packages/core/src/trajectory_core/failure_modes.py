@@ -28,6 +28,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 from fnmatch import fnmatch
+from itertools import pairwise
 
 from trajectory_core.models import (
     Detector,
@@ -355,10 +356,22 @@ def detect_premature_success(run: Run, task: Task) -> FailureModeHit | None:
 def detect_retry_loop(run: Run, task: Task) -> FailureModeHit | None:
     """F04. The same command three or more times, changing nothing.
 
-    Requires identical output across the repeats and no file written between the first and
-    the last. Identical output is the strong part of the signal: if the output changed,
-    something in the environment changed, and repeating a command after a change is exactly
-    what a correct trajectory does.
+    Occurrences of a command are grouped into stretches: a stretch continues while the
+    output stays byte identical and no file was written since the previous occurrence, and
+    breaks as soon as either changes. A stretch of three or more is a retry loop.
+
+    Grouping is what makes this precise. Comparing every occurrence of a command at once
+    fails in the common case: an agent that runs the same failing test four times in a row,
+    fixes the code, and runs it once more has four identical outputs and one different one,
+    and a global comparison reports no loop at all. Requiring the output to be identical
+    within a stretch is also what keeps the rule quiet on correct behaviour, since running
+    a suite again after a change is exactly what a good trajectory does.
+
+    Interleaved reads do not break a stretch. Reading a file between two identical failing
+    commands changes nothing about the environment, so an agent doing that is still
+    repeating rather than adapting. A different shell command does break it, because trying
+    something else is adapting, which is the behaviour this rule is looking for the absence
+    of.
     """
     del task
     occurrences: dict[str, list[int]] = defaultdict(list)
@@ -377,11 +390,24 @@ def detect_retry_loop(run: Run, task: Task) -> FailureModeHit | None:
     for command, positions in occurrences.items():
         if len(positions) < MIN_RETRY_REPEATS:
             continue
-        if any(positions[0] < write < positions[-1] for write in write_positions):
-            continue
-        outputs = {run.steps[position].tool_output for position in positions}
-        if len(outputs) == 1:
-            loops.append((command, [run.steps[p].index for p in positions]))
+        stretch = [positions[0]]
+        other_commands = {
+            position
+            for position, step in enumerate(run.steps)
+            if (issued := command_of(step)) is not None and issued != command
+        }
+        for previous, current in pairwise(positions):
+            output_changed = run.steps[previous].tool_output != run.steps[current].tool_output
+            wrote_between = any(previous < write < current for write in write_positions)
+            adapted_between = any(previous < other < current for other in other_commands)
+            if output_changed or wrote_between or adapted_between:
+                if len(stretch) >= MIN_RETRY_REPEATS:
+                    loops.append((command, [run.steps[p].index for p in stretch]))
+                stretch = [current]
+            else:
+                stretch.append(current)
+        if len(stretch) >= MIN_RETRY_REPEATS:
+            loops.append((command, [run.steps[p].index for p in stretch]))
 
     if not loops:
         return None
@@ -391,7 +417,7 @@ def detect_retry_loop(run: Run, task: Task) -> FailureModeHit | None:
         FailureModeId.RETRY_LOOP,
         confidence=1.0,
         evidence=(
-            f"Ran `{command[:200]}` {len(indices)} times at steps "
+            f"Ran `{command[:200]}` {len(indices)} times in a row at steps "
             f"{', '.join(str(i) for i in indices)}, with identical output every time and no "
             "file written in between."
         ),

@@ -417,3 +417,62 @@ class TestClassifyRules:
         for hit in classify_rules(run, make_task()):
             assert hit.evidence
             assert hit.detector is Detector.RULE
+
+
+class TestF04RetryLoopGrouping:
+    """The grouping rule, which is what makes F04 precise rather than merely plausible."""
+
+    def test_fires_on_a_run_of_failures_even_when_the_command_later_succeeds(self):
+        """Four identical failures, then a fix, then the same command passing.
+
+        A global comparison across all five occurrences sees two distinct outputs and
+        reports nothing, which is wrong: the agent did hammer a failing command four times.
+        """
+        steps = [
+            *[make_step(i, command="pytest -q", exit_code=1, output="1 failed") for i in range(4)],
+            make_step(4, command="sed -i s/a/b/ src/app.py", exit_code=0, output=""),
+            make_step(5, command="pytest -q", exit_code=0, output="4 passed"),
+        ]
+        hit = detect_retry_loop(make_run(steps), make_task())
+        assert hit is not None
+        assert hit.step_indices == [0, 1, 2, 3]
+        assert "4 times in a row" in hit.evidence
+
+    def test_a_read_between_repeats_does_not_break_the_stretch(self):
+        """Reading a file changes nothing, so the agent is still repeating."""
+        steps = [
+            make_step(0, command="pytest -q", exit_code=1, output="1 failed"),
+            make_step(1, tool=ToolName.READ_FILE.value, args={"path": "a.py"}, exit_code=None),
+            make_step(2, command="pytest -q", exit_code=1, output="1 failed"),
+            make_step(3, tool=ToolName.LIST_DIR.value, args={"path": "."}, exit_code=None),
+            make_step(4, command="pytest -q", exit_code=1, output="1 failed"),
+        ]
+        hit = detect_retry_loop(make_run(steps), make_task())
+        assert hit is not None
+        assert hit.step_indices == [0, 2, 4]
+
+    def test_two_repeats_either_side_of_a_write_is_not_a_loop(self):
+        """Two, then a change, then two. Neither stretch reaches three."""
+        steps = [
+            make_step(0, command="pytest -q", exit_code=1, output="1 failed"),
+            make_step(1, command="pytest -q", exit_code=1, output="1 failed"),
+            make_step(
+                2,
+                tool=ToolName.WRITE_FILE.value,
+                args={"path": "src/app.py", "content": "x"},
+                exit_code=None,
+            ),
+            make_step(3, command="pytest -q", exit_code=1, output="1 failed"),
+            make_step(4, command="pytest -q", exit_code=1, output="1 failed"),
+        ]
+        assert detect_retry_loop(make_run(steps), make_task()) is None
+
+    def test_reports_the_longest_stretch(self):
+        steps = [
+            *[make_step(i, command="a", exit_code=1, output="x") for i in range(3)],
+            make_step(3, command="b", exit_code=0, output="different"),
+            *[make_step(4 + i, command="a", exit_code=1, output="x") for i in range(5)],
+        ]
+        hit = detect_retry_loop(make_run(steps), make_task())
+        assert hit is not None
+        assert len(hit.step_indices) == 5

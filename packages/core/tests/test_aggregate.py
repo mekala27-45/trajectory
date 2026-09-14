@@ -81,6 +81,11 @@ class TestStat:
     def test_rendering_for_a_table_cell(self):
         assert stat([0.5, 0.5]).render(digits=1, percent=True) == "50.0% +/- 0.0%"
 
+    def test_an_unmeasured_group_renders_as_not_applicable(self):
+        """0.000 +/- 0.000 would read as a measurement of zero, which is a different claim."""
+        assert stat([]).render() == "n/a"
+        assert stat([]).render(percent=True) == "n/a"
+
 
 class TestSeedVariance:
     def test_collapses_each_task_before_comparing_seeds(self):

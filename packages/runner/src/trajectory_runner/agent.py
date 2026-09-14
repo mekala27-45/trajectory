@@ -23,6 +23,7 @@ to a process that died with everything in memory is a self-inflicted wound.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -61,6 +62,62 @@ Constraints:
 - Commands are not interactive. Anything that waits for input will time out.
 - Keep changes scoped to the task. Do not rewrite files the task did not ask you to touch.
 """
+
+
+class Budget:
+    """A hard spend ceiling, checked before every model call.
+
+    Shared across a suite run rather than held per run, because the thing an operator
+    actually wants to cap is the total, and four parallel runs each respecting a separate
+    limit is four times the bill they asked for.
+
+    Running a suite overnight and finding a bill in the hundreds is the most common
+    self-inflicted wound in this category of project, which is why this is a class with a
+    lock rather than a float compared in a loop.
+    """
+
+    def __init__(self, limit_usd: float | None = None) -> None:
+        """Create a ledger, unlimited when the limit is None."""
+        self._limit = limit_usd
+        self._spent = 0.0
+        self._lock = threading.Lock()
+
+    @property
+    def limit(self) -> float | None:
+        """The ceiling, or None when there is none."""
+        return self._limit
+
+    @property
+    def spent(self) -> float:
+        """Total recorded spend."""
+        with self._lock:
+            return round(self._spent, 6)
+
+    def remaining(self) -> float | None:
+        """Headroom left, or None when unlimited."""
+        if self._limit is None:
+            return None
+        with self._lock:
+            return round(max(0.0, self._limit - self._spent), 6)
+
+    def allows(self, projected: float) -> bool:
+        """Whether a call projected to cost this much can still be made."""
+        if self._limit is None:
+            return True
+        with self._lock:
+            return self._spent + projected <= self._limit
+
+    def record(self, amount: float) -> None:
+        """Add actual spend to the ledger."""
+        if amount <= 0:
+            return
+        with self._lock:
+            self._spent += amount
+
+    def exhausted(self) -> bool:
+        """Whether the ceiling has been reached."""
+        remaining = self.remaining()
+        return remaining is not None and remaining <= 0.0
 
 
 @dataclass(slots=True)
@@ -161,7 +218,7 @@ def run_agent(
     command_timeout_seconds: int,
     cap_bytes: int,
     tools_enabled: list[ToolName],
-    budget_usd: float | None = None,
+    budget: Budget | None = None,
     on_step: StepSink | None = None,
 ) -> AgentOutcome:
     """Run the agent against the task until something stops it.
@@ -175,7 +232,7 @@ def run_agent(
         command_timeout_seconds: Ceiling for any single command.
         cap_bytes: Output cap per command.
         tools_enabled: Tools offered to the model.
-        budget_usd: Hard spend ceiling checked before every model call.
+        budget: Shared spend ledger, checked before every model call. None means no cap.
         on_step: Called with each completed step, for incremental flushing.
 
     Returns:
@@ -206,13 +263,14 @@ def run_agent(
             outcome.context_compressed = True
             log.info("agent.context_compressed", task=task.id, steps=len(outcome.steps))
 
-        if budget_usd is not None:
-            projected = spent + provider.estimate_cost(messages)
-            if projected > budget_usd:
+        if budget is not None:
+            estimate = provider.estimate_cost(messages)
+            if not budget.allows(estimate):
                 outcome.status = RunStatus.BUDGET_EXCEEDED
                 outcome.error = (
-                    f"next call was estimated at {projected - spent:.4f} USD, which would take "
-                    f"the run to {projected:.4f} USD against a ceiling of {budget_usd:.4f} USD"
+                    f"next call was estimated at {estimate:.4f} USD against "
+                    f"{budget.remaining():.4f} USD of remaining budget "
+                    f"(ceiling {budget.limit:.4f} USD, spent {budget.spent:.4f} USD)"
                 )
                 break
 
@@ -224,6 +282,8 @@ def run_agent(
             break
 
         spent += reply.cost_usd
+        if budget is not None:
+            budget.record(reply.cost_usd)
 
         if not reply.has_tool_call:
             consecutive_no_tool += 1
