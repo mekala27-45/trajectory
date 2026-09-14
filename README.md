@@ -39,9 +39,14 @@ failure table scoped to failures shows none of them.
 | `stub:sloppy` | 100.0% +/- 0.0% | 0.766 | **0.922** | 0.052 | 1.000 |
 | `stub:thrasher` | 100.0% +/- 0.0% | **0.664** | 1.000 | **0.493** | **0.833 +/- 0.136** |
 | `stub:reckless` | 97.2% +/- 3.9% | 0.766 | 1.000 | 0.045 | 1.000 |
-| `stub:hasty` | **33.3% +/- 23.6%** | n/a | 1.000 | 0.014 | 1.000 |
+| `stub:hasty` | **33.3% +/- 23.6%** | 1.000 | 1.000 | 0.014 | 1.000 |
 
 180 runs, 12 tasks, 3 seeds, 47.9 minutes, 0.00 USD.
+
+Step efficiency is scored only on runs that solved the task, so `stub:hasty` reaching
+1.000 is not a contradiction: on the third of runs where quitting early happened to be
+enough, it used no more steps than the reference route. Scoring efficiency on a failed
+run would reward giving up, which is the behaviour this policy exists to exhibit.
 
 These five are **scripted offline policies, not language models**, and this matrix ran on
 an unisolated sandbox. Both are stated in full in [RESULTS.md](RESULTS.md), along with

@@ -44,6 +44,14 @@ reported without its spread is not a result.
 
 Cost per solved task is `n/a` for every row because spend was zero.
 
+Step efficiency is scored only on runs that solved the task, which is why `stub:hasty`
+reads 1.000 in that column while sitting last on solve rate. On the third of its runs
+where quitting early happened to be enough, it used no more steps than the reference
+route; the two thirds it abandoned contribute nothing, because scoring efficiency on a
+failed run would reward giving up. Its seed spread is computed over two seeds rather
+than three, since seed 1 solved nothing and therefore produced no value to average.
+The ratio table below is the honest view of how many steps it actually took.
+
 Steps taken against the reference route, which is the same information as step efficiency
 seen from the other side:
 
