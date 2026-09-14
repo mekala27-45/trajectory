@@ -18,6 +18,40 @@ make check
 suite with its coverage floor, and task validation. If it is green locally the pipeline is
 green.
 
+### Without make
+
+`make` is a convenience, not a requirement, and it is not present on a default Windows
+install. Every target is a thin wrapper, so the equivalents work anywhere uv does. In
+PowerShell, note that `&&` is not a statement separator in Windows PowerShell 5.1: run one
+command per line.
+
+```powershell
+# install uv, once
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# what `make install` does
+uv sync --all-packages --all-extras
+
+# what `make check` does
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run python scripts/check_no_em_dash.py
+uv run pytest --cov --cov-fail-under=80
+uv run trajectory tasks validate --strict
+
+# what `make matrix`, `make fixtures` and `make bundle` do
+uv run python scripts/run_matrix.py --parallel 2
+uv run python scripts/build_web_bundle.py runs/matrix --fixtures fixtures/recorded-runs
+uv run python scripts/build_web_bundle.py --from-fixtures
+
+# what `make tasks-references` does
+uv run trajectory tasks verify-references --suite core-12
+```
+
+On Windows the Docker backend needs Docker Desktop running with its WSL2 engine, which is
+what `trajectory version` reports on.
+
 Working on the web app:
 
 ```

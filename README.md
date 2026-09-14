@@ -68,6 +68,10 @@ trajectory report --format md
 runs. Any model LiteLLM can reach works, including a local Ollama server, with no code
 change.
 
+From a checkout, `make install` then `make check`. If you have no `make`, which includes a
+default Windows install, [CONTRIBUTING.md](CONTRIBUTING.md#without-make) lists the direct
+`uv run` equivalent of every target.
+
 ## What gets measured
 
 Ten metrics per run, each a pure function of the run record, so a metric added later can be
