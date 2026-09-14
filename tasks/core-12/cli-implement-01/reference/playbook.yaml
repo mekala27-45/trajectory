@@ -1,0 +1,360 @@
+notes: >
+  There is nothing to reproduce here, so the whole trajectory is read the spec, build the
+  sample it is written against, implement, then check the parts of the spec the examples
+  do not show. The four decisions that separate a careful reading from a careless one are
+  all in the parsing and the output layer: split on the first three pipes only so a
+  message can contain a pipe, treat a malformed line as fatal and write nothing to stdout
+  when one appears, take the span from the smallest and largest timestamp rather than the
+  first and last line, and derive both column widths from the rows actually printed.
+  argparse is the wrong tool here, not because it cannot do it, but because the spec puts
+  a missing file on exit 3 and argparse puts it on exit 2, and argparse owns -h.
+steps:
+  - tool: list_dir
+    args:
+      path: .
+    note: Confirm what is actually here. A spec and a stub, no tests, so nothing to run first.
+
+  - tool: read_file
+    args:
+      path: SPEC.md
+    note: >
+      Read the whole specification before writing anything. The column widths, the
+      ordering, the exit codes and the empty input behaviour are all only in here.
+
+  - tool: read_file
+    args:
+      path: logstat.py
+    note: >
+      Check the stub's contract: main takes argv without the program name and returns the
+      exit code, and the file has to stay runnable as python3 logstat.py.
+
+  - tool: write_file
+    args:
+      path: sample.log
+      content: |
+        2026-03-01T09:15:04Z|INFO|gateway|GET /health 200
+        2026-03-01T09:15:09Z|WARN|inventory|pool 3/4 in use
+        2026-03-01T09:14:58Z|ERROR|inventory|pool exhausted
+        2026-03-01T09:16:00Z|INFO|checkout|order 1841 placed
+        2026-03-01T09:16:02Z|ERROR|checkout|timeout calling inventory
+        2026-03-01T09:16:02Z|ERROR|gateway|503 for /cart | upstream inventory
+        2026-03-01T09:17:30Z|DEBUG|gateway|retry budget 2 left
+        2026-03-01T09:17:31Z|FATAL|inventory|giving up
+    note: >
+      Put the spec's sample input on disk. The four worked examples are the only
+      executable checks that exist, so they are worth being able to run.
+
+  - tool: write_file
+    args:
+      path: logstat.py
+      content: |
+        #!/usr/bin/env python3
+        """logstat: filter log records by severity and print one of three summaries.
+
+        Three details in SPEC.md drive the shape of this file. A record is split on the
+        first three pipes only, so a message may contain a pipe. A malformed line is
+        fatal, which is why the whole input is parsed into records before a single byte is
+        written to stdout. And the column widths in `count` and `top` come from the values
+        actually printed, which is what makes the right hand edges line up.
+        """
+
+        from __future__ import annotations
+
+        import sys
+        from datetime import datetime, timezone
+
+        LEVELS = ("DEBUG", "INFO", "WARN", "ERROR", "FATAL")
+        RANK = {name: index for index, name in enumerate(LEVELS)}
+        SUBCOMMANDS = ("count", "top", "span")
+        STAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+        STAMP_WIDTH = 20
+        USAGE = "usage: logstat {count,top,span} [--min-level LEVEL] [--number N] [FILE]"
+
+        Record = tuple[datetime, str, str]
+
+
+        class UsageError(Exception):
+            """A command line the specification does not allow. Exit 2."""
+
+
+        class InputError(Exception):
+            """The named file could not be opened or read. Exit 3."""
+
+
+        class MalformedInput(Exception):
+            """A line was neither blank nor a record. Exit 4."""
+
+            def __init__(self, line_number: int) -> None:
+                super().__init__(f"malformed record on line {line_number}")
+
+
+        class NoRecords(Exception):
+            """span had nothing to summarise. Exit 5."""
+
+            def __init__(self) -> None:
+                super().__init__("no records matched")
+
+
+        class Options:
+            """The parsed command line."""
+
+            def __init__(
+                self, subcommand: str, min_level: str, number: int, path: str | None
+            ) -> None:
+                self.subcommand = subcommand
+                self.min_level = min_level
+                self.number = number
+                self.path = path
+
+
+        def parse_args(argv: list[str]) -> Options:
+            """Parse the command line by hand, because the exit codes are specified.
+
+            argparse reports a missing file as a usage error and owns `-h`, and the spec
+            puts a missing file on exit 3. Hand rolling it is shorter than bending
+            argparse into the specified shape.
+            """
+            if not argv:
+                raise UsageError(USAGE)
+            subcommand = argv[0]
+            if subcommand not in SUBCOMMANDS:
+                raise UsageError(f"unknown subcommand {subcommand!r}. {USAGE}")
+
+            min_level = LEVELS[0]
+            number = 3
+            number_given = False
+            path: str | None = None
+
+            rest = argv[1:]
+            index = 0
+            while index < len(rest):
+                token = rest[index]
+                name, separator, inline = token.partition("=")
+                if name in ("--min-level", "--number"):
+                    if separator:
+                        value = inline
+                    else:
+                        index += 1
+                        if index >= len(rest):
+                            raise UsageError(f"{name} needs a value")
+                        value = rest[index]
+                    if name == "--min-level":
+                        if value not in RANK:
+                            raise UsageError(f"{value!r} is not one of {', '.join(LEVELS)}")
+                        min_level = value
+                    else:
+                        digits = value and all(c in "0123456789" for c in value)
+                        if not digits or int(value) < 1:
+                            raise UsageError(
+                                f"--number needs a positive integer, got {value!r}"
+                            )
+                        number = int(value)
+                        number_given = True
+                elif token.startswith("-") and token != "-":
+                    raise UsageError(f"unknown option {token!r}. {USAGE}")
+                elif path is not None:
+                    raise UsageError(f"at most one FILE, got a second one: {token!r}")
+                else:
+                    path = token
+                index += 1
+
+            if number_given and subcommand != "top":
+                raise UsageError(f"--number is only accepted by top, not {subcommand}")
+            return Options(subcommand, min_level, number, path)
+
+
+        def read_text(path: str | None) -> str:
+            """Read the whole input, from a file or from stdin."""
+            if path is None:
+                return sys.stdin.read()
+            try:
+                with open(path, encoding="utf-8", errors="replace") as handle:
+                    return handle.read()
+            except OSError as exc:
+                raise InputError(f"cannot read {path}: {exc.strerror or exc}") from exc
+
+
+        def split_lines(text: str) -> list[str]:
+            """Split on newlines without inventing a final empty line."""
+            lines = text.split("\n")
+            if lines and lines[-1] == "":
+                lines.pop()
+            return lines
+
+
+        def parse_stamp(text: str) -> datetime | None:
+            """Parse a timestamp, rejecting anything but the exact 20 character form."""
+            if len(text) != STAMP_WIDTH:
+                return None
+            try:
+                return datetime.strptime(text, STAMP_FORMAT).replace(tzinfo=timezone.utc)
+            except ValueError:
+                return None
+
+
+        def parse_record(line: str) -> Record | None:
+            """Parse one non blank line, returning None when it is malformed."""
+            fields = line.split("|", 3)
+            if len(fields) != 4:
+                return None
+            stamp, level, service, _message = fields
+            if level not in RANK or not service:
+                return None
+            when = parse_stamp(stamp)
+            if when is None:
+                return None
+            return when, level, service
+
+
+        def collect(text: str, min_level: str) -> list[Record]:
+            """Turn the input into records, raising on the lowest malformed line number."""
+            threshold = RANK[min_level]
+            records: list[Record] = []
+            for number, line in enumerate(split_lines(text), start=1):
+                if not line.strip(" \t"):
+                    continue
+                record = parse_record(line)
+                if record is None:
+                    raise MalformedInput(number)
+                if RANK[record[1]] >= threshold:
+                    records.append(record)
+            return records
+
+
+        def render_count(records: list[Record], min_level: str) -> list[str]:
+            """One line per level from the threshold up, then TOTAL."""
+            counts = {name: 0 for name in LEVELS}
+            for _when, level, _service in records:
+                counts[level] += 1
+            shown = LEVELS[RANK[min_level] :]
+            total = len(records)
+            width = len(str(total))
+            lines = [f"{name:<5} {counts[name]:>{width}}" for name in shown]
+            lines.append(f"{'TOTAL':<5} {total:>{width}}")
+            return lines
+
+
+        def render_top(records: list[Record], number: int) -> list[str]:
+            """Busiest first, ties by name, widths from the rows that survive the cut."""
+            counts: dict[str, int] = {}
+            for _when, _level, service in records:
+                counts[service] = counts.get(service, 0) + 1
+            ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:number]
+            if not ranked:
+                return []
+            name_width = max(len(name) for name, _ in ranked)
+            count_width = max(len(str(count)) for _, count in ranked)
+            return [
+                f"{name:<{name_width}} {count:>{count_width}}" for name, count in ranked
+            ]
+
+
+        def render_span(records: list[Record]) -> list[str]:
+            """Earliest and latest by timestamp value, not by position in the file."""
+            if not records:
+                raise NoRecords
+            stamps = [when for when, _level, _service in records]
+            first = min(stamps)
+            last = max(stamps)
+            seconds = int((last - first).total_seconds())
+            return [
+                f"{'first':<5} {first.strftime(STAMP_FORMAT)}",
+                f"{'last':<5} {last.strftime(STAMP_FORMAT)}",
+                f"{'secs':<5} {seconds}",
+            ]
+
+
+        def main(argv: list[str]) -> int:
+            """Run the tool and return the process exit code."""
+            try:
+                options = parse_args(argv)
+                records = collect(read_text(options.path), options.min_level)
+                if options.subcommand == "count":
+                    lines = render_count(records, options.min_level)
+                elif options.subcommand == "top":
+                    lines = render_top(records, options.number)
+                else:
+                    lines = render_span(records)
+            except UsageError as exc:
+                return _fail(2, exc)
+            except InputError as exc:
+                return _fail(3, exc)
+            except MalformedInput as exc:
+                return _fail(4, exc)
+            except NoRecords as exc:
+                return _fail(5, exc)
+
+            sys.stdout.write("".join(f"{line}\n" for line in lines))
+            return 0
+
+
+        def _fail(code: int, exc: Exception) -> int:
+            """Report on stderr and leave stdout untouched."""
+            sys.stderr.write(f"logstat: {exc}\n")
+            return code
+
+
+        if __name__ == "__main__":
+            sys.exit(main(sys.argv[1:]))
+    note: >
+      Implement the whole interface in one pass. The error paths are exceptions carrying
+      their own exit code, which is what keeps stdout untouched on every failure: nothing
+      is written until every line has been rendered.
+
+  - tool: bash
+    args:
+      command: >
+        python3 logstat.py count sample.log; echo "rc=$?";
+        python3 logstat.py top --min-level ERROR sample.log; echo "rc=$?";
+        python3 logstat.py span sample.log; echo "rc=$?";
+        cat sample.log | python3 logstat.py top --number 2; echo "rc=$?"
+    note: >
+      The four worked examples, including the one that pipes through stdin. Compare these
+      against the spec character by character, because the alignment is the assertion.
+
+  - tool: bash
+    args:
+      command: >
+        printf '' | python3 logstat.py count; echo "rc=$?";
+        printf '\n \t\n' | python3 logstat.py top; echo "rc=$?";
+        printf '' | python3 logstat.py span; echo "rc=$?"
+    note: >
+      Empty input, which no example shows. count prints six zeros with a one wide column,
+      top prints nothing at 0, and span is the only one that treats it as an error.
+
+  - tool: bash
+    args:
+      command: >
+        printf '2026-03-01T09:15:04Z|INFO|gw|a | b\n\n2026-03-01T09:15:05Z|TRACE|gw|x\n'
+        | python3 logstat.py count; echo "rc=$?"
+    note: >
+      The pipe in the message on line 1 has to parse, the blank line still counts towards
+      the line number, and the report has to name line 3 with nothing on stdout.
+
+  - tool: bash
+    args:
+      command: >
+        for a in "" "counts sample.log" "count --min-level warn sample.log"
+        "top --number 0 sample.log" "span --number 2 sample.log"
+        "count sample.log sample.log" "count no-such-file.log"; do
+        out=$(python3 logstat.py $a 2>/dev/null); echo "rc=$? stdout=${#out} args=[$a]"; done
+    note: >
+      Walk the exit code table. Every one of these has to be 2 except the last, which is
+      the input error at 3, and stdout has to be empty on all of them.
+
+  - tool: finish
+    args:
+      summary: >
+        Implemented logstat against SPEC.md. Records are split on the first three pipes
+        only, so a message containing a pipe is a record, which the spec's own sample
+        input relies on. The input is parsed in full before any output, so a malformed
+        line exits 4 with an empty stdout and names the lowest numbered offending line,
+        counting blank lines. span takes the earliest and latest timestamp by value rather
+        than by file position, which matters because the sample is not sorted. Column
+        widths are derived from the rows actually printed, so top --number 1 narrows its
+        name column. Exit codes are 2 for usage, 3 for an unreadable file, 4 for malformed
+        input and 5 for span with nothing to summarise, and the command line is parsed by
+        hand rather than with argparse because argparse would put a missing file on 2.
+        Verified all four worked examples byte for byte plus empty input, malformed input
+        and the full exit code table.
+    note: State the decisions the spec forced, not just that it is done.

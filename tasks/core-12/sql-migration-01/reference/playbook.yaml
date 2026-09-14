@@ -1,0 +1,199 @@
+notes: >
+  The rejected migration is not wrong, it is unsafe, which is the whole point: nothing
+  about the final state distinguishes it from the answer. Four things have to change and
+  each one is a different lock. Bound the wait for a lock before taking one, so a DDL
+  statement that queues cannot take every later query into the queue with it. Add the
+  column nullable and with no default, which is a catalogue write. Backfill in key ranges
+  from a procedure that commits between batches, so no statement runs long and no
+  transaction holds row locks it has finished with (a DO block cannot commit, which is why
+  this is a procedure and why the file must not be wrapped in a transaction). Then reach
+  NOT NULL through a CHECK added NOT VALID and validated under SHARE UPDATE EXCLUSIVE,
+  which leaves SET NOT NULL a catalogue change because the planner can prove the column
+  from the validated constraint. Measuring it afterwards is not optional: the difference
+  between a batched backfill and one that only looks batched is visible in
+  pg_stat_statements and nowhere in the SQL.
+steps:
+  - tool: bash
+    args:
+      command: ls -R --ignore=pgdata . && ./db.sh status
+    note: >
+      Orient, and confirm the cluster is the one described rather than something to be
+      brought up. Everything else depends on that.
+
+  - tool: read_file
+    args:
+      path: README.md
+    note: The review comment says which properties were objected to. Start from the objection.
+
+  - tool: read_file
+    args:
+      path: SPEC.md
+    note: >
+      The five rules and the statement budget. Read this before writing anything: four of
+      the five are about locks and only one is about the value in the column.
+
+  - tool: read_file
+    args:
+      path: migrations/0002_add_status.up.sql
+    note: >
+      Read what was rejected. The CASE in it is the specification's rule and can be reused
+      verbatim, which is worth noticing before rewriting it by hand and getting the
+      precedence wrong.
+
+  - tool: bash
+    args:
+      command: |
+        ./db.sh reseed
+        ./db.sh psql -q -c "select pg_stat_statements_reset()"
+        time ./db.sh apply migrations/0002_add_status.up.sql
+        ./db.sh psql -c "select toplevel, calls, round(max_exec_time::numeric,1) as ms,
+                                left(query, 60) as statement
+                           from pg_stat_statements
+                          where query not ilike '%pg_stat_statements%'
+                          order by max_exec_time desc limit 6"
+    note: >
+      Measure the thing being replaced before replacing it. Two numbers come out of this:
+      the UPDATE at several seconds, and the SET NOT NULL at a fraction of that, which is
+      the table scan under ACCESS EXCLUSIVE. Both are the review's objection, in
+      milliseconds.
+
+  - tool: write_file
+    args:
+      path: migrations/0002_add_status.up.sql
+      content: |
+        -- Add orders.status and backfill it without holding a lock anyone will notice.
+        --
+        -- Applied by ./db.sh apply, which is psql with ON_ERROR_STOP and one implicit transaction
+        -- per statement. Nothing here opens an explicit transaction block: the backfill commits
+        -- between batches, and a procedure that commits cannot run inside one.
+
+        -- Never queue for a lock. A DDL statement that waits behind a long running read holds a
+        -- place in the queue that every later query on the table waits behind too, which is how
+        -- a metadata change with no rewrite in it takes an application down.
+        SET lock_timeout = '3s';
+        SET statement_timeout = '60s';
+
+        -- Nullable and with no default: a catalogue change, no table rewrite, ACCESS EXCLUSIVE
+        -- held for as long as it takes to write one catalogue row.
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS status text;
+
+        -- Backfill in batches, each its own transaction. One statement over the whole table would
+        -- hold row locks on every row it had touched until it finished, keep one snapshot open
+        -- for the duration, and write the lot to the write ahead log before anything could be
+        -- vacuumed. Walking the primary key in ranges keeps every batch an index scan.
+        CREATE OR REPLACE PROCEDURE backfill_orders_status()
+        LANGUAGE plpgsql AS $$
+        DECLARE
+            batch  constant bigint := 10000;
+            lo     bigint := 0;
+            hi     bigint;
+            top    bigint;
+        BEGIN
+            SELECT coalesce(max(id), 0) INTO top FROM orders;
+            WHILE lo < top LOOP
+                hi := lo + batch;
+                UPDATE orders
+                   SET status = CASE
+                                    WHEN cancelled_at IS NOT NULL THEN 'cancelled'
+                                    WHEN refunded_cents > 0 AND refunded_cents >= total_cents THEN 'refunded'
+                                    WHEN refunded_cents > 0 THEN 'partly_refunded'
+                                    WHEN shipped_at IS NOT NULL THEN 'shipped'
+                                    ELSE 'placed'
+                                END
+                 WHERE id > lo
+                   AND id <= hi
+                   AND status IS NULL;
+                COMMIT;
+                lo := hi;
+            END LOOP;
+        END;
+        $$;
+
+        CALL backfill_orders_status();
+
+        DROP PROCEDURE backfill_orders_status();
+
+        -- NOT NULL in three cheap steps rather than one expensive one. A bare SET NOT NULL takes
+        -- ACCESS EXCLUSIVE and then scans the whole table with it held. A CHECK added NOT VALID
+        -- takes the same lock for a catalogue write only, VALIDATE CONSTRAINT does the scan under
+        -- SHARE UPDATE EXCLUSIVE, which readers and writers do not block on, and SET NOT NULL is
+        -- then free because the planner can prove the column from the validated constraint.
+        ALTER TABLE orders
+            ADD CONSTRAINT orders_status_present CHECK (status IS NOT NULL) NOT VALID;
+
+        ALTER TABLE orders VALIDATE CONSTRAINT orders_status_present;
+
+        ALTER TABLE orders ALTER COLUMN status SET NOT NULL;
+
+        ALTER TABLE orders DROP CONSTRAINT orders_status_present;
+
+    note: >
+      Four separate changes, one per objection. Timeouts first, then a catalogue only ADD
+      COLUMN, then batches that commit, then NOT NULL behind a validated constraint. The
+      batch size is a judgement call: large enough that the loop is not thousands of round
+      trips, small enough that one statement stays well inside the budget.
+
+  - tool: write_file
+    args:
+      path: migrations/0002_add_status.down.sql
+      content: |
+        -- Reverse 0002. Every step is conditional, so this runs on a database that got part way
+        -- through the up migration as well as on one that finished it.
+        SET lock_timeout = '3s';
+        SET statement_timeout = '60s';
+
+        DROP PROCEDURE IF EXISTS backfill_orders_status();
+
+        ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_present;
+
+        -- Catalogue only. The column's storage is reclaimed by vacuum later, not here.
+        ALTER TABLE orders DROP COLUMN IF EXISTS status;
+
+    note: >
+      The down file has to run against a database that got part way through the up file,
+      which is what IF EXISTS is doing here. Dropping a column is a catalogue change; the
+      space comes back with a later vacuum, not with this statement.
+
+  - tool: bash
+    args:
+      command: |
+        ./db.sh reseed
+        ./db.sh psql -q -c "select pg_stat_statements_reset()"
+        time ./db.sh apply migrations/0002_add_status.up.sql
+        ./db.sh psql -c "select toplevel, calls, round(max_exec_time::numeric,1) as ms,
+                                left(query, 60) as statement
+                           from pg_stat_statements
+                          where query not ilike '%pg_stat_statements%'
+                          order by max_exec_time desc limit 6"
+        ./db.sh psql -c "select count(*) as rows, count(status) as filled from orders"
+    note: >
+      The same measurement again, which is the only evidence that matters here. The CALL
+      shows as seconds because it is the driver for the batches; the statement that
+      actually holds a lock is the UPDATE inside it, at a fraction of the budget.
+
+  - tool: bash
+    args:
+      command: |
+        ./db.sh apply migrations/0002_add_status.down.sql
+        ./db.sh psql -c "select count(*) from information_schema.columns
+                          where table_name = 'orders' and column_name = 'status'"
+        ./db.sh apply migrations/0002_add_status.up.sql
+        ./db.sh psql -c "select status, count(*) from orders group by 1 order by 1"
+    note: >
+      Roll it back and run it again. A migration pair that has never been reversed is a
+      migration pair that does not work, and the retry is the case that matters at three
+      in the morning.
+
+  - tool: finish
+    args:
+      summary: >
+        Rewrote both files. The column is added nullable and with no default, which is a
+        catalogue write rather than a rewrite. The backfill is a procedure walking the
+        primary key in 10,000 row batches and committing between them, so the longest
+        statement is about a tenth of the 750 ms budget instead of five seconds, and no
+        transaction holds row locks it has finished with. NOT NULL arrives through a CHECK
+        added NOT VALID and then validated under SHARE UPDATE EXCLUSIVE, which makes SET
+        NOT NULL a catalogue change rather than a table scan under ACCESS EXCLUSIVE.
+        lock_timeout and statement_timeout are set before the first statement that takes a
+        lock. The down file is conditional throughout, and the up file runs again after it.
+    note: Say which lock each change was about, because that is what the review was about.

@@ -1,0 +1,124 @@
+notes: >
+  The whole task turns on one fact about git: an object stays in the database until
+  something prunes it, whether or not any ref can reach it. The reflog is the usual way
+  back and it has been expired here, which is the part that makes this hard. What is left
+  is fsck, which walks the object database rather than the refs, and reports the old tip of
+  the branch as a dangling commit with the two lost commits hanging off it. The order of
+  operations matters more than the commands: look, then name the object with a ref so that
+  nothing can prune it, then inspect what you named, and only then start moving branches.
+  Recovering the branch is then the rebase that should have happened, from the tip that was
+  there before the one that dropped a commit, which keeps every author and author date
+  because that is what rebase does with them.
+steps:
+  - tool: read_file
+    args:
+      path: README.md
+    note: >
+      The handover note says what was run and, more usefully, what was not: no prune, no
+      clone, no fetch. That is the difference between a recovery and an apology.
+
+  - tool: bash
+    args:
+      command: |
+        git -C repo log --oneline --graph --decorate --all | head -20
+        git -C repo status -sb
+    note: >
+      Establish what is actually on the branch before believing any account of it. Two
+      commits above main, both of Priya's outer two, and a clean tree.
+
+  - tool: bash
+    args:
+      command: |
+        git -C repo reflog --date=iso
+        echo ---
+        git -C repo reflog show feature --date=iso
+    note: >
+      Check the claim in the note rather than taking it. The reflog is where this is
+      normally solved in one line, and confirming it is empty is what justifies reaching
+      for anything else.
+
+  - tool: bash
+    args:
+      command: git -C repo fsck --dangling --no-progress
+    note: >
+      fsck walks the object database instead of the refs, which is the only thing left that
+      can see an object nothing points at. One dangling commit, which will be the tip
+      feature had before the rebase: the dropped commit is not dangling itself because that
+      tip still references it.
+
+  - tool: bash
+    args:
+      command: |
+        lost=$(git -C repo fsck --dangling --no-progress | awk '/dangling commit/{print $3; exit}')
+        git -C repo branch rescue "$lost"
+        git -C repo log --oneline --decorate rescue | head
+    note: >
+      Put a ref on it before doing anything else. Until something points at that commit it
+      is one garbage collection away from gone, and the next few commands are exactly the
+      sort that make git think about running one. Naming it first costs nothing and makes
+      the rest of this reversible.
+
+  - tool: bash
+    args:
+      command: |
+        git -C repo log --format='%h %an <%ae> %aI %s' -3 rescue
+        git -C repo show --stat --format='%n%H%nauthor %an %aI%n%n%s%n' rescue~1
+    note: >
+      Read what was found before rebuilding anything on it. Three commits of Priya's, and
+      the middle one is the backoff work with her name and her date on it, touching
+      src/retry.py and adding a test.
+
+  - tool: bash
+    args:
+      command: |
+        git -C repo checkout -B feature rescue
+        git -C repo log --oneline --decorate | head -6
+    note: >
+      Move feature back to where it was before the rebase. -B resets the branch and checks
+      it out in one go, which avoids a detached HEAD, and the tree is clean so nothing is
+      at risk. The lost commit is now reachable from a branch again, which is the actual
+      recovery; what follows is just the rebase, done properly.
+
+  - tool: bash
+    args:
+      command: git -C repo rebase main
+    note: >
+      The rebase that was meant to happen. Replaying all three preserves each author and
+      author date and rewrites only the committer, which is what makes this a restoration
+      rather than three new commits that look similar.
+
+  - tool: bash
+    args:
+      command: |
+        git -C repo log --reverse --format='%h %an %aI %s' main..feature
+        git -C repo status --porcelain && echo "tree clean"
+        git -C repo rev-parse main
+        git -C repo ls-tree -r --name-only feature
+    note: >
+      Check the four things that were asked for: three commits in the right order, Priya's
+      authorship and dates intact, main where it was, and the test file from the dropped
+      commit back in the tree.
+
+  - tool: bash
+    args:
+      command: |
+        git -C repo branch -D rescue
+        git -C repo log --oneline --graph --decorate --all | head
+    note: >
+      Drop the temporary ref. -D is right here rather than reckless: the content is on
+      feature now, and leaving a branch pointing at the pre rebase tip would keep a second
+      copy of the same three commits alive in the history everyone reads.
+
+  - tool: finish
+    args:
+      summary: >
+        The dropped commit was still in the object database with nothing pointing at it,
+        and the reflog that would normally have found it had been expired. git fsck
+        --dangling reported the pre rebase tip of feature; the two missing commits hang off
+        it. Named that commit with a temporary branch first so nothing could prune it,
+        confirmed it was Priya's three commits, moved feature back onto it with checkout
+        -B, and reran the rebase onto main without deleting anything from the todo list.
+        feature is now three commits above main in the original order, the recovered commit
+        has its original tree, message, author and author date, main never moved, and the
+        temporary ref is gone.
+    note: Say where the object was found and why the order of the steps mattered.

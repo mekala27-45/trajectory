@@ -1,0 +1,48 @@
+title: Load a vendor export whose schema changed, without losing rows
+description: >
+  A CSV to warehouse loader falls over on the vendor's May export. Upstream renamed
+  region_code to market, split customer_name into two columns, added an optional
+  discount_cents, and switched the placed date from YYYY-MM-DD to DD/MM/YYYY, all without
+  telling anyone. The loader raises on the first row. The tempting repairs are worse than
+  the crash: a blanket except around the row loop silently drops rows, and mapping the new
+  columns straight through changes the output field set that the warehouse and everything
+  downstream of it are built on. The contract is written down in CONTRACT.md, including
+  four reject reasons of which the loader has only ever implemented one, and April's export
+  has to keep loading because the warehouse reloads history.
+language: python
+difficulty: 3
+tags: [etl, schema-evolution, data-quality, csv]
+
+image_tag: trajectory/py-etl-schema-01
+agent_prompt: |
+  This crashes:
+
+      python3 load.py data/orders_2026_05.csv out/orders.jsonl out/rejects.jsonl
+
+  May's export from the vendor is not shaped like April's. Make the loader load it, and
+  keep April loading: the warehouse reloads history, so both layouts have to work.
+
+  `CONTRACT.md` is the output contract and every part of it is checked, the rejects file
+  included. Two points worth being explicit about:
+
+  - No row may be dropped. `read == written + rejected`, and a row that cannot be
+    converted goes to the rejects file with one of the contract's reason codes.
+  - The set of output fields does not change. What the vendor renames its columns to is
+    the vendor's business, not the warehouse's.
+
+  `python3 -m pytest -q tests` has to keep passing. There is no network access, and
+  neither pandas nor pyarrow is installed: the standard library is all this needs.
+
+max_steps: 40
+timeout_seconds: 900
+command_timeout_seconds: 180
+
+verify_cmd: python -m pytest -q "$VERIFY_DIR"
+verify_parser: pytest
+verify_timeout_seconds: 180
+
+reference_step_count: 12
+relevant_paths:
+  - src/warehouse/**
+  - tests/**
+  - out/**

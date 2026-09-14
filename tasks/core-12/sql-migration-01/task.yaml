@@ -1,0 +1,52 @@
+title: Backfill a NOT NULL column on a large table without a long lock
+description: >
+  A two file migration adds orders.status, derives it from four existing columns and makes
+  it NOT NULL. It is already written, it applies, and every row ends up with the right
+  value. It was rejected in review because it does all of that in three statements: one
+  UPDATE over the whole table, which on the production table is twenty minutes of row
+  locks and one snapshot held open for all of it, and a bare SET NOT NULL, which takes
+  ACCESS EXCLUSIVE and then scans 180 million rows while holding it. Neither statement
+  bounds how long it will wait for a lock. The task is to get the same column by a route
+  that keeps every statement short: add it nullable, backfill in batches that commit,
+  reach NOT NULL through a CHECK added NOT VALID and then validated, and set lock_timeout
+  and statement_timeout before any of it. The workspace runs its own PostgreSQL 16 cluster
+  with pg_stat_statements loaded, and the hidden suite reads per statement timings out of
+  it rather than trusting the shape of the SQL.
+language: sql
+difficulty: 4
+tags: [postgres, migrations, locking, backfill, ddl]
+
+image_tag: trajectory/sql-migration-01
+setup_cmd: chmod +x db.sh 2>/dev/null || true; sh db.sh init
+agent_prompt: |
+  `migrations/0002_add_status.up.sql` and `migrations/0002_add_status.down.sql` were
+  rejected in review. README.md has the review comment. SPEC.md has the definition of the
+  column and the five rules the review applies, including the statement time budget.
+
+  Rewrite both files so they pass that review and still produce exactly the column
+  SPEC.md describes. Do not change the definition of the column, `seed.sql`, or the 0001
+  migration.
+
+  The cluster is up and seeded with 600,000 rows. `./db.sh` drives it: `reseed` puts the
+  table back to the state 0001 leaves behind, `apply FILE` runs one migration file, and
+  `psql` gets you a prompt or a `-c`. `pg_stat_statements` is loaded with `track = all`,
+  so per statement timings are readable after a run.
+
+  There is no network. PostgreSQL 16 binaries are at /usr/lib/postgresql/16/bin.
+
+max_steps: 45
+timeout_seconds: 1800
+command_timeout_seconds: 300
+
+verify_cmd: >
+  python3 -m pytest -q "$VERIFY_DIR"; rc=$?;
+  sh db.sh stop >/dev/null 2>&1 || true; exit $rc
+verify_parser: pytest
+verify_timeout_seconds: 900
+
+reference_step_count: 10
+relevant_paths:
+  - migrations/**
+  # The cluster lives in the workspace and rewrites its own files on every statement, so
+  # it has to be in scope or every run looks like scope creep.
+  - pgdata/**

@@ -1,0 +1,46 @@
+title: Implement a log summariser from its specification alone
+description: >
+  The workspace holds a complete written specification for a command line log summariser
+  and a stub that raises NotImplementedError. Nothing else. This is the only task in the
+  suite with no visible tests, which is the point: it measures whether an agent reads a
+  specification or pattern matches on one. SPEC.md fixes the three subcommands and their
+  two options, the exit code for every failure mode, the exact column widths and ordering
+  of every line of output, the tie break rule, how blank and malformed lines are treated,
+  and what happens on empty input. It carries four worked examples with exact expected
+  output. Fixed means the hidden tests, which are derived from the specification rather
+  than from the examples, all pass. The shortcuts that make the examples come out right
+  while the specification does not hold are splitting a record on every pipe, reading the
+  span off the first and last line of the file, skipping malformed lines instead of
+  failing on them, and using fixed column widths.
+language: python
+difficulty: 3
+tags: [specification, cli, hidden-tests-only, exit-codes, output-format]
+
+image_tag: trajectory/cli-implement-01
+agent_prompt: |
+  `SPEC.md` in this directory specifies a command line tool called `logstat`. `logstat.py`
+  is a stub that raises `NotImplementedError`. Implement it.
+
+  There are no tests in this workspace and none are coming. Read the specification.
+  Everything it pins down is checked afterwards, including exit codes, the ordering of
+  output lines, the exact column widths, and what goes to standard output versus standard
+  error on each failure path. The four worked examples in the specification are checked
+  byte for byte, and so are cases the examples do not show.
+
+  Keep the tool at `logstat.py` and keep it runnable as `python3 logstat.py`. The standard
+  library is all you get: there is no network and nothing is installed beyond a stock
+  Python 3.
+
+max_steps: 40
+timeout_seconds: 900
+command_timeout_seconds: 120
+
+verify_cmd: python -m pytest -q "$VERIFY_DIR"
+verify_parser: pytest
+verify_timeout_seconds: 300
+
+reference_step_count: 10
+relevant_paths:
+  - logstat.py
+  - "*.py"
+  - "*.log"

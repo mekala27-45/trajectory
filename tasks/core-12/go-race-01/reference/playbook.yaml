@@ -1,0 +1,250 @@
+notes: >
+  Two races and one bug hide behind the same missing lock. The map has a mutex, the
+  aggregate fields and the histogram behind them do not, and the hot endpoint cache in
+  front of the map is read and written with nothing held at all. The interesting part of
+  the task is not finding them, the detector prints all of it, it is that the obvious
+  answer of one mutex per method is rejected: quantile is the expensive part of a read and
+  the exporter reads every endpoint on every tick, so readers have to share. That means a
+  lock per bucket, an RWMutex on each, the map lock held only for the lookup, and the
+  counter as an atomic. Dropping the cache rather than locking it is deliberate: it saved
+  a map lookup that now costs a shared read lock, and it was the reason Reset leaked a
+  stale bucket.
+steps:
+  - tool: bash
+    args:
+      command: ls -R . && cat README.md
+    note: >
+      Read the contract before the code. Point four of it is the whole task: it rules out
+      the fix that every tutorial on this error reaches for.
+
+  - tool: bash
+    args:
+      command: 'export PATH=/usr/local/go/bin:$PATH; go test -race -count=1 ./agg/ 2>&1 | head -60'
+    note: >
+      Reproduce it and read the report properly. The detector names the field, both stacks
+      and the goroutines, which is a more reliable map of what is unsynchronised than
+      reading the file will be.
+
+  - tool: read_file
+    args:
+      path: agg/aggregator.go
+    note: >
+      Now the code. mu covers the map and nothing else: the bucket fields, the histogram
+      and the observed counter are all touched outside it, and lookup reads and writes the
+      hot cache with nothing held.
+
+  - tool: read_file
+    args:
+      path: agg/histogram.go
+    note: >
+      This file is out of bounds, so read it for the constraint rather than the fix. It
+      says a histogram carries no lock of its own and that quantile reads it in place,
+      which means the read path has to hold the same lock the writers take while it runs.
+
+  - tool: write_file
+    args:
+      path: agg/aggregator.go
+      content: |
+        // Package agg aggregates per endpoint request latency for a service that serves a few
+        // thousand requests a second across a handful of endpoints.
+        //
+        // One Registry is shared by every request goroutine and by the exporter goroutine that
+        // scrapes it once a second. Observe is on the request path. Snapshot, SnapshotAll,
+        // Endpoints and Observed are on the exporter's path. Neither path is allowed to make the
+        // other wait longer than it has to, and two exporter reads of the same endpoint must be
+        // able to run at the same time: quantile walks the histogram in place, so a read is not
+        // cheap and serialising reads behind one lock turns a one second scrape into a stall.
+        //
+        // Locking, from the outside in. Registry.mu guards the map itself and nothing else, held
+        // for a map lookup and released. Each bucket carries its own RWMutex, which is the lock
+        // the histogram is documented to need: writers take it exclusively, readers share it, so
+        // two Snapshots of the same endpoint overlap and a Snapshot of one endpoint never waits
+        // on writes to another. observed is an atomic because it is touched by every writer and
+        // read by the exporter, and a counter is the one thing that does not need a lock at all.
+        package agg
+
+        import (
+        	"sort"
+        	"sync"
+        	"sync/atomic"
+        )
+
+        // Stat is the aggregate view of one endpoint.
+        type Stat struct {
+        	Count       int64
+        	TotalMicros int64
+        	MaxMicros   int64
+        	P95Micros   int64
+        }
+
+        // MeanMicros returns the mean latency in microseconds, or zero when nothing has been
+        // recorded for the endpoint.
+        func (s Stat) MeanMicros() int64 {
+        	if s.Count == 0 {
+        		return 0
+        	}
+        	return s.TotalMicros / s.Count
+        }
+
+        // bucket holds the running aggregate for one endpoint, under its own lock.
+        type bucket struct {
+        	mu          sync.RWMutex
+        	hist        histogram
+        	count       int64
+        	totalMicros int64
+        	maxMicros   int64
+        }
+
+        // Registry holds one bucket per endpoint.
+        type Registry struct {
+        	mu      sync.RWMutex
+        	buckets map[string]*bucket
+
+        	// observed counts every call to Observe, across all endpoints.
+        	observed atomic.Int64
+        }
+
+        // New returns an empty registry.
+        func New() *Registry {
+        	return &Registry{buckets: make(map[string]*bucket)}
+        }
+
+        // Observe records one request against an endpoint.
+        func (r *Registry) Observe(endpoint string, micros int64) {
+        	b := r.lookup(endpoint)
+
+        	b.mu.Lock()
+        	b.count++
+        	b.totalMicros += micros
+        	if micros > b.maxMicros {
+        		b.maxMicros = micros
+        	}
+        	b.hist.observe(micros)
+        	b.mu.Unlock()
+
+        	r.observed.Add(1)
+        }
+
+        // lookup returns the bucket for an endpoint, creating it the first time it is seen.
+        //
+        // The read lock covers the overwhelmingly common case of an endpoint that already exists.
+        // Creation re-checks under the write lock, because two goroutines can both miss.
+        func (r *Registry) lookup(endpoint string) *bucket {
+        	r.mu.RLock()
+        	b := r.buckets[endpoint]
+        	r.mu.RUnlock()
+        	if b != nil {
+        		return b
+        	}
+
+        	r.mu.Lock()
+        	defer r.mu.Unlock()
+        	if b = r.buckets[endpoint]; b == nil {
+        		b = &bucket{}
+        		r.buckets[endpoint] = b
+        	}
+        	return b
+        }
+
+        // Snapshot returns the aggregate for one endpoint, and false when the endpoint has never
+        // been observed.
+        func (r *Registry) Snapshot(endpoint string) (Stat, bool) {
+        	r.mu.RLock()
+        	b := r.buckets[endpoint]
+        	r.mu.RUnlock()
+        	if b == nil {
+        		return Stat{}, false
+        	}
+
+        	// The read lock is held across quantile on purpose. quantile reads the histogram in
+        	// place, so it needs the lock writers take, and a shared lock is what lets the
+        	// exporter run several of these at once.
+        	b.mu.RLock()
+        	defer b.mu.RUnlock()
+        	return Stat{
+        		Count:       b.count,
+        		TotalMicros: b.totalMicros,
+        		MaxMicros:   b.maxMicros,
+        		P95Micros:   b.hist.quantile(0.95),
+        	}, true
+        }
+
+        // SnapshotAll returns the aggregate for every endpoint seen so far.
+        func (r *Registry) SnapshotAll() map[string]Stat {
+        	names := r.Endpoints()
+        	out := make(map[string]Stat, len(names))
+        	for _, name := range names {
+        		if stat, ok := r.Snapshot(name); ok {
+        			out[name] = stat
+        		}
+        	}
+        	return out
+        }
+
+        // Endpoints returns every endpoint seen so far, sorted.
+        func (r *Registry) Endpoints() []string {
+        	r.mu.RLock()
+        	names := make([]string, 0, len(r.buckets))
+        	for name := range r.buckets {
+        		names = append(names, name)
+        	}
+        	r.mu.RUnlock()
+
+        	sort.Strings(names)
+        	return names
+        }
+
+        // Observed returns the number of Observe calls the registry has taken.
+        func (r *Registry) Observed() int64 {
+        	return r.observed.Load()
+        }
+
+        // Reset drops every recorded sample. The exporter calls it after a successful publish.
+        func (r *Registry) Reset() {
+        	r.mu.Lock()
+        	r.buckets = make(map[string]*bucket)
+        	r.mu.Unlock()
+
+        	r.observed.Store(0)
+        }
+
+    note: >
+      One lock per bucket, RWMutex so the exporter's reads share, the map lock held only
+      long enough to resolve a name, and the counter moved to an atomic. The hot cache
+      goes: it existed to skip a map lookup that now costs a shared read lock, locking it
+      would reintroduce the contention it was added to avoid, and it was what made Reset
+      leave a bucket behind.
+
+  - tool: bash
+    args:
+      command: 'export PATH=/usr/local/go/bin:$PATH; gofmt -l . && go vet ./... && echo clean'
+    note: Cheap checks first. A vet finding or a formatting diff is not worth a race detector run.
+
+  - tool: bash
+    args:
+      command: 'export PATH=/usr/local/go/bin:$PATH; go test -race -count=1 -v ./... 2>&1 | tail -20'
+    note: >
+      The suite under the detector, which is the only evidence that counts here. Note that
+      a passing run proves nothing about interleavings it did not take, which is why the
+      reasoning above is about which lock covers which field rather than about the result.
+
+  - tool: bash
+    args:
+      command: 'export PATH=/usr/local/go/bin:$PATH; go run ./cmd/aggd'
+    note: >
+      Run the thing. The report has to show every observation accounted for, which is the
+      lost update half of the contract and is not something the detector checks.
+
+  - tool: finish
+    args:
+      summary: >
+        Registry.mu guarded the map only. The per endpoint aggregate fields, the histogram
+        behind them and the observed counter were all mutated with no lock held, and the
+        hot endpoint cache in front of the map was read and written unsynchronised, which
+        is also why Reset left a stale bucket live. Fixed by giving each bucket its own
+        RWMutex (writers exclusive, readers shared, held across quantile because it reads
+        the histogram in place), holding the map's RWMutex only for the lookup, making the
+        counter an atomic, and dropping the cache. Readers of one endpoint now overlap
+        each other and never wait on writes to another endpoint. go test -race ./... and
+        go vet ./... are clean.
+    note: Close with which lock covers what, because that is the part a reviewer has to check.

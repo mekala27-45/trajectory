@@ -1,0 +1,189 @@
+notes: >
+  The build failure is a red herring in the sense that matters: it is one undefined type
+  name in a generated file, and changing it to string compiles. That is the wrong move,
+  because the file is a schema version behind and the compiler is the only thing that can
+  enumerate what that costs. So the first real step is to regenerate, which trades one
+  error for four, each one a genuine drift: a renamed field, a field that became required,
+  an enum member with no case, and a response that became a list. Each call site fix is a
+  product decision, and all three are already written down in the README, which is why
+  reading it comes before writing any code.
+steps:
+  - tool: bash
+    args:
+      command: sh build.sh 2>&1 | head -20
+    note: Reproduce the failure. One error, TS2304, and it is inside src/generated.
+
+  - tool: read_file
+    args:
+      path: src/generated/client.ts
+    note: >
+      The header says generated and not to be edited, and the Iso8601 reference is nothing
+      a generator would emit. Someone patched the new field in by hand and stopped there.
+
+  - tool: bash
+    args:
+      command: >
+        grep -n '"version"' openapi.json;
+        grep -n 'Schema version' src/generated/client.ts;
+        grep -n 'placedAt\|createdAt\|idempotencyKey\|OrderStatus =' src/generated/client.ts
+    note: >
+      Confirm the real problem before fixing the symptom. The schema is at 2.0.0 and the
+      client says 1.3.0, so this file is stale as well as edited.
+
+  - tool: read_file
+    args:
+      path: README.md
+    note: >
+      Read the conventions before changing behaviour. The generate then build workflow is
+      here, and so are the three decisions the call sites have to honour: the idempotency
+      key default, the status label table, and the format of the tracking line.
+
+  - tool: bash
+    args:
+      command: node tools/generate-client.mjs && sh build.sh 2>&1 | head -20
+    note: >
+      Regenerate, then let the compiler enumerate the damage. One error becomes four, and
+      each one is a real change in the contract rather than a typo.
+
+  - tool: read_file
+    args:
+      path: src/generated/client.ts
+    note: >
+      Read the new contract rather than guessing at it: createdAt replaces placedAt,
+      idempotencyKey is required, OrderStatus gained refunded, and listOrderShipments
+      returns Shipment[].
+
+  - tool: write_file
+    args:
+      path: src/orders.ts
+      content: |
+        import { createClient, type CreateOrderRequest, type Order, type Transport } from "./generated/client.js";
+
+        /** The key the README specifies for callers that do not bring their own. */
+        function derivedIdempotencyKey(customerId: string, total: number): string {
+          return `${customerId}:${total}`;
+        }
+
+        /** Place an order. The schema requires an idempotency key, so one is always sent. */
+        export async function placeOrder(
+          transport: Transport,
+          customerId: string,
+          total: number,
+          idempotencyKey?: string,
+        ): Promise<Order> {
+          const body: CreateOrderRequest = {
+            customerId,
+            total,
+            idempotencyKey: idempotencyKey ?? derivedIdempotencyKey(customerId, total),
+          };
+          return createClient(transport).createOrder(body);
+        }
+
+        /** One line for the order list in the admin console. */
+        export function orderLine(order: Order): string {
+          return `${order.id} ${order.status} ${order.createdAt}`;
+        }
+
+        /** Fetch an order and render its line. */
+        export async function fetchOrderLine(transport: Transport, orderId: string): Promise<string> {
+          return orderLine(await createClient(transport).getOrder(orderId));
+        }
+    note: >
+      Build the request body in one literal so the required field cannot be omitted, and
+      default the key the way the README says. Read createdAt, which is the same value
+      placedAt used to carry.
+
+  - tool: write_file
+    args:
+      path: src/status.ts
+      content: |
+        import type { OrderStatus } from "./generated/client.js";
+
+        /**
+         * The customer facing label for a status.
+         *
+         * The default arm assigns to `never` on purpose. When the schema gains a status this
+         * stops compiling, which is the only reason anyone finds out in time. Leave it in
+         * place.
+         */
+        export function describeStatus(status: OrderStatus): string {
+          switch (status) {
+            case "pending":
+              return "Awaiting payment";
+            case "shipped":
+              return "On the way";
+            case "cancelled":
+              return "Cancelled";
+            case "refunded":
+              return "Refunded";
+            default: {
+              const unhandled: never = status;
+              throw new Error(`unhandled order status: ${String(unhandled)}`);
+            }
+          }
+        }
+    note: >
+      Add the case the schema now has, with the label from the README's table. The never
+      typed default arm stays: deleting it is the other way to make this compile, and it
+      throws away the check that caught this change in the first place.
+
+  - tool: write_file
+    args:
+      path: src/shipments.ts
+      content: |
+        import { createClient, type Transport } from "./generated/client.js";
+
+        /** The tracking line shown under an order. See the README for the exact format. */
+        export async function trackingSummary(transport: Transport, orderId: string): Promise<string> {
+          const shipments = await createClient(transport).listOrderShipments(orderId);
+          const tracking = shipments.map((shipment) => shipment.trackingNumber);
+          return `${orderId}: ${tracking.length === 0 ? "none" : tracking.join(", ")}`;
+        }
+    note: >
+      The response is a list now, so every shipment goes on the line. Taking shipments[0]
+      would compile and quietly drop the rest, and the empty case has to be handled
+      because an order can have no shipments yet.
+
+  - tool: bash
+    args:
+      command: sh build.sh && echo "BUILD OK"
+    note: Clean type check and emit. Nothing suppressed, nothing loosened in tsconfig.
+
+  - tool: bash
+    args:
+      command: |
+        node --input-type=module -e "
+        import { fetchOrderLine, placeOrder } from './dist/orders.js';
+        import { describeStatus } from './dist/status.js';
+        import { trackingSummary } from './dist/shipments.js';
+        const seen = [];
+        const fake = (payload) => ({ request: async (spec) => { seen.push(spec); return payload; } });
+        const order = { id: 'ord-1', status: 'refunded', createdAt: '2026-03-01T09:16:00Z', total: 2500 };
+        console.log(await fetchOrderLine(fake(order), 'ord-1'));
+        await placeOrder(fake(order), 'cust-7', 2500);
+        console.log('body: ' + JSON.stringify(seen.at(-1).body));
+        console.log(describeStatus('refunded'));
+        console.log(await trackingSummary(fake([{ trackingNumber: 'TRK-1', carrier: 'g' }, { trackingNumber: 'TRK-2', carrier: 'd' }]), 'ord-9'));
+        console.log(await trackingSummary(fake([]), 'ord-9'));
+        "
+    note: >
+      Drive the built modules through a fake transport. A green build proves the types line
+      up, not that the behaviour is right: this is what shows the key is sent, the list is
+      iterated and the empty case renders.
+
+  - tool: finish
+    args:
+      summary: >
+        src/generated/client.ts was generated from schema 1.3.0 while openapi.json is at
+        2.0.0, and a hand edit had added createdAt with a type name that does not exist,
+        which is what broke the build. Changing that one name would have compiled and left
+        the file a version behind, so I regenerated with tools/generate-client.mjs instead
+        and fixed the four errors that surfaced. orders.ts now reads createdAt rather than
+        the removed placedAt and always sends idempotencyKey, defaulting it to
+        customerId:total as the README specifies. status.ts has a case for refunded with
+        the documented label and keeps its never typed default arm, which is the check that
+        surfaced the new member. shipments.ts maps the whole Shipment[] into the tracking
+        line and renders none when the list is empty. openapi.json, the generator and
+        tsconfig are untouched, strict is on, and nothing is suppressed. Build is clean and
+        the built modules were exercised through a fake transport.
+    note: Name the drift and why regenerating beat repairing the hand edit.

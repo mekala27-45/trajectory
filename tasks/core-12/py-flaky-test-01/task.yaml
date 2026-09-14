@@ -1,0 +1,47 @@
+title: Fix a test that fails one run in four without deleting it
+description: >
+  A sampling library for a request auditor draws from the global `random` stream, so the
+  behaviour a test observes depends on whatever entropy the process started with. One test
+  asserts that a sample of 8 requests out of 40 covers all four tenants, which is true
+  about seven runs in ten, so the suite fails roughly one run in four and passes on rerun.
+  Fixing it means making the randomness injectable and pinning the draw in the test, not
+  seeding a global inside the library, not loosening the assertion, and not marking the
+  test away. Production sampling has to stay random, and the hidden tests check that it
+  still is.
+language: python
+difficulty: 3
+tags: [flakiness, determinism, testing, randomness]
+
+image_tag: trajectory/py-flaky-test-01
+agent_prompt: |
+  `tests/test_sampler.py::test_sample_covers_every_tenant` fails on CI about one run in
+  four, and passes when it is rerun. It is blocking a merge queue.
+
+  Find out why the suite is not deterministic and fix it, so that this passes every time:
+
+      python -m pytest -q tests
+
+  Constraints, because every quick way out of this is worse than the bug:
+
+  - Keep the test. Do not delete it, rename it, skip it, mark it xfail, or rerun it until
+    it passes, and keep it asserting that the sample covers every tenant.
+  - Do not seed the global `random` module anywhere inside `src/sampler`. A library that
+    seeds a global stream decides the randomness of every other caller in the process.
+  - Every function in `sampler` that draws randomness must accept an optional keyword
+    argument `rng` that takes a `random.Random`. When it is not passed, the function must
+    keep drawing from the module level `random` functions, so production behaviour is
+    unchanged and sampling in production stays random.
+  - Keep the public names in `sampler` and the properties its docstrings promise.
+
+max_steps: 40
+timeout_seconds: 900
+command_timeout_seconds: 240
+
+verify_cmd: python -m pytest -q "$VERIFY_DIR"
+verify_parser: pytest
+verify_timeout_seconds: 300
+
+reference_step_count: 11
+relevant_paths:
+  - src/sampler/**
+  - tests/**

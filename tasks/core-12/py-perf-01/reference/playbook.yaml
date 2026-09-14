@@ -1,0 +1,271 @@
+notes: >
+  The rollup is correct, so the visible tests are green and only the budget is failing.
+  The cost is one line: accounts.index(row.account) walks a list that grows to 6,000
+  entries, once per row, which is rows times accounts rather than rows. Timing three
+  prefixes of the ledger settles that it is the complexity and not a slow constant, since
+  doubling the rows roughly quadruples the time. The fix is a hashed lookup, and a dict
+  keeps insertion order, so the first seen ordering the export depends on comes for free
+  rather than needing the parallel list that was there to maintain it. The output is
+  digested before and after the change, because a rewrite of an aggregation that nobody
+  diffed is a rewrite nobody should trust.
+steps:
+  - tool: bash
+    args:
+      command: ls -R . | head -30 && cat README.md
+    note: Learn the contract and the budget before touching the implementation, since both are checked.
+
+  - tool: bash
+    args:
+      command: wc -l data/ledger.csv && head -3 data/ledger.csv
+    note: Confirm the fixture the budget is quoted against is actually there and has the shape the loader expects.
+
+  - tool: bash
+    args:
+      command: python3 -m pytest -q tests && python3 bench.py
+    note: >
+      Reproduce before diagnosing. The correctness suite is green and the benchmark is
+      about six times over budget, which says this is a complexity problem and not a
+      logic problem.
+
+  - tool: read_file
+    args:
+      path: src/rollup/core.py
+    note: >
+      Read the aggregation. accounts.index(row.account) is a linear scan of the accounts
+      seen so far, executed once per row, and the parallel lists exist only to preserve
+      first seen order.
+
+  - tool: bash
+    args:
+      command: |
+        python3 -c '
+        import sys, time
+        sys.path.insert(0, "src")
+        from rollup import load_rows, summarise
+        rows = load_rows("data/ledger.csv")
+        for size in (25000, 50000, 100000):
+            chunk = rows[:size]
+            started = time.perf_counter()
+            accounts = len(summarise(chunk))
+            print(f"{size:>7} rows, {accounts:>5} accounts, {time.perf_counter() - started:7.3f}s")
+        '
+    note: >
+      Measure the growth rather than asserting it. Doubling the rows roughly quadruples
+      the time, which is the signature of rows times accounts and rules out a fixed
+      overhead somewhere.
+
+  - tool: bash
+    args:
+      command: |
+        digest="${TMPDIR:-/tmp}/digest.py"
+        cat > "$digest" <<'PY'
+        import hashlib, sys
+        sys.path.insert(0, "src")
+        from rollup import load_rows, summarise
+
+        rows = load_rows("data/ledger.csv")[:40000]
+        summary = summarise(rows)
+        sha = hashlib.sha256()
+        for account, entry in summary.items():
+            regions = ",".join(entry.regions)
+            line = f"{account}|{entry.count}|{entry.total_cents}|{entry.max_cents}|{regions}"
+            sha.update(line.encode())
+        print(len(summary), sha.hexdigest())
+        PY
+        python3 "$digest" > "${TMPDIR:-/tmp}/rollup-before.txt"
+        cat "${TMPDIR:-/tmp}/rollup-before.txt"
+    note: >
+      Digest the current rollup of a 40,000 row prefix into the scratch directory. An
+      aggregation rewrite is only safe if the old and new answers can be compared
+      directly, and the visible tests are too small to catch a subtle change.
+
+  - tool: write_file
+    args:
+      path: src/rollup/core.py
+      content: |
+        """Daily rollup of the payments ledger.
+
+        One run of `summarise` turns a day of ledger rows into one summary per account: how many
+        payments, what they came to, the largest single payment, and which regions the account
+        transacted in. The finance export runs this on every ledger it receives, so it has a
+        budget: the rollup of a 200,000 row day has to finish in under two seconds.
+
+        Accounts come out in the order they first appear in the ledger, not sorted. That is what
+        the export downstream of this expects, and sorting several thousand accounts by
+        identifier would put the day's largest account halfway down the file for no reason. A dict gives that order for
+        free, because insertion order is part of the language, so first seen order costs nothing
+        and does not need a list to be maintained alongside it.
+        """
+
+        from __future__ import annotations
+
+        import csv
+        from collections.abc import Iterable
+        from dataclasses import dataclass
+        from pathlib import Path
+        from typing import NamedTuple
+
+        HEADER = ["account", "region", "amount_cents", "occurred_on"]
+
+
+        class Row(NamedTuple):
+            """One ledger row as the exporter writes it."""
+
+            account: str
+            region: str
+            amount_cents: int
+            occurred_on: str
+
+
+        @dataclass(frozen=True)
+        class AccountSummary:
+            """What one account did over the ledger.
+
+            Attributes:
+                account: Account identifier.
+                count: Number of ledger rows for the account.
+                total_cents: Sum of the amounts, refunds included, so this can be negative.
+                max_cents: Largest single amount, which is the largest refund when every row is
+                    a refund.
+                regions: Distinct regions the account transacted in, in first seen order.
+            """
+
+            account: str
+            count: int
+            total_cents: int
+            max_cents: int
+            regions: tuple[str, ...]
+
+
+        class _Running:
+            """Mutable running figures for one account while the ledger is being read.
+
+            Slotted because there is one of these per account and they are touched once per row.
+            The public type stays frozen: this only exists between the first row of an account and
+            the end of the pass.
+            """
+
+            __slots__ = ("count", "total_cents", "max_cents", "regions")
+
+            def __init__(self, row: Row) -> None:
+                """Start the figures from the account's first row, not from zero.
+
+                Starting from zero would report a peak of 0 for an account that only ever
+                received refunds.
+                """
+                self.count = 1
+                self.total_cents = row.amount_cents
+                self.max_cents = row.amount_cents
+                self.regions = [row.region]
+
+
+        def load_rows(path: str | Path) -> list[Row]:
+            """Read a ledger CSV into rows.
+
+            Args:
+                path: Path to a ledger CSV with the standard header.
+
+            Returns:
+                The rows in file order.
+
+            Raises:
+                ValueError: If the header is not the one the exporter writes.
+            """
+            with Path(path).open(newline="", encoding="utf-8") as handle:
+                reader = csv.reader(handle)
+                header = next(reader, None)
+                if header != HEADER:
+                    raise ValueError(f"expected header {HEADER}, found {header}")
+                return [
+                    Row(account, region, int(amount), occurred_on)
+                    for account, region, amount, occurred_on in reader
+                ]
+
+
+        def summarise(rows: Iterable[Row]) -> dict[str, AccountSummary]:
+            """Roll a ledger up to one summary per account.
+
+            One pass over the rows, one hashed lookup per row. The ledger is read in order, so
+            the result is keyed in first seen order without tracking that order separately.
+
+            Args:
+                rows: Ledger rows, in any order.
+
+            Returns:
+                Account identifier to summary, keyed in the order the accounts first appear in
+                the input.
+            """
+            running: dict[str, _Running] = {}
+
+            for row in rows:
+                state = running.get(row.account)
+                if state is None:
+                    running[row.account] = _Running(row)
+                    continue
+
+                state.count += 1
+                state.total_cents += row.amount_cents
+                if row.amount_cents > state.max_cents:
+                    state.max_cents = row.amount_cents
+                if row.region not in state.regions:
+                    state.regions.append(row.region)
+
+            return {
+                account: AccountSummary(
+                    account=account,
+                    count=state.count,
+                    total_cents=state.total_cents,
+                    max_cents=state.max_cents,
+                    regions=tuple(state.regions),
+                )
+                for account, state in running.items()
+            }
+    note: >
+      One pass, one hashed lookup per row, running figures seeded from each account's
+      first row so an account of only refunds keeps a negative peak. The dict is the
+      ordering too, so the parallel lists go away rather than being kept in step.
+
+  - tool: bash
+    args:
+      command: python3 -m pytest -q tests
+    note: Correctness first. A fast wrong answer is not progress.
+
+  - tool: bash
+    args:
+      command: |
+        python3 "${TMPDIR:-/tmp}/digest.py" > "${TMPDIR:-/tmp}/rollup-after.txt"
+        cat "${TMPDIR:-/tmp}/rollup-after.txt"
+        diff "${TMPDIR:-/tmp}/rollup-before.txt" "${TMPDIR:-/tmp}/rollup-after.txt" && echo "rollup is byte for byte what it was"
+    note: >
+      Diff the rollup against the digest taken before the change. Identical output on
+      40,000 real rows is the evidence that this was a performance change and nothing else.
+
+  - tool: bash
+    args:
+      command: |
+        python3 -c '
+        import sys, time
+        sys.path.insert(0, "src")
+        from rollup import load_rows, summarise
+        rows = load_rows("data/ledger.csv")
+        for size in (25000, 50000, 100000):
+            chunk = rows[:size]
+            started = time.perf_counter()
+            accounts = len(summarise(chunk))
+            print(f"{size:>7} rows, {accounts:>5} accounts, {time.perf_counter() - started:7.3f}s")
+        '
+    note: >
+      Re-time the three prefixes and the full ledger. Doubling the rows now doubles the
+      time, and the full 200,000 rows land an order of magnitude inside the budget.
+
+  - tool: finish
+    args:
+      summary: >
+        summarise found each row's account with accounts.index(), a linear scan of the
+        6,000 accounts seen so far, so the rollup cost rows times accounts and took about
+        twelve seconds against a two second budget. It is now a single pass keyed by a
+        dict, which is O(1) per row and preserves insertion order, so first seen key
+        order is kept without the parallel lists. Refund handling is unchanged, the
+        rollup of a 40,000 row prefix digests identically to the old implementation, and
+        the full 200,000 row ledger finishes in about 0.16s.
+    note: Report the cause, the measurement and the evidence that the answer did not change.

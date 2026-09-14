@@ -1,0 +1,117 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "orders",
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/orders": {
+      "post": {
+        "operationId": "createOrder",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateOrderRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "the order that was created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{orderId}": {
+      "get": {
+        "operationId": "getOrder",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "one order",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{orderId}/shipments": {
+      "get": {
+        "operationId": "listOrderShipments",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "every shipment raised for the order, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Shipment" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateOrderRequest": {
+        "type": "object",
+        "required": ["customerId", "idempotencyKey", "total"],
+        "properties": {
+          "customerId": { "type": "string" },
+          "idempotencyKey": { "type": "string" },
+          "total": { "type": "integer" }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "required": ["createdAt", "id", "status", "total"],
+        "properties": {
+          "createdAt": { "type": "string" },
+          "id": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/OrderStatus" },
+          "total": { "type": "integer" }
+        }
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": ["pending", "shipped", "cancelled", "refunded"]
+      },
+      "Shipment": {
+        "type": "object",
+        "required": ["carrier", "trackingNumber"],
+        "properties": {
+          "carrier": { "type": "string" },
+          "deliveredAt": { "type": "string" },
+          "trackingNumber": { "type": "string" }
+        }
+      }
+    }
+  }
+}

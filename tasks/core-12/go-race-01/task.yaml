@@ -1,0 +1,54 @@
+title: Fix a data race in a metrics registry without serialising every read
+description: >
+  A latency aggregator shared by every request goroutine and one exporter goroutine fails
+  under the race detector. A mutex was added around the map at some point and the work
+  stopped there: the per endpoint aggregate fields, the histogram behind them and the
+  global Observe counter are all mutated with no lock held, and a cache in front of the
+  map that remembers the most recently used endpoint is read and written unsynchronised on
+  the hot path. The cache is the subtle half. It is also why Reset leaves a stale bucket
+  behind, which is a visible bug rather than a detector warning. The tempting fix is one
+  exclusive mutex around every method, which is race free, correct, and puts every
+  exporter read in a queue behind the others: the hidden suite measures concurrent reads
+  of a deliberately slow read path and rejects it.
+language: go
+difficulty: 4
+tags: [go, concurrency, data-race, locking, rwmutex]
+
+image_tag: trajectory/go-race-01
+setup_cmd: >
+  export PATH=/usr/local/go/bin:$PATH;
+  go test -race -count=1 -run 'NoTestMatchesThis' ./... >/dev/null 2>&1;
+  go vet ./... >/dev/null 2>&1;
+  true
+agent_prompt: |
+  `go test -race ./...` fails in this workspace. The race detector reports the metrics
+  registry under `agg/`.
+
+  Make the package hold up under the concurrency README.md documents it for. All five
+  points of the contract there are checked, including the fourth: two reads of the same
+  endpoint have to be able to run at the same time, so one exclusive lock around every
+  method is not an acceptable fix.
+
+  Constraints:
+
+  - The exported API stays exactly as it is. Other packages compile against it, and
+    locking cannot be pushed out to the caller.
+  - Do not modify `agg/histogram.go` or `agg/aggregator_test.go`.
+  - `go vet ./...` stays clean and the code stays gofmt clean.
+
+  Go is at /usr/local/go/bin. There is no network, and the module has no dependencies
+  outside the standard library.
+
+max_steps: 40
+timeout_seconds: 1200
+command_timeout_seconds: 300
+
+verify_cmd: >
+  export PATH=/usr/local/go/bin:$PATH; rm -rf zz_hidden && mkdir zz_hidden &&
+  cp "$VERIFY_DIR"/*.go zz_hidden/ && go test -race -count=1 -v ./zz_hidden/
+verify_parser: go_test
+verify_timeout_seconds: 600
+
+reference_step_count: 9
+relevant_paths:
+  - agg/**

@@ -1,0 +1,45 @@
+title: Make an accidentally quadratic rollup meet its two second budget
+description: >
+  The payments rollup aggregates a day of ledger rows into one summary per account. It
+  finds the slot for each row by scanning a list of accounts seen so far, so the work
+  grows with rows times accounts: 200,000 rows over 6,000 accounts takes about twelve
+  seconds against a two second budget. The aggregation is correct, and the visible tests
+  pass, so this is a complexity problem rather than a logic problem. The fix is a single
+  pass with a hashed lookup. The output contract, including the fact that accounts come
+  out in the order they first appear, has to survive it, and the hidden tests time a
+  second ledger of a different shape so that making the shipped fixture fast is not enough.
+language: python
+difficulty: 3
+tags: [performance, complexity, aggregation, profiling]
+
+image_tag: trajectory/py-perf-01
+setup_cmd: python3 tools/make_fixture.py
+agent_prompt: |
+  `python3 bench.py` reports the payments rollup over budget on `data/ledger.csv`.
+
+  Make `summarise` in `src/rollup/` finish that ledger inside the two second budget, and
+  keep the rollup it produces identical.
+
+  What has to stay true:
+
+  - Every field of every `AccountSummary` keeps the meaning the README and the docstrings
+    give it, refunds included.
+  - The returned mapping stays keyed in the order accounts first appear in the ledger.
+  - `summarise` stays a pure function of the rows it is handed. It does not mutate them,
+    it does not cache across calls, and it accepts any iterable of rows.
+  - `python3 -m pytest -q tests` keeps passing.
+
+  Do not special case this fixture, and do not move the work into `bench.py` or into
+  `load_rows`. The rollup itself has to be fast on any ledger of this size.
+
+max_steps: 40
+timeout_seconds: 900
+command_timeout_seconds: 240
+
+verify_cmd: python -m pytest -q "$VERIFY_DIR"
+verify_parser: pytest
+verify_timeout_seconds: 300
+
+reference_step_count: 11
+relevant_paths:
+  - src/rollup/**

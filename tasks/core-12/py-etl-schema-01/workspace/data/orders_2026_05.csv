@@ -1,0 +1,19 @@
+order_id,customer_first_name,customer_last_name,market,currency,amount_cents,discount_cents,placed_at
+SO-52001,Radia,Perlman,eu-west,EUR,142000,2000,04/05/2026
+SO-52002,Vint,Cerf,us-east,USD,86400,,05/05/2026
+SO-52003,Margaret,Hamilton,us-west,USD,530000,15000,07/05/2026
+SO-52004,Anita,Borg,eu-north,EUR,24900,,11/05/2026
+SO-52005,Shafi,Goldwasser,us-east,USD,178000,500,13/05/2026
+SO-52006,Ada,Lovelace,eu-west,GBP,66000,,14/05/2026
+SO-52007,Jim,Gray,us-west,USD,not-yet-priced,0,15/05/2026
+SO-52008,Barbara,Liskov,us-east,USD,91500,,18/05/2026
+,Sophie,Wilson,eu-west,GBP,47000,,19/05/2026
+SO-52010,Steve,Furber,eu-west,GBP,52300,1300,21/05/2026
+SO-52011,Karen,Sparck Jones,eu-west,GBP,30000,,22/05/2026
+SO-52012,Lynn,Conway,us-west,USD,265000,pending,25/05/2026
+SO-52013,Frances,Allen,us-east,USD,120000,,26/05/2026
+SO-52014,Grace,Hopper,us-east,USD,99900,900,27/05/2026
+SO-52015,Alan,Kay,us-west,USD,88800,,32/05/2026
+SO-52016,Leslie,Lamport,us-west,USD,61000,,28/05/2026
+SO-52017,Tim,Berners-Lee,eu-west,GBP,145000,5000,29/05/2026
+SO-52018,Maurice,Wilkes,eu-west,GBP,18000,,30/05/2026

@@ -1,0 +1,391 @@
+notes: >
+  The crash is a KeyError and it is the least interesting thing here. What matters is that
+  the export changed in four separate ways and the contract did not change at all, so the
+  work is a mapping from this month's layout onto fields that are fixed. The two repairs
+  that look faster are both worse. A try or except around the row loop makes the loader
+  run and quietly loses rows, which is the failure mode nobody notices until a finance
+  total is wrong. Emitting the vendor's new column names moves the breakage downstream
+  into the warehouse. The date change is the one that hides: DD/MM/YYYY parses as
+  MM/DD/YYYY for the first twelve days of the month and then starts raising, so the
+  fixture has to be read before writing any code. Layouts go in a table keyed by header so
+  April still loads, since the warehouse reloads history, and an unmapped header is refused
+  rather than guessed at.
+steps:
+  - tool: bash
+    args:
+      command: ls -R . | head -30 && cat README.md
+    note: Find out what this repository is and what the last person said about the state of it.
+
+  - tool: bash
+    args:
+      command: cat CONTRACT.md
+    note: >
+      Read the contract before the code. The output shape is fixed and the reject reasons
+      are already named, so this is a mapping problem with a spec, not a design decision.
+
+  - tool: bash
+    args:
+      command: python3 load.py data/orders_2026_05.csv out/orders.jsonl out/rejects.jsonl
+    note: Reproduce the failure and read the traceback. KeyError on customer_name, so the header changed.
+
+  - tool: bash
+    args:
+      command: |
+        for f in data/orders_2026_04.csv data/orders_2026_05.csv; do
+          echo "== $f"
+          head -1 "$f"
+          sed -n 2,3p "$f"
+        done
+    note: >
+      Diff the two headers by eye. Four changes: region_code became market, the name is
+      split in two, discount_cents is new and sometimes empty, and the dates are
+      DD/MM/YYYY where the old file was ISO.
+
+  - tool: read_file
+    args:
+      path: src/warehouse/pipeline.py
+    note: >
+      Read the loader. Every source column name is hardcoded in _record, and the only
+      reject reason implemented is bad_amount, because April never needed the others.
+
+  - tool: bash
+    args:
+      command: |
+        python3 -c '
+        import csv
+        from datetime import datetime
+
+        with open("data/orders_2026_05.csv", newline="") as handle:
+            reader = csv.DictReader(handle)
+            for line, row in enumerate(reader, start=2):
+                problems = []
+                if not row["order_id"].strip():
+                    problems.append("order_id blank")
+                try:
+                    int(row["amount_cents"])
+                except ValueError:
+                    problems.append("amount " + repr(row["amount_cents"]))
+                discount = row["discount_cents"].strip()
+                if discount:
+                    try:
+                        int(discount)
+                    except ValueError:
+                        problems.append("discount " + repr(discount))
+                try:
+                    datetime.strptime(row["placed_at"], "%d/%m/%Y")
+                except ValueError:
+                    problems.append("date " + repr(row["placed_at"]))
+                if problems:
+                    print(line, problems)
+        '
+    note: >
+      Find the rows that will not convert, from the data rather than from imagination.
+      Four of them, one for each reason code in the contract, which is what the rejects
+      file has to carry.
+
+  - tool: write_file
+    args:
+      path: src/warehouse/pipeline.py
+      content: |
+        """Turn a vendor order export into the warehouse format.
+
+        The output contract lives in CONTRACT.md and is the only thing downstream of here that is
+        guaranteed. Rows that cannot be converted go to the rejects file with a reason, because a
+        loader that drops a row is worse than a loader that fails: the row is gone and the totals
+        are quietly wrong.
+
+        The vendor reshapes the export from time to time, so the source layout is data rather than
+        something spread through the code. A layout says where the warehouse fields come from in
+        one export shape, the header picks the layout, and a header nobody has mapped is refused
+        instead of guessed at. Adding the next layout is then one more entry in LAYOUTS, and the
+        old ones keep loading, which they have to: the warehouse reloads history.
+        """
+
+        from __future__ import annotations
+
+        import csv
+        import json
+        from dataclasses import dataclass
+        from datetime import datetime
+        from pathlib import Path
+
+        FIELDS = (
+            "order_id",
+            "customer_name",
+            "region",
+            "currency",
+            "amount_cents",
+            "discount_cents",
+            "net_cents",
+            "placed_on",
+        )
+        """The warehouse columns, in the order CONTRACT.md lists them."""
+
+
+        @dataclass(frozen=True)
+        class LoadReport:
+            """What one run of the loader did.
+
+            Attributes:
+                read: Data rows in the source file.
+                written: Rows written to the warehouse file.
+                rejected: Rows written to the rejects file.
+            """
+
+            read: int
+            written: int
+            rejected: int
+
+
+        @dataclass(frozen=True)
+        class Layout:
+            """Where the warehouse fields come from in one shape of the vendor's export.
+
+            Attributes:
+                name: Name for this shape, used in the error for an unknown header.
+                header: The exact header row the vendor writes for it.
+                name_fields: Source columns that make up the customer name, in order.
+                region_field: Source column holding the region.
+                discount_field: Source column holding the discount, or None when the layout has
+                    no discount column at all.
+                date_format: strptime format of the placed date in this layout.
+            """
+
+            name: str
+            header: tuple[str, ...]
+            name_fields: tuple[str, ...]
+            region_field: str
+            discount_field: str | None
+            date_format: str
+
+
+        APRIL_2026 = Layout(
+            name="april-2026",
+            header=("order_id", "customer_name", "region_code", "currency", "amount_cents", "placed_at"),
+            name_fields=("customer_name",),
+            region_field="region_code",
+            discount_field=None,
+            date_format="%Y-%m-%d",
+        )
+
+        MAY_2026 = Layout(
+            name="may-2026",
+            header=(
+                "order_id",
+                "customer_first_name",
+                "customer_last_name",
+                "market",
+                "currency",
+                "amount_cents",
+                "discount_cents",
+                "placed_at",
+            ),
+            name_fields=("customer_first_name", "customer_last_name"),
+            region_field="market",
+            discount_field="discount_cents",
+            date_format="%d/%m/%Y",
+        )
+
+        LAYOUTS = (APRIL_2026, MAY_2026)
+
+
+        class RowError(ValueError):
+            """A source row that cannot become a warehouse record.
+
+            Carries the contract's reason code, because whoever reads the rejects file has to
+            decide whether to chase the vendor or fix the loader.
+            """
+
+            def __init__(self, reason: str) -> None:
+                """Record which contract reason applies."""
+                super().__init__(reason)
+                self.reason = reason
+
+
+        def layout_for(header: list[str] | None) -> Layout:
+            """Pick the layout a header belongs to.
+
+            Args:
+                header: Header row as read from the source.
+
+            Returns:
+                The matching layout.
+
+            Raises:
+                ValueError: If no known layout has that header. Guessing at an unmapped export is
+                    how a column ends up silently loaded into the wrong warehouse field.
+            """
+            for layout in LAYOUTS:
+                if header == list(layout.header):
+                    return layout
+            known = ", ".join(layout.name for layout in LAYOUTS)
+            raise ValueError(f"header {header} matches no known layout. Known layouts: {known}")
+
+
+        def _integer(value: str, reason: str) -> int:
+            """Parse a minor unit integer, raising the contract's reason code on anything else."""
+            try:
+                return int(value.strip())
+            except ValueError as exc:
+                raise RowError(reason) from exc
+
+
+        def _record(row: dict[str, str], layout: Layout) -> dict[str, object]:
+            """Turn one source row into a warehouse record.
+
+            Args:
+                row: One row of the export, source field name to raw string.
+                layout: Layout the file is in.
+
+            Returns:
+                The record, with the contract's fields in the contract's order.
+
+            Raises:
+                RowError: If the row cannot be converted. Checks run in the order CONTRACT.md
+                    gives, so a row with two problems is reported under the first.
+            """
+            order_id = (row.get("order_id") or "").strip()
+            if not order_id:
+                raise RowError("missing_order_id")
+
+            amount = _integer(row.get("amount_cents") or "", "bad_amount")
+
+            raw_discount = (row.get(layout.discount_field) or "") if layout.discount_field else ""
+            discount = _integer(raw_discount, "bad_discount") if raw_discount.strip() else 0
+
+            raw_date = (row.get("placed_at") or "").strip()
+            try:
+                placed_on = datetime.strptime(raw_date, layout.date_format).date().isoformat()
+            except ValueError as exc:
+                raise RowError("bad_date") from exc
+
+            parts = ((row.get(field) or "").strip() for field in layout.name_fields)
+            customer_name = " ".join(part for part in parts if part)
+
+            return {
+                "order_id": order_id,
+                "customer_name": customer_name,
+                "region": (row.get(layout.region_field) or "").strip(),
+                "currency": (row.get("currency") or "").strip(),
+                "amount_cents": amount,
+                "discount_cents": discount,
+                "net_cents": amount - discount,
+                "placed_on": placed_on,
+            }
+
+
+        def transform_file(
+            source: str | Path,
+            destination: str | Path,
+            rejects: str | Path,
+        ) -> LoadReport:
+            """Load one export into the warehouse format.
+
+            Args:
+                source: Vendor export CSV, in any layout listed in LAYOUTS.
+                destination: Warehouse file to write, one JSON object per line.
+                rejects: Rejects file to write, one JSON object per line.
+
+            Returns:
+                Counts for the run, where read equals written plus rejected.
+
+            Raises:
+                ValueError: If the header matches no known layout. Raised before either output is
+                    opened, so a mystery file does not truncate the last good load.
+            """
+            read = written = rejected = 0
+
+            with Path(source).open(newline="", encoding="utf-8") as handle:
+                reader = csv.DictReader(handle)
+                layout = layout_for(reader.fieldnames)
+                with (
+                    Path(destination).open("w", encoding="utf-8") as out,
+                    Path(rejects).open("w", encoding="utf-8") as bad,
+                ):
+                    # The header is line 1, so the first data row is line 2.
+                    for line, row in enumerate(reader, start=2):
+                        read += 1
+                        try:
+                            record = _record(row, layout)
+                        except RowError as exc:
+                            entry = {"line": line, "reason": exc.reason, "raw": dict(row)}
+                            bad.write(json.dumps(entry) + "\n")
+                            rejected += 1
+                            continue
+                        out.write(json.dumps(record) + "\n")
+                        written += 1
+
+            return LoadReport(read=read, written=written, rejected=rejected)
+    note: >
+      Put the layout in a table picked by header, so both exports load and the next
+      reshape is one more entry. Checks run in the contract's order, each raising its
+      reason code, and the header is resolved before either output file is opened so a
+      mystery file cannot truncate the last good load.
+
+  - tool: bash
+    args:
+      command: python3 -m pytest -q tests
+    note: April's suite first. Backward compatibility is the half of this that is easy to break silently.
+
+  - tool: bash
+    args:
+      command: |
+        python3 load.py data/orders_2026_05.csv out/orders.jsonl out/rejects.jsonl
+        python3 load.py data/orders_2026_04.csv out/april.jsonl out/april-rejects.jsonl
+        wc -l out/*.jsonl
+    note: Load both months. The counts have to add up per file, and April's has to be what it was before.
+
+  - tool: bash
+    args:
+      command: |
+        python3 -c '
+        import json
+
+        FIELDS = ["order_id", "customer_name", "region", "currency",
+                  "amount_cents", "discount_cents", "net_cents", "placed_on"]
+        records = [json.loads(line) for line in open("out/orders.jsonl")]
+        print("records", len(records))
+        print("field order held", all(list(r) == FIELDS for r in records))
+        print("net = amount - discount", all(r["net_cents"] == r["amount_cents"] - r["discount_cents"] for r in records))
+        print("months", sorted({r["placed_on"][:7] for r in records}))
+        print("split names", [r["customer_name"] for r in records[:3]])
+        '
+    note: >
+      Check the record shape against the contract rather than glancing at the file. Field
+      order, the net arithmetic, and every date landing in May, which is the assertion that
+      catches a day and month swap.
+
+  - tool: bash
+    args:
+      command: |
+        python3 -c '
+        import csv, json
+
+        with open("data/orders_2026_05.csv", newline="") as handle:
+            source = list(csv.DictReader(handle))
+        written = [json.loads(line) for line in open("out/orders.jsonl")]
+        rejected = [json.loads(line) for line in open("out/rejects.jsonl")]
+        print("read", len(source), "written", len(written), "rejected", len(rejected))
+        print("every row accounted for", len(written) + len(rejected) == len(source))
+        print("reasons", [(entry["line"], entry["reason"]) for entry in rejected])
+        kept = {row["order_id"] for row in source} - {entry["raw"]["order_id"] for entry in rejected}
+        print("ids match", kept == {record["order_id"] for record in written})
+        '
+    note: >
+      Reconcile against the source. Eighteen rows in, fourteen written, four rejected with
+      a reason each, and the accepted identifiers are exactly the source identifiers minus
+      the rejected ones. That is the check that a dropped row cannot pass.
+
+  - tool: finish
+    args:
+      summary: >
+        May's export renamed region_code to market, split customer_name into
+        customer_first_name and customer_last_name, added an optional discount_cents, and
+        switched placed_at to DD/MM/YYYY. The loader now resolves a layout from the header,
+        so both April's and May's exports load and an unknown header raises instead of
+        being guessed at, and the warehouse fields are unchanged. Validation covers all
+        four contract reasons rather than only bad_amount: May's 18 rows come out as 14
+        records and 4 rejects (bad_amount, missing_order_id, bad_discount, bad_date), with
+        read equal to written plus rejected and the accepted identifiers reconciled against
+        the source. April still loads 14 rows to 13 records and 1 reject.
+    note: Say what changed upstream, what the mapping is now, and give the reconciliation numbers.

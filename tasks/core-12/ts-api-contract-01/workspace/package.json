@@ -1,0 +1,11 @@
+{
+  "name": "orders-client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Order service client, generated from openapi.json.",
+  "scripts": {
+    "generate": "node tools/generate-client.mjs",
+    "build": "sh build.sh"
+  }
+}

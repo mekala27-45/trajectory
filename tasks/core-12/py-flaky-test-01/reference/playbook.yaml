@@ -1,0 +1,349 @@
+notes: >
+  The symptom is one test, the cause is the library. sample_requests draws from the
+  process wide random stream, so the test is really asserting a property of whatever
+  entropy the interpreter started with: all four tenants appear in a sample of 8 out of 40
+  about 70 percent of the time. Three fixes present themselves and two of them are wrong.
+  Seeding the global RNG in the library fixes the test and silently decides randomness for
+  every other caller. Loosening the assertion throws away the property the auditor exists
+  to guarantee. The fix that holds is to make the random source a parameter, default it to
+  the module level stream so production is untouched, and let the test pass a seeded
+  Random. The delay jitter gets the same treatment, because it has the same defect and is
+  one bad day away from being the next flaky test.
+steps:
+  - tool: bash
+    args:
+      command: ls -R . && cat README.md
+    note: Get the shape of the repository and whatever the last person left behind about the failure.
+
+  - tool: bash
+    args:
+      command: python3 -m pytest -q tests
+    note: >
+      Run the suite once. A single green run proves nothing here, which is the whole
+      problem, so this is only to confirm the suite runs at all.
+
+  - tool: bash
+    args:
+      command: |
+        fails=0
+        for i in $(seq 1 20); do
+          python3 -m pytest -q -p no:cacheprovider tests >/dev/null 2>&1 || fails=$((fails + 1))
+        done
+        echo "failing runs out of 20: $fails"
+    note: >
+      Measure the flakiness instead of taking CI's word for it. Twenty runs put the rate
+      near one in four, which is a coin the test is tossing rather than an environment
+      problem.
+
+  - tool: read_file
+    args:
+      path: src/sampler/core.py
+    note: >
+      Read the library. _shuffled calls random.shuffle on the process wide stream, and
+      retry_delays calls random.uniform on it, so neither caller can pin a result.
+
+  - tool: read_file
+    args:
+      path: tests/test_sampler.py
+    note: >
+      Read the test before changing it. It asserts tenant coverage, which is a real
+      property of a draw and not something to weaken, so the draw has to become
+      reproducible.
+
+  - tool: bash
+    args:
+      command: |
+        python3 -c '
+        import random, sys
+        sys.path.insert(0, "src")
+        from sampler import Request, sample_requests, tenant_counts
+        tenants = ("acme", "globex", "initech", "umbrella")
+        fleet = [Request(f"req-{i:04d}", t, 20 + i) for i, t in enumerate(tenants * 10)]
+        random.seed(11)
+        first = sorted(tenant_counts(sample_requests(fleet, 8)))
+        random.seed(11)
+        again = sorted(tenant_counts(sample_requests(fleet, 8)))
+        print("global seed 11 twice:", first == again, first)
+        print("tenants covered over 12 unseeded draws:", [len(tenant_counts(sample_requests(fleet, 8))) for _ in range(12)])
+        '
+    note: >
+      Confirm the mechanism rather than assuming it. Seeding the global module reproduces
+      the sample exactly, which proves the library is drawing from that stream, and the
+      coverage count across unseeded draws shows the 3 that the failing runs see.
+
+  - tool: write_file
+    args:
+      path: src/sampler/core.py
+      content: |
+        """Sampling helpers for the request auditor.
+
+        The auditor keeps a small sample of production requests for a human to review, and it
+        retries its uploads with exponential backoff. Both are random on purpose. A sample that
+        always picked the same requests would keep missing whatever the last sample missed, and a
+        backoff without jitter puts every retrying client back on the wire in the same
+        millisecond.
+
+        Randomness that reaches production has to stay random. Randomness that reaches a test has
+        to be controlled by the test, which is not the same thing. Every function here that draws
+        randomness takes an optional `rng`: pass a `random.Random` and the result is reproducible,
+        leave it out and the function draws from the module level `random` stream exactly as it
+        always has.
+        """
+
+        from __future__ import annotations
+
+        import random
+        from collections.abc import Sequence
+        from typing import Any
+
+
+        class Request:
+            """One audited request.
+
+            A plain class rather than a tuple, because the auditor grew two more fields last
+            quarter and positional unpacking kept breaking.
+            """
+
+            __slots__ = ("request_id", "tenant", "latency_ms")
+
+            def __init__(self, request_id: str, tenant: str, latency_ms: int) -> None:
+                """Store the three fields the auditor reads."""
+                self.request_id = request_id
+                self.tenant = tenant
+                self.latency_ms = latency_ms
+
+            def __repr__(self) -> str:
+                """Readable in a test failure, which is the only place this is printed."""
+                return f"Request({self.request_id!r}, {self.tenant!r}, {self.latency_ms})"
+
+            def __eq__(self, other: object) -> bool:
+                """Value equality, so samples can be compared across calls."""
+                if not isinstance(other, Request):
+                    return NotImplemented
+                return (self.request_id, self.tenant, self.latency_ms) == (
+                    other.request_id,
+                    other.tenant,
+                    other.latency_ms,
+                )
+
+            def __hash__(self) -> int:
+                """Hashable so a sample can go into a set."""
+                return hash((self.request_id, self.tenant, self.latency_ms))
+
+
+        def _source(rng: random.Random | None) -> Any:
+            """Return the object to draw randomness from.
+
+            None means the module level functions in `random`, which are bound methods of one
+            hidden Random instance. Returning the module keeps the default path on exactly the
+            stream `random.seed` controls, so nothing about production behaviour changes.
+            """
+            return random if rng is None else rng
+
+
+        def _shuffled(items: Sequence[Request], rng: random.Random | None = None) -> list[Request]:
+            """Return a copy of items in a random order.
+
+            Copies rather than shuffling in place. Callers hand us the auditor's live buffer and
+            reordering it under them caused a duplicate upload once already.
+            """
+            pool = list(items)
+            _source(rng).shuffle(pool)
+            return pool
+
+
+        def sample_requests(
+            items: Sequence[Request],
+            k: int,
+            *,
+            rng: random.Random | None = None,
+        ) -> list[Request]:
+            """Return k requests drawn uniformly at random, without replacement.
+
+            Args:
+                items: Requests to draw from.
+                k: How many to draw. A k larger than the input returns everything.
+                rng: Random source to draw from. Pass a seeded `random.Random` when the draw has
+                    to be reproducible, for example from a test. Defaults to the module level
+                    `random` stream.
+
+            Returns:
+                The drawn requests. Every element of the result is an element of the input and no
+                element appears twice.
+
+            Raises:
+                ValueError: If k is negative.
+            """
+            if k < 0:
+                raise ValueError(f"k must not be negative, got {k}")
+            return _shuffled(items, rng)[:k]
+
+
+        def retry_delays(
+            attempts: int,
+            base_delay: float = 0.5,
+            factor: float = 2.0,
+            jitter: float = 0.25,
+            *,
+            rng: random.Random | None = None,
+        ) -> list[float]:
+            """Return the delay in seconds before each retry, with jitter applied.
+
+            Delay n is `base_delay * factor ** n`, multiplied by a jitter factor drawn uniformly
+            from `[1 - jitter, 1 + jitter]`.
+
+            Args:
+                attempts: How many retries to schedule.
+                base_delay: Delay before the first retry, before jitter.
+                factor: Growth per attempt.
+                jitter: Fraction of the nominal delay the jitter may add or remove.
+                rng: Random source to draw the jitter from. Defaults to the module level `random`
+                    stream.
+
+            Returns:
+                One delay per attempt, in order.
+
+            Raises:
+                ValueError: If attempts is negative or jitter is outside [0, 1).
+            """
+            if attempts < 0:
+                raise ValueError(f"attempts must not be negative, got {attempts}")
+            if not 0.0 <= jitter < 1.0:
+                raise ValueError(f"jitter must be in [0, 1), got {jitter}")
+
+            source = _source(rng)
+            delays: list[float] = []
+            for attempt in range(attempts):
+                nominal = base_delay * factor**attempt
+                spread = source.uniform(1.0 - jitter, 1.0 + jitter)
+                delays.append(round(nominal * spread, 6))
+            return delays
+
+
+        def tenant_counts(items: Sequence[Request]) -> dict[str, int]:
+            """Count requests per tenant, keyed in first seen order.
+
+            Args:
+                items: Requests to count.
+
+            Returns:
+                Tenant to count, ordered by the first appearance of each tenant.
+            """
+            counts: dict[str, int] = {}
+            for item in items:
+                counts[item.tenant] = counts.get(item.tenant, 0) + 1
+            return counts
+    note: >
+      Make the random source a parameter on both functions that draw, threaded through
+      _shuffled, defaulting to the module level stream. Production keeps the behaviour it
+      has today and callers that need a reproducible draw can now ask for one.
+
+  - tool: write_file
+    args:
+      path: tests/test_sampler.py
+      content: |
+        """Tests for the request auditor's sampling helpers.
+
+        The sampler is random by design, so these assert the properties the auditor depends on
+        rather than one exact sample. Anything that has to hold for a specific draw takes a seeded
+        `random.Random`, because a test that depends on an unseeded global RNG is a test that
+        fails on someone else's branch.
+        """
+
+        import random
+
+        from sampler import Request, retry_delays, sample_requests, tenant_counts
+
+        TENANTS = ("acme", "globex", "initech", "umbrella")
+        PER_TENANT = 10
+        SAMPLE_SIZE = 8
+        SEED = 1337
+
+
+        def make_requests() -> list[Request]:
+            """Build a fleet with an equal number of requests per tenant."""
+            return [
+                Request(request_id=f"req-{index:04d}", tenant=tenant, latency_ms=20 + index)
+                for index, tenant in enumerate(TENANTS * PER_TENANT)
+            ]
+
+
+        def test_sample_size_matches_k():
+            sample = sample_requests(make_requests(), SAMPLE_SIZE, rng=random.Random(SEED))
+            assert len(sample) == SAMPLE_SIZE
+
+
+        def test_sample_is_drawn_without_replacement():
+            picked = sample_requests(make_requests(), SAMPLE_SIZE, rng=random.Random(SEED))
+            assert len({request.request_id for request in picked}) == SAMPLE_SIZE
+
+
+        def test_sample_covers_every_tenant():
+            # The auditor's whole point is that a reviewer sees traffic from every tenant, so a
+            # sample that leaves one out is not usable. Coverage is a property of the draw, so the
+            # draw is pinned to a seed rather than left to whatever the global RNG happens to hold.
+            picked = sample_requests(make_requests(), SAMPLE_SIZE, rng=random.Random(SEED))
+            assert set(tenant_counts(picked)) == set(TENANTS)
+
+
+        def test_retry_delays_stay_inside_the_jitter_envelope():
+            delays = retry_delays(5, base_delay=0.5, factor=2.0, jitter=0.25, rng=random.Random(SEED))
+            assert len(delays) == 5
+            for attempt, delay in enumerate(delays):
+                nominal = 0.5 * 2.0**attempt
+                assert 0.75 * nominal <= delay <= 1.25 * nominal
+
+
+        def test_retry_delays_fit_the_upload_budget():
+            # The uploader gives up after 20 seconds, so five jittered attempts have to fit.
+            delays = retry_delays(5, base_delay=0.5, factor=2.0, jitter=0.25, rng=random.Random(SEED))
+            assert sum(delays) <= 20.0
+
+
+        def test_tenant_counts_are_keyed_in_first_seen_order():
+            counts = tenant_counts(make_requests())
+            assert list(counts) == list(TENANTS)
+            assert set(counts.values()) == {PER_TENANT}
+    note: >
+      Pin every test that depends on a specific draw to a seeded Random. The coverage
+      assertion is unchanged, which is the point: it now tests the sampler instead of the
+      interpreter's entropy.
+
+  - tool: bash
+    args:
+      command: |
+        fails=0
+        for i in $(seq 1 20); do
+          python3 -m pytest -q -p no:cacheprovider tests >/dev/null 2>&1 || fails=$((fails + 1))
+        done
+        echo "failing runs out of 20: $fails"
+    note: Twenty more runs. Zero failures is the only acceptable answer for a merge queue.
+
+  - tool: bash
+    args:
+      command: |
+        python3 -c '
+        import random, sys
+        sys.path.insert(0, "src")
+        from sampler import Request, retry_delays, sample_requests
+        fleet = [Request(f"req-{i:04d}", t, 20 + i) for i, t in enumerate(("a", "b", "c", "d") * 10)]
+        seeded = {tuple(r.request_id for r in sample_requests(fleet, 8, rng=random.Random(1337))) for _ in range(200)}
+        unseeded = {tuple(r.request_id for r in sample_requests(fleet, 8)) for _ in range(200)}
+        print("distinct draws, seeded:", len(seeded), "unseeded:", len(unseeded))
+        print("jitter still varies:", len({tuple(retry_delays(4)) for _ in range(50)}) > 1)
+        '
+    note: >
+      Check the other half of the contract. A seeded draw is one result across 200 calls,
+      an unseeded draw is many, and the backoff still jitters, so nothing about production
+      sampling was quietly pinned to a constant.
+
+  - tool: finish
+    args:
+      summary: >
+        sample_requests and retry_delays drew from the process wide random stream, so
+        test_sample_covers_every_tenant was asserting a property that holds for about 70
+        percent of possible draws: hence one failing run in four. Both functions now take
+        an optional rng and default to the module level stream, so production sampling is
+        unchanged and still random, and the tests pass a seeded random.Random. The
+        coverage assertion is untouched and the suite passed 20 consecutive runs.
+    note: Say what the defect was and why the default path is still random, because that is the part a reviewer will ask about.
