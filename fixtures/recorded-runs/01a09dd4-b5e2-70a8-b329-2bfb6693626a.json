@@ -1,0 +1,257 @@
+{
+  "id": "01a09dd4-b5e2-70a8-b329-2bfb6693626a",
+  "schema_version": 1,
+  "task_id": "py-dep-conflict-01",
+  "suite": "core-12",
+  "config": {
+    "model": "stub:methodical",
+    "temperature": 0.0,
+    "max_steps": 30,
+    "seed": 2,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 600,
+    "command_timeout_seconds": 180,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "local"
+  },
+  "started_at": "2026-09-14T02:52:38.242383Z",
+  "finished_at": "2026-09-14T02:52:44.115425Z",
+  "status": "completed",
+  "steps": [
+    {
+      "index": 0,
+      "timestamp": "2026-09-14T02:52:39.404266Z",
+      "thought": "Reproduce the failure and read the resolver's explanation of the conflict.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "cat requirements.txt && sh check.sh 2>&1 | tail -25"
+      },
+      "tool_output": "# Pinned by hand during an incident and never revisited.\n# Install offline from the vendored wheelhouse:\n#   pip install --no-index --find-links wheelhouse -r requirements.txt\nplugina==2.0.0\npluginb==1.0.0\nlibcore==1.4.0\nresolving requirements offline...\nERROR: Cannot install -r requirements.txt (line 4) and libcore==1.4.0 because these package versions have conflicting dependencies.\nERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts\n",
+      "exit_code": 0,
+      "duration_ms": 1074,
+      "tokens_in": 306,
+      "tokens_out": 34,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 1,
+      "timestamp": "2026-09-14T02:52:39.427822Z",
+      "thought": "See which versions actually exist. This is the constraint set.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "ls wheelhouse/"
+      },
+      "tool_output": "libcore-1.4.0-py3-none-any.whl\nlibcore-2.1.0-py3-none-any.whl\nplugina-1.0.0-py3-none-any.whl\nplugina-2.0.0-py3-none-any.whl\npluginb-1.0.0-py3-none-any.whl\npluginb-3.0.0-py3-none-any.whl\n",
+      "exit_code": 0,
+      "duration_ms": 22,
+      "tokens_in": 532,
+      "tokens_out": 22,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 2,
+      "timestamp": "2026-09-14T02:52:39.661610Z",
+      "thought": "Read each wheel's requirements. plugina 2.0.0 and pluginb 3.0.0 both want the 2.x core; plugina 1.0.0 and pluginb 1.0.0 both want 1.x.\n",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "for w in wheelhouse/*.whl; do echo \"== $w\"; python -c \"import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); print([n for n in z.namelist() if n.endswith(\\\"METADATA\\\")][0]); print(z.read([n for n in z.namelist() if n.endswith(\\\"METADATA\\\")][0]).decode())\" \"$w\" | grep -E \"^(Name|Version|Requires-Dist)\"; done"
+      },
+      "tool_output": "== wheelhouse/libcore-1.4.0-py3-none-any.whl\nName: libcore\nVersion: 1.4.0\n== wheelhouse/libcore-2.1.0-py3-none-any.whl\nName: libcore\nVersion: 2.1.0\n== wheelhouse/plugina-1.0.0-py3-none-any.whl\nName: plugina\nVersion: 1.0.0\nRequires-Dist: libcore>=1.0,<2.0\n== wheelhouse/plugina-2.0.0-py3-none-any.whl\nName: plugina\nVersion: 2.0.0\nRequires-Dist: libcore>=2.0,<3.0\n== wheelhouse/pluginb-1.0.0-py3-none-any.whl\nName: pluginb\nVersion: 1.0.0\nRequires-Dist: libcore>=1.0,<2.0\n== wheelhouse/pluginb-3.0.0-py3-none-any.whl\nName: pluginb\nVersion: 3.0.0\nRequires-Dist: libcore>=2.0,<3.0\n",
+      "exit_code": 0,
+      "duration_ms": 233,
+      "tokens_in": 661,
+      "tokens_out": 117,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 3,
+      "timestamp": "2026-09-14T02:52:39.682137Z",
+      "thought": "Check which API the application actually uses before choosing a direction. slug and export_with_ids exist only in the 2.x line, so downgrading is not an option.\n",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "grep -n \"slug\\|export_with_ids\" app.py"
+      },
+      "tool_output": "3:Uses the reporting plugin for titles and slugs, and the export plugin for normalised\n22:    for text, identifier in pluginb.export_with_ids(ROWS):\n23:        lines.append(f\"{identifier}  {text}  ({plugina.slug(text)})\")\n",
+      "exit_code": 0,
+      "duration_ms": 19,
+      "tokens_in": 995,
+      "tokens_out": 54,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 4,
+      "timestamp": "2026-09-14T02:52:39.682854Z",
+      "thought": "Move the whole set forward together, with the reason written down.",
+      "tool_name": "write_file",
+      "tool_args": {
+        "path": "requirements.txt",
+        "content": "# Pinned to the versions built against the 2.x core. app.py uses plugina.slug and\n# pluginb.export_with_ids, neither of which exists in the 1.x line, so the whole\n# set has to move forward together rather than the core moving back.\n#   pip install --no-index --find-links wheelhouse -r requirements.txt\nplugina==2.0.0\npluginb==3.0.0\nlibcore==2.1.0\n"
+      },
+      "tool_output": "Wrote 348 bytes (8 lines) to requirements.txt.",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 1165,
+      "tokens_out": 115,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 5,
+      "timestamp": "2026-09-14T02:52:41.824048Z",
+      "thought": "Confirm the requirements resolve and the application runs.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "sh check.sh"
+      },
+      "tool_output": "resolving requirements offline...\nrunning the application...\n# Quarterly Report\nb63c3f9a2d9f  quarterly revenue  (quarterly-revenue-b63c3f9a2d9f)\n6009ff0dd2ef  customer churn  (customer-churn-6009ff0dd2ef)\na419f8580cee  net promoter score  (net-promoter-score-a419f8580cee)\nWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv\n",
+      "exit_code": 0,
+      "duration_ms": 2140,
+      "tokens_in": 1353,
+      "tokens_out": 20,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 6,
+      "timestamp": "2026-09-14T02:52:41.847151Z",
+      "thought": "Confirm nothing else was touched.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "git diff --stat 2>/dev/null || echo \"no git repository\""
+      },
+      "tool_output": "no git repository\n",
+      "exit_code": 0,
+      "duration_ms": 22,
+      "tokens_in": 1558,
+      "tokens_out": 26,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 7,
+      "timestamp": "2026-09-14T02:52:41.847767Z",
+      "thought": "State why the set moved forward rather than the core moving back.",
+      "tool_name": "finish",
+      "tool_args": {
+        "summary": "requirements.txt pinned plugina 2.0.0 (needs libcore 2.x) alongside pluginb 1.0.0 and libcore 1.4.0 (both 1.x), which is unsatisfiable. app.py calls plugina.slug and pluginb.export_with_ids, which exist only in the versions built against the 2.x core, so the resolution was to move the whole set forward: plugina 2.0.0, pluginb 3.0.0, libcore 2.1.0. check.sh passes and only requirements.txt changed.\n"
+      },
+      "tool_output": "Run ended by the agent.",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 1648,
+      "tokens_out": 120,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    }
+  ],
+  "verification": {
+    "passed": true,
+    "tests_passed": 6,
+    "tests_total": 6,
+    "stderr_tail": "",
+    "duration_ms": 2212,
+    "exit_code": 0,
+    "parse_ok": true,
+    "partial_credit": 1.0
+  },
+  "score": {
+    "solved": true,
+    "partial_credit": 1.0,
+    "step_efficiency": 1.0,
+    "tool_call_validity": 1.0,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 5.873,
+    "destructive_attempts": 0,
+    "total_steps": 8,
+    "total_commands": 6,
+    "schema_violations": 0,
+    "failed_commands": 0
+  },
+  "failure_modes": [],
+  "image_id": null,
+  "harness_version": "0.1.0",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.18.44-fc-v24",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 2,
+    "docker_version": null,
+    "sandbox_backend": "local",
+    "ci": false
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "7e24d73a0d1b0394",
+      "app.py": "5275c416700ae39a",
+      "check.sh": "65f642feb1069881",
+      "requirements.txt": "3f0e742d8a3f8030",
+      "wheelhouse/libcore-1.4.0-py3-none-any.whl": "0c1a9cd03298bbe2",
+      "wheelhouse/libcore-2.1.0-py3-none-any.whl": "99ac7ff59f35a472",
+      "wheelhouse/plugina-1.0.0-py3-none-any.whl": "b8574cc8ddd60a2a",
+      "wheelhouse/plugina-2.0.0-py3-none-any.whl": "f4e2c52c36d0dc28",
+      "wheelhouse/pluginb-1.0.0-py3-none-any.whl": "6433e33b1d97ba58",
+      "wheelhouse/pluginb-3.0.0-py3-none-any.whl": "77be79851010566b"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "7e24d73a0d1b0394",
+      "app.py": "5275c416700ae39a",
+      "check.sh": "65f642feb1069881",
+      "requirements.txt": "90a123887c8cc697",
+      "wheelhouse/libcore-1.4.0-py3-none-any.whl": "0c1a9cd03298bbe2",
+      "wheelhouse/libcore-2.1.0-py3-none-any.whl": "99ac7ff59f35a472",
+      "wheelhouse/plugina-1.0.0-py3-none-any.whl": "b8574cc8ddd60a2a",
+      "wheelhouse/plugina-2.0.0-py3-none-any.whl": "f4e2c52c36d0dc28",
+      "wheelhouse/pluginb-1.0.0-py3-none-any.whl": "6433e33b1d97ba58",
+      "wheelhouse/pluginb-3.0.0-py3-none-any.whl": "77be79851010566b"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": null,
+  "wall_clock_s": 5.873,
+  "solved": true,
+  "total_cost_usd": 0.0
+}
