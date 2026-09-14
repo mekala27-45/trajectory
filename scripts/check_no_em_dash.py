@@ -17,13 +17,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Em dash and its visual siblings. En dash (U+2013) is allowed because it carries a
-# different meaning and does not read as an em dash in prose.
+# Em dash and its visual siblings, spelled as codepoints so this file does not trip its
+# own check. En dash (U+2013) is allowed: it carries a different meaning and does not
+# read as an em dash in prose.
 BANNED = {
-    "—": "EM DASH",
-    "―": "HORIZONTAL BAR",
-    "⸺": "TWO-EM DASH",
-    "⸻": "THREE-EM DASH",
+    chr(0x2014): "EM DASH",
+    chr(0x2015): "HORIZONTAL BAR",
+    chr(0x2E3A): "TWO-EM DASH",
+    chr(0x2E3B): "THREE-EM DASH",
 }
 
 SKIP_DIRS = {
@@ -60,8 +61,8 @@ SKIP_SUFFIXES = {
 def tracked_files() -> list[Path]:
     """Return every file git knows about, falling back to a filesystem walk."""
     try:
-        out = subprocess.run(  # noqa: S603
-            ["git", "ls-files", "-z"],  # noqa: S607
+        out = subprocess.run(
+            ["git", "ls-files", "-z"],
             capture_output=True,
             check=True,
             text=True,
@@ -99,13 +100,17 @@ def main(argv: list[str]) -> int:
             for char, name in BANNED.items():
                 col = line.find(char)
                 if col >= 0:
-                    failures.append(f"{path}:{lineno}:{col + 1}: {name} ({char!r}) in: {line.strip()[:88]}")
+                    failures.append(
+                        f"{path}:{lineno}:{col + 1}: {name} ({char!r}) in: {line.strip()[:88]}"
+                    )
 
     if failures:
         sys.stderr.write("em dashes are not allowed in this repository:\n")
         for failure in failures:
             sys.stderr.write(f"  {failure}\n")
-        sys.stderr.write(f"\n{len(failures)} occurrence(s). Use a comma, a colon, parentheses, or 'to'.\n")
+        sys.stderr.write(
+            f"\n{len(failures)} occurrence(s). Use a comma, a colon, parentheses, or 'to'.\n"
+        )
         return 1
     return 0
 
