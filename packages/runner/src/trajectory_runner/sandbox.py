@@ -136,6 +136,23 @@ class Sandbox(Protocol):
 
     backend: SandboxBackend
 
+    def start(self) -> None:
+        """Bring the environment up. Prefer the context manager, which guarantees cleanup."""
+        ...
+
+    def __enter__(self) -> Sandbox:
+        """Start the sandbox and return it."""
+        ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        """Tear the sandbox down, including when the body raised."""
+        ...
+
     def exec(self, command: str, *, timeout_s: int, cap_bytes: int) -> ExecResult:
         """Run a shell command in the workspace."""
         ...
