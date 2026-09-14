@@ -39,6 +39,7 @@ from types import TracebackType
 from typing import Any, Protocol, Self, runtime_checkable
 
 import structlog
+
 from trajectory_core.models import SandboxBackend, Task, WorkspaceManifest
 
 log = structlog.get_logger(__name__)

@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+
 from trajectory_core.models import Task
 from trajectory_core.testing import make_task
 from trajectory_runner.sandbox import docker_available

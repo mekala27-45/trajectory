@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from trajectory_core.models import SandboxBackend
 from trajectory_core.testing import make_task
 from trajectory_runner.sandbox import (

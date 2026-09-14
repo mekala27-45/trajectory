@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
+
 from trajectory_core.models import (
     SCHEMA_VERSION,
     BundleManifest,

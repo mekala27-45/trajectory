@@ -30,7 +30,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from trajectory_core.models import PlaybookStep, ReferencePlaybook, ToolName
-
 from trajectory_runner.providers import PlannedCall
 
 

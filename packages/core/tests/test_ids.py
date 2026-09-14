@@ -1,6 +1,7 @@
 from uuid import UUID
 
 import pytest
+
 from trajectory_core.ids import timestamp_ms_of, uuid7, uuid7_str
 
 

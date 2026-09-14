@@ -4,6 +4,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+
 from trajectory_core.testing import make_playbook
 from trajectory_runner.policies import build_script
 from trajectory_runner.providers import (
