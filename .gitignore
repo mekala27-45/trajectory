@@ -1,0 +1,37 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# harness output
+runs/
+.trajectory-cache/
+bundles/
+
+# node
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+# local
+.env
+.env.local
+.DS_Store
+*.log
+.vercel
+.fly

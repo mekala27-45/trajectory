@@ -1,0 +1,38 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+      - id: check-merge-conflict
+      - id: check-yaml
+        exclude: ^tasks/.*/task\.yaml$
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        pass_filenames: false
+        args: ["--config-file=pyproject.toml"]
+        additional_dependencies:
+          - pydantic>=2.9
+          - structlog>=24.4
+          - types-PyYAML
+
+  - repo: local
+    hooks:
+      - id: no-em-dash
+        name: no em dashes anywhere in the repository
+        entry: scripts/check_no_em_dash.py
+        language: system
+        types: [text]

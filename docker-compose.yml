@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: trajectory-db
+    environment:
+      POSTGRES_USER: trajectory
+      POSTGRES_PASSWORD: trajectory
+      POSTGRES_DB: trajectory
+    ports:
+      - "5432:5432"
+    volumes:
+      - trajectory-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trajectory -d trajectory"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+    container_name: trajectory-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://trajectory:trajectory@db:5432/trajectory
+      TRAJECTORY_API_KEY: local-development-key
+      TRAJECTORY_CORS_ORIGINS: http://localhost:3000
+      TRAJECTORY_LOG_FORMAT: console
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  trajectory-pgdata:

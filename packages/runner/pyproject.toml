@@ -1,0 +1,42 @@
+[project]
+name = "trajectory-eval"
+version = "0.1.0"
+description = "Evaluation harness for coding agents: containerized tasks, hidden tests, trajectory scoring"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "Ajay Mekala", email = "mekalaajayk@gmail.com" }]
+keywords = ["llm-evaluation", "agent-evaluation", "benchmark", "mlops", "ai-safety"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "trajectory-core==0.1.0",
+    "litellm>=1.59",
+    "docker>=7.1",
+    "typer>=0.15",
+    "rich>=13.9",
+    "pyyaml>=6.0",
+    "httpx>=0.28",
+    "structlog>=24.4",
+]
+
+[project.scripts]
+trajectory = "trajectory_runner.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/mekala27-45/trajectory"
+Repository = "https://github.com/mekala27-45/trajectory"
+Documentation = "https://github.com/mekala27-45/trajectory/blob/main/docs/metrics.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trajectory_runner"]

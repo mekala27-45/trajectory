@@ -1,0 +1,121 @@
+[project]
+name = "trajectory-workspace"
+version = "0.1.0"
+description = "Development workspace for the trajectory evaluation harness"
+requires-python = ">=3.12"
+dependencies = [
+    "trajectory-core",
+    "trajectory-eval",
+    "trajectory-api",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+trajectory-core = { workspace = true }
+trajectory-eval = { workspace = true }
+trajectory-api = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "pytest-timeout>=2.3",
+    "httpx>=0.28",
+    "testcontainers[postgres]>=4.9",
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "types-PyYAML>=6.0",
+    "pre-commit>=4.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["tasks", "fixtures", "web", "packages/api/migrations/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",     # pycodestyle
+    "F",          # pyflakes
+    "I",          # isort
+    "N",          # pep8-naming
+    "UP",         # pyupgrade
+    "B",          # bugbear
+    "C4",         # comprehensions
+    "SIM",        # simplify
+    "RUF",        # ruff
+    "ANN",        # annotations
+    "ASYNC",      # async correctness
+    "S",          # bandit
+    "PTH",        # pathlib
+    "TID",        # tidy imports
+    "D",          # pydocstyle
+]
+ignore = [
+    "D100", "D104",   # module and package docstrings are not mandatory
+    "D203", "D213",   # mutually exclusive with the styles we do use
+    "S101",           # assert is how pytest works
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["D", "ANN", "S105", "S106", "S108", "PLR2004"]
+"scripts/*" = ["D", "S603", "S607"]
+"packages/api/migrations/*" = ["D", "ANN", "I"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+disallow_any_generics = true
+show_error_codes = true
+pretty = true
+files = [
+    "packages/core/src",
+    "packages/runner/src",
+    "packages/api/src",
+    "scripts",
+]
+exclude = ["packages/api/migrations/versions/.*"]
+
+[[tool.mypy.overrides]]
+module = ["litellm.*", "docker.*", "testcontainers.*", "slowapi.*", "prometheus_client.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["packages/core/tests", "packages/runner/tests", "packages/api/tests"]
+addopts = "-ra --strict-markers --strict-config"
+timeout = 300
+markers = [
+    "docker: requires a reachable Docker daemon",
+    "postgres: requires a reachable Postgres instance",
+    "slow: takes more than a few seconds",
+]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "packages/core/src/trajectory_core",
+    "packages/runner/src/trajectory_runner",
+    "packages/api/src/trajectory_api",
+]
+omit = ["*/migrations/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]
