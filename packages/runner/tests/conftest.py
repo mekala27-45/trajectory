@@ -9,7 +9,7 @@ import pytest
 
 from trajectory_core.models import Task
 from trajectory_core.testing import make_task
-from trajectory_runner.sandbox import docker_available
+from trajectory_runner.sandbox import docker_available, local_verify_runnable
 
 DOCKERFILE = """\
 FROM python:3.12-slim-bookworm
@@ -72,16 +72,36 @@ def allow_local(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Skip Docker marked tests when no daemon is reachable.
+    """Skip tests whose environment is not present, with a reason that names what is missing.
 
-    CI always has a daemon, so these run there. A contributor on a machine without one
-    still gets a green suite for everything that does not need it, which is the
-    difference between a project people contribute to and one they bounce off.
+    Two dependencies live outside this repository. A Docker daemon, for the container
+    backend. And a host `python` that can run `python -m pytest`, for the tests that drive
+    a verify command through the local backend: that command is written against the task
+    image, where the Dockerfile installs pytest, and the local backend has no image.
+
+    CI provides both, so these run there. A contributor missing either still gets a green
+    suite for everything that does not need it, which is the difference between a project
+    people contribute to and one they bounce off. The alternative is what shipped once
+    already: a suite that passed on the authoring machine and failed on a runner with
+    nothing but `No module named pytest` to go on.
     """
     del config
-    if docker_available():
-        return
-    skip = pytest.mark.skip(reason="no Docker daemon reachable from this environment")
-    for item in items:
-        if "docker" in item.keywords:
-            item.add_marker(skip)
+    reasons = {
+        "docker": (
+            docker_available,
+            "no Docker daemon reachable from this environment",
+        ),
+        "local_verify": (
+            local_verify_runnable,
+            "the host `python` on the sanitised PATH cannot run `python -m pytest`, which "
+            "a verify command on the local backend needs. Install pytest for that "
+            "interpreter, or run these against the Docker backend.",
+        ),
+    }
+    for marker, (available, reason) in reasons.items():
+        if available():
+            continue
+        skip = pytest.mark.skip(reason=reason)
+        for item in items:
+            if marker in item.keywords:
+                item.add_marker(skip)

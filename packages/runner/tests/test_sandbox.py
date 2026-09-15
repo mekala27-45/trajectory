@@ -19,6 +19,8 @@ from trajectory_runner.sandbox import (
     _parse_wrapper_output,
     build_sandbox,
     directory_content_hash,
+    local_verify_runnable,
+    sanitised_path,
 )
 
 
@@ -142,6 +144,93 @@ class TestImageCacheKey:
         assert directory_content_hash([root / "Dockerfile", root / "workspace"]) != before
 
 
+class TestSanitisedPath:
+    """The PATH a local-backend task sees, which had no tests until it caused an outage.
+
+    A task's commands must not resolve the harness's own interpreter. If they do, the task
+    sees every package this repository installs, passes locally against packages the task
+    image never had, and fails anywhere the host differs. That is not a hypothetical: the
+    first CI run of this repository failed five tests on exactly this.
+    """
+
+    def test_removes_the_active_virtualenv(self, monkeypatch):
+        monkeypatch.setenv("VIRTUAL_ENV", "/work/.venv")
+        monkeypatch.setenv("PATH", "/work/.venv/bin:/usr/local/bin:/usr/bin:/bin")
+        assert sanitised_path() == "/usr/local/bin:/usr/bin:/bin"
+
+    def test_removes_the_virtualenv_directory_itself(self, monkeypatch):
+        monkeypatch.setenv("VIRTUAL_ENV", "/work/.venv")
+        monkeypatch.setenv("PATH", "/work/.venv:/usr/bin")
+        assert sanitised_path() == "/usr/bin"
+
+    def test_keeps_a_directory_that_merely_shares_a_prefix(self, monkeypatch):
+        # `/work/.venv-other` starts with the same characters as `/work/.venv` and is a
+        # different directory. A substring check would delete it.
+        monkeypatch.setenv("VIRTUAL_ENV", "/work/.venv")
+        monkeypatch.setenv("PATH", "/work/.venv-other/bin:/work/.venv/bin:/usr/bin")
+        assert sanitised_path() == "/work/.venv-other/bin:/usr/bin"
+
+    def test_keeps_the_system_path_when_no_virtualenv_is_active(self, monkeypatch):
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+        monkeypatch.setenv("PATH", "/usr/local/bin:/usr/bin:/bin")
+        assert sanitised_path() == "/usr/local/bin:/usr/bin:/bin"
+
+    def test_falls_back_rather_than_returning_an_empty_path(self, monkeypatch):
+        # Stripping the venv can empty PATH entirely. An empty PATH makes every command
+        # fail with "not found", which reads as a broken task rather than a broken PATH.
+        monkeypatch.setenv("VIRTUAL_ENV", "/work/.venv")
+        monkeypatch.setenv("PATH", "/work/.venv/bin")
+        assert sanitised_path() == "/usr/local/bin:/usr/bin:/bin"
+
+    def test_drops_empty_entries(self, monkeypatch):
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+        monkeypatch.setenv("PATH", "/usr/bin::/bin:")
+        assert sanitised_path() == "/usr/bin:/bin"
+
+    def test_a_task_cannot_reach_the_harness_interpreter(
+        self, sample_task, task_dir, allow_local, monkeypatch
+    ):
+        # The regression itself, stated as behaviour rather than as a string comparison:
+        # the environment handed to a task must not contain the harness virtualenv.
+        with LocalSandbox(sample_task, task_dir) as sandbox:
+            monkeypatch.setenv("VIRTUAL_ENV", "/work/.venv")
+            monkeypatch.setenv("PATH", "/work/.venv/bin:/usr/bin:/bin")
+            assert sandbox._env()["PATH"] == "/usr/bin:/bin"
+
+
+class TestLocalVerifyRunnable:
+    """The probe the `local_verify` skip marker and the CI gate both rely on."""
+
+    def test_false_when_python_cannot_import_pytest(self, monkeypatch, tmp_path):
+        # A directory holding a `python` that exits non-zero, standing in for an
+        # interpreter without pytest installed.
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        stub = stub_dir / "python"
+        stub.write_text("#!/bin/sh\nexit 1\n")
+        stub.chmod(0o755)
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+        monkeypatch.setenv("PATH", str(stub_dir))
+        assert local_verify_runnable() is False
+
+    def test_false_when_there_is_no_python_at_all(self, monkeypatch, tmp_path):
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+        monkeypatch.setenv("PATH", str(empty))
+        assert local_verify_runnable() is False
+
+    def test_true_when_python_runs_pytest(self, monkeypatch, tmp_path):
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        stub = stub_dir / "python"
+        stub.write_text("#!/bin/sh\necho 'pytest 8.3.4'\nexit 0\n")
+        stub.chmod(0o755)
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+        monkeypatch.setenv("PATH", str(stub_dir))
+        assert local_verify_runnable() is True
+
+
 class TestLocalSandboxOptIn:
     def test_refuses_to_start_without_an_explicit_opt_in(self, sample_task, task_dir, monkeypatch):
         monkeypatch.delenv("TRAJECTORY_ALLOW_LOCAL_SANDBOX", raising=False)
@@ -197,6 +286,7 @@ class TestLocalSandboxBehaviour:
             sandbox.install_verify()
             assert sandbox.verify_present() is True
 
+    @pytest.mark.local_verify
     def test_a_fixed_workspace_passes_the_hidden_tests(self, sample_task, task_dir, allow_local):
         with LocalSandbox(sample_task, task_dir) as sandbox:
             sandbox.write_file("src/app.py", "def add(a, b):\n    return a + b\n")

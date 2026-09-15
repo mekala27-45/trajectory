@@ -92,6 +92,7 @@ def test_exit_code_parser_defers_to_the_exit_code():
     assert parse_output(VerifyParser.EXIT_CODE, "anything at all") is None
 
 
+@pytest.mark.local_verify
 class TestVerifyAgainstASandbox:
     def _task(self, **kwargs):
         defaults = {

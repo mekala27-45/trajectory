@@ -347,6 +347,51 @@ def docker_available() -> bool:
     return docker_server_version() is not None
 
 
+def sanitised_path() -> str:
+    """Return PATH with the harness's own virtualenv removed.
+
+    Without this a task's `python` resolves to the interpreter running the harness, which
+    has a different set of installed packages than the task image does. That produces
+    failures that exist only on the local backend and look like task bugs. The Docker
+    backend never sees the host PATH at all, so this only brings the local backend closer
+    to it.
+    """
+    virtual_env = os.environ.get("VIRTUAL_ENV")
+    shadowed = {p for p in (virtual_env, sys.prefix) if p and p != sys.base_prefix}
+    parts = [
+        part
+        for part in os.environ.get("PATH", "").split(os.pathsep)
+        if part and not any(part.startswith(f"{prefix}/") or part == prefix for prefix in shadowed)
+    ]
+    return os.pathsep.join(parts) or "/usr/local/bin:/usr/bin:/bin"
+
+
+def local_verify_runnable() -> bool:
+    """True when a local-backend task can actually run `python -m pytest`.
+
+    A task's verify command is written against the task image, where the Dockerfile
+    installs pytest. The local backend has no image, so that command runs against
+    whichever `python` the sanitised PATH resolves, which is a property of the host rather
+    than of this repository. Depending on it silently is how a suite passes on one machine
+    and fails on a CI runner with nothing but `No module named pytest` to go on, so the
+    tests that need it ask first.
+    """
+    try:
+        completed = subprocess.run(
+            # `python` rather than an absolute path on purpose. The question this answers
+            # is what a task's own command resolves through the sanitised PATH, so
+            # resolving it any other way would answer a different question.
+            ["python", "-m", "pytest", "--version"],  # noqa: S607  see above
+            env={"PATH": sanitised_path(), "HOME": tempfile.gettempdir()},
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return completed.returncode == 0
+
+
 def build_task_image(
     task: Task,
     task_dir: Path,
@@ -755,26 +800,6 @@ class LocalSandbox:
             shutil.rmtree(root, ignore_errors=True)
             log.debug("sandbox.removed", task=self.task.id, backend="local")
 
-    @staticmethod
-    def _sanitised_path() -> str:
-        """Return PATH with the harness's own virtualenv removed.
-
-        Without this a task's `python` resolves to the interpreter running the harness,
-        which has a different set of installed packages than the task image does. That
-        produces failures that exist only on the local backend and look like task bugs.
-        The Docker backend never sees the host PATH at all, so this only brings the local
-        backend closer to it.
-        """
-        virtual_env = os.environ.get("VIRTUAL_ENV")
-        shadowed = {p for p in (virtual_env, sys.prefix) if p and p != sys.base_prefix}
-        parts = [
-            part
-            for part in os.environ.get("PATH", "").split(os.pathsep)
-            if part
-            and not any(part.startswith(f"{prefix}/") or part == prefix for prefix in shadowed)
-        ]
-        return os.pathsep.join(parts) or "/usr/local/bin:/usr/bin:/bin"
-
     def _env(self) -> dict[str, str]:
         """Environment for commands, pointed at the sandbox rather than the real home."""
         env = {
@@ -782,7 +807,7 @@ class LocalSandbox:
             for k, v in os.environ.items()
             if k in ("LANG", "LC_ALL", "SYSTEMROOT", "GOCACHE", "GOMODCACHE", "GOPATH")
         }
-        env["PATH"] = self._sanitised_path()
+        env["PATH"] = sanitised_path()
         env.update(
             {
                 "HOME": str(self.root),

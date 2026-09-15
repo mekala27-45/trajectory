@@ -109,6 +109,7 @@ addopts = "-ra --strict-markers --strict-config"
 timeout = 300
 markers = [
     "docker: requires a reachable Docker daemon",
+    "local_verify: runs a verify command on the local backend, so needs a host python with pytest",
     "postgres: requires a reachable Postgres instance",
     "slow: takes more than a few seconds",
 ]

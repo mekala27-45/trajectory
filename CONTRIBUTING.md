@@ -38,6 +38,7 @@ uv run ruff format --check .
 uv run mypy
 uv run python scripts/check_no_em_dash.py
 uv run python scripts/check_published_numbers.py
+uv run python scripts/check_local_backend.py
 uv run pytest --cov --cov-fail-under=80
 uv run trajectory tasks validate --strict
 
@@ -119,6 +120,27 @@ those is what found the retry-loop rule's original bug.
 **No em dashes.** Anywhere: code, comments, docstrings, documentation, commit messages, web
 copy. Commas, colons, parentheses, or the word "to" for ranges.
 `scripts/check_no_em_dash.py` enforces it as a pre-commit hook and a CI job.
+
+**Two test dependencies live outside this repository, and both announce themselves.**
+
+A Docker daemon, for the container backend. And a host `python` that can run
+`python -m pytest`, for the tests that drive a verify command through the local backend: a
+task's verify command is written against the task image, where the Dockerfile installs
+pytest, and the local backend has no image. Tests needing either are marked `docker` or
+`local_verify` and skip with a reason naming what is missing, so a clone on a fresh machine
+is green for everything that does not need them.
+
+CI has to have both, because a silent skip in CI means a class of behaviour stops being
+covered and nobody notices. `scripts/check_local_backend.py` asserts the second one and
+prints the PATH and interpreter it resolved, so a mismatch is obvious from the log.
+
+That check exists because of a specific failure. The workflow ran
+`python3 -m pip install pytest`, which on a hosted runner installs for the toolcache
+interpreter, while the sandbox strips the workflow's virtualenv from PATH and resolves
+`/usr/bin/python`. Five tests failed with nothing but `No module named pytest` to go on,
+and they had passed on the authoring machine, where the system interpreter happened to
+have pytest. Install for the interpreter the sandbox resolves, named explicitly, not for
+whichever `python3` comes first.
 
 **Every number in README.md and RESULTS.md is recomputed in CI.**
 `scripts/check_published_numbers.py` re-derives each published figure from the committed run

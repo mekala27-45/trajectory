@@ -81,8 +81,17 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends postgresql-16
-          python3 -m pip install --quiet --break-system-packages "pytest==8.3.4"
           npm install --global typescript@5.7.2
+
+      # Named explicitly rather than `python3 -m pip`. On a hosted runner `python3` is the
+      # toolcache interpreter while the local sandbox strips this workflow's virtualenv
+      # from PATH and resolves /usr/bin/python, so installing for the former leaves the
+      # latter without pytest. That mismatch failed five tests with nothing but
+      # `No module named pytest` to go on.
+      - name: pytest for the interpreter the local sandbox resolves
+        run: |
+          sudo /usr/bin/python3 -m pip install --quiet --break-system-packages "pytest==8.3.4"
+          uv run python scripts/check_local_backend.py
 
       - name: pytest with the coverage floor
         run: >-

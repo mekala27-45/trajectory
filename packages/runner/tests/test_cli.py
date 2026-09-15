@@ -205,6 +205,7 @@ class TestRunAndInspect:
         return result, out
 
     @pytest.mark.slow
+    @pytest.mark.local_verify
     def test_a_reference_policy_solves_and_exits_zero(self, tmp_path: Path):
         result, out = self._run_once(tmp_path)
         assert result.exit_code == 0, result.output

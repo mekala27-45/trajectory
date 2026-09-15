@@ -47,6 +47,10 @@ no-em-dash: ## Fail if an em dash appears anywhere in the repository
 numbers: ## Fail if a published figure does not match the committed run records
 	$(PY) python scripts/check_published_numbers.py
 
+.PHONY: local-backend
+local-backend: ## Report whether a local backend task can run its verify command here
+	$(PY) python scripts/check_local_backend.py
+
 .PHONY: test
 test: ## Run the test suite with the coverage floor
 	$(PY) pytest --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=80

@@ -40,8 +40,13 @@ jobs:
       - run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends postgresql-16
-          python3 -m pip install --quiet --break-system-packages "pytest==8.3.4"
           npm install --global typescript@5.7.2
+
+      # See the comment on the matching step in ci.yml: the sandbox resolves
+      # /usr/bin/python, which is not the `python3` first on this workflow's PATH.
+      - run: |
+          sudo /usr/bin/python3 -m pip install --quiet --break-system-packages "pytest==8.3.4"
+          uv run python scripts/check_local_backend.py
       - run: uv run ruff check .
       - run: uv run mypy
       - run: uv run python scripts/check_no_em_dash.py
