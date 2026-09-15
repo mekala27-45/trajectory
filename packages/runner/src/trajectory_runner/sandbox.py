@@ -48,6 +48,32 @@ log = structlog.get_logger(__name__)
 WORKSPACE_CONTAINER_PATH = "/workspace"
 VERIFY_CONTAINER_PATH = "/verify"
 AGENT_USER = "agent"
+
+# A tmpfs on /tmp, size capped so an agent cannot fill the host disk, and nosuid because
+# that costs nothing. Deliberately NOT noexec.
+#
+# noexec was here, as reflexive hardening, and it silently broke the only Go task in the
+# suite. `go test` links the test binary into $GOTMPDIR, which defaults to /tmp, and then
+# executes it, so the whole task died on
+#
+#     fork/exec /tmp/go-build.../b001/zz_hidden.test: permission denied
+#
+# with no test result lines at all. The parser then found nothing to count, the exit code
+# fallback reported one notional test, and the task read as `0/1` in both the unfixed and
+# the reference run: indistinguishable, from the outside, from a task whose every test
+# failed. It affected Go and nothing else because Go is the only language here that stages
+# an executable in TMPDIR, and it was invisible on the local backend and on any machine
+# without a Docker daemon.
+#
+# It is also not a security boundary. The agent has a writable, exec capable /workspace by
+# design, because writing and running code is the task. Any binary it could run from /tmp
+# it can already run from /workspace, so noexec removed no capability from the agent and
+# only broke tools that follow the TMPDIR convention: Go, cgo, cargo, and any pip install
+# that compiles. Strictly negative.
+#
+# The size cap stays, and is measured rather than guessed: a cold race instrumented build
+# of the Go task peaks at 107 MiB of temporary files, unchanged at 24 way parallelism.
+TMPFS_MOUNTS = {"/tmp": "rw,nosuid,size=256m"}  # noqa: S108  container path, not a host one
 ALLOW_LOCAL_ENV = "TRAJECTORY_ALLOW_LOCAL_SANDBOX"
 MANIFEST_FILE_LIMIT = 4000
 
@@ -532,7 +558,7 @@ class DockerSandbox:
                 network_mode="none" if not self.task.network_allowed else "bridge",
                 cap_drop=["ALL"],
                 security_opt=["no-new-privileges:true"],
-                tmpfs={"/tmp": "rw,noexec,nosuid,size=256m"},  # noqa: S108  container tmpfs, not a host path
+                tmpfs=TMPFS_MOUNTS,
                 environment={
                     "HOME": f"/home/{AGENT_USER}",
                     "TERM": "dumb",

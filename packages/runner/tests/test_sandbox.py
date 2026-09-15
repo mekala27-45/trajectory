@@ -10,6 +10,7 @@ from trajectory_core.models import SandboxBackend
 from trajectory_core.testing import make_task
 from trajectory_runner.sandbox import (
     TIMEOUT_EXIT_CODE,
+    TMPFS_MOUNTS,
     DockerSandbox,
     LocalSandbox,
     Sandbox,
@@ -449,6 +450,28 @@ class TestLocalSandboxBehaviour:
             sandbox.install_verify()
 
 
+class TestTheTmpfsMount:
+    """The mount options are a correctness property, so they are asserted without Docker.
+
+    `noexec` on /tmp broke go-race-01 completely and reported it as `0/1`, which is the
+    same thing the harness prints when a task's every test fails. `go test` links the test
+    binary into $GOTMPDIR, defaulting to /tmp, and then executes it.
+    """
+
+    def test_tmp_is_a_size_capped_tmpfs(self):
+        assert "/tmp" in TMPFS_MOUNTS
+        assert "size=" in TMPFS_MOUNTS["/tmp"]
+
+    def test_tmp_is_not_noexec(self):
+        # Removing this flag is deliberate. See the comment on TMPFS_MOUNTS: it is not a
+        # security boundary, because /workspace is writable and exec capable by design,
+        # and it breaks every toolchain that stages an executable in TMPDIR.
+        assert "noexec" not in TMPFS_MOUNTS["/tmp"]
+
+    def test_nosuid_is_kept(self):
+        assert "nosuid" in TMPFS_MOUNTS["/tmp"]
+
+
 @pytest.mark.docker
 @pytest.mark.slow
 class TestDockerSandbox:
@@ -468,6 +491,32 @@ class TestDockerSandbox:
         with DockerSandbox(sample_task, task_dir) as sandbox:
             assert sandbox.exec("id -u", timeout_s=20, cap_bytes=1024).stdout.strip() != "0"
             assert sandbox.exec("whoami", timeout_s=20, cap_bytes=1024).stdout.strip() == "agent"
+
+    def test_a_binary_written_to_tmpdir_can_be_executed(self, sample_task, task_dir):
+        """The property go-race-01 needed and did not have.
+
+        Every compiled language in this suite links into TMPDIR and then runs the result.
+        Asserted with a shell script rather than a compiler so it holds for the Python
+        fixture image too, which is the point: this is a sandbox property, not a Go one.
+        """
+        with DockerSandbox(sample_task, task_dir) as sandbox:
+            result = sandbox.exec(
+                'set -e; d="${TMPDIR:-/tmp}"; f="$d/traj_exec_probe"; '
+                'printf "#!/bin/sh\necho ran from tmpdir\n" > "$f"; '
+                'chmod +x "$f"; "$f"',
+                timeout_s=30,
+                cap_bytes=4096,
+            )
+        assert result.exit_code == 0, f"could not execute from TMPDIR: {result.combined!r}"
+        assert "ran from tmpdir" in result.stdout
+
+    def test_tmp_is_still_size_capped(self, sample_task, task_dir):
+        """Dropping noexec must not have dropped the cap that stops a disk filling up."""
+        with DockerSandbox(sample_task, task_dir) as sandbox:
+            result = sandbox.exec(
+                "df -m /tmp | awk 'NR==2 {print $2}'", timeout_s=30, cap_bytes=1024
+            )
+        assert int(result.stdout.strip()) <= 256
 
     def test_the_network_is_off_by_default(self, sample_task, task_dir):
         with DockerSandbox(sample_task, task_dir) as sandbox:

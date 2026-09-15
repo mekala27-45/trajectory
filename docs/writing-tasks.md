@@ -176,6 +176,33 @@ The wider lesson for a task author: a Dockerfile is not reviewed code, it is exe
 and the only review that counts is a build. Run `trajectory tasks verify-references` on your
 task before you open a pull request, which is the next section.
 
+## What the sandbox gives you, and what it does not
+
+The container runs as `agent`, non-root, with all capabilities dropped, no new privileges,
+no network during the agent phase, a memory ceiling of 2048 MB with swap disabled, a CPU
+ceiling of 2 cores, a PID ceiling of 256, and `/tmp` on a 256 MB `nosuid` tmpfs. `/workspace`
+is writable and executable, because writing and running code is the task.
+
+`/tmp` is executable too, and that is deliberate rather than accidental. It was `noexec`
+once, which broke `go-race-01` outright: `go test` links the test binary into `$GOTMPDIR`,
+which defaults to `/tmp`, and then runs it, so the task died on
+
+```
+fork/exec /tmp/go-build.../b001/zz_hidden.test: permission denied
+```
+
+before a single test executed. The harness reported `0/1`, which is also what it prints when
+a task's every test fails, so the symptom said nothing about the cause. If you are writing a
+task in a compiled language, you can rely on staging an executable in `TMPDIR`, and there is
+a test asserting it.
+
+Two ceilings worth knowing if your task is heavy. `go test -race` on the Go task peaks at
+roughly 420 MB of memory and 107 MB of temporary files, both measured, so there is headroom;
+if your task needs more than 2048 MB it should say so in `task.yaml` and say why in the pull
+request. And the CPU ceiling is a quota, not a core count: `runtime.NumCPU` and
+`os.cpu_count` still report the host's, so a build that parallelises by core count will spawn
+far more processes than it gets CPU for. That is fine, just slow.
+
 ## Before you open a pull request
 
 ```
