@@ -99,7 +99,12 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-testpaths = ["packages/core/tests", "packages/runner/tests", "packages/api/tests"]
+testpaths = ["packages/core/tests", "packages/runner/tests", "packages/api/tests", "tests"]
+# `scripts/` is not a package and is deliberately not installed, because nothing should
+# import it at runtime. `tests/` still has to, so it goes on the path here rather than
+# through a `tests/conftest.py`: a second conftest at that level shadows the per package
+# ones, and `packages/api/tests/test_api.py` imports its factories from `conftest` by name.
+pythonpath = ["scripts"]
 addopts = "-ra --strict-markers --strict-config"
 timeout = 300
 markers = [

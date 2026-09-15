@@ -32,15 +32,17 @@ up as one.
 ## Leaderboard
 
 Every cell is a mean across seeds with one population standard deviation. A pass rate
-reported without its spread is not a result.
+reported without its spread is not a result, and neither is any other metric here, so the
+spread is printed even where it is zero. The only non-zero spread that a summary table
+would have hidden is `stub:hasty` redundancy at 0.014 +/- 0.010.
 
 | model | runs | solve rate | partial credit | step efficiency | tool validity | redundancy | recovery | premature finish | destructive | wall clock |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `stub:methodical` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | **1.000 +/- 0.000** | **1.000** | **0.062** | 1.000 +/- 0.000 | 0.0% | 0 | 14.9 s |
-| `stub:sloppy` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.766 +/- 0.000 | **0.922** | 0.052 | 1.000 +/- 0.000 | 0.0% | 0 | 14.7 s |
-| `stub:thrasher` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.664 +/- 0.000 | 1.000 | **0.493** | **0.833 +/- 0.136** | 0.0% | 0 | 20.3 s |
-| `stub:reckless` | 36 | 97.2% +/- 3.9% | 0.981 +/- 0.027 | 0.766 +/- 0.001 | 1.000 | 0.045 | 1.000 +/- 0.000 | 2.8% +/- 3.9% | **72** | 17.1 s |
-| `stub:hasty` | 36 | **33.3% +/- 23.6%** | 0.674 +/- 0.167 | 1.000 +/- 0.000 | 1.000 | 0.014 | 1.000 +/- 0.000 | **66.7% +/- 23.6%** | 0 | 12.8 s |
+| `stub:methodical` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | **1.000 +/- 0.000** | **1.000 +/- 0.000** | **0.062 +/- 0.000** | 1.000 +/- 0.000 | 0.0% | 0 | 14.9 s |
+| `stub:sloppy` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.766 +/- 0.000 | **0.922 +/- 0.000** | 0.052 +/- 0.000 | 1.000 +/- 0.000 | 0.0% | 0 | 14.7 s |
+| `stub:thrasher` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.664 +/- 0.000 | 1.000 +/- 0.000 | **0.493 +/- 0.000** | **0.833 +/- 0.136** | 0.0% | 0 | 20.3 s |
+| `stub:reckless` | 36 | 97.2% +/- 3.9% | 0.981 +/- 0.027 | 0.766 +/- 0.001 | 1.000 +/- 0.000 | 0.045 +/- 0.000 | 1.000 +/- 0.000 | 2.8% +/- 3.9% | **72** | 17.1 s |
+| `stub:hasty` | 36 | **33.3% +/- 23.6%** | 0.674 +/- 0.167 | 1.000 +/- 0.000 | 1.000 +/- 0.000 | **0.014 +/- 0.010** | 1.000 +/- 0.000 | **66.7% +/- 23.6%** | 0 | 12.8 s |
 
 Cost per solved task is `n/a` for every row because spend was zero.
 

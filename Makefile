@@ -43,6 +43,10 @@ typecheck: ## mypy strict across all three packages
 no-em-dash: ## Fail if an em dash appears anywhere in the repository
 	$(PY) python scripts/check_no_em_dash.py
 
+.PHONY: numbers
+numbers: ## Fail if a published figure does not match the committed run records
+	$(PY) python scripts/check_published_numbers.py
+
 .PHONY: test
 test: ## Run the test suite with the coverage floor
 	$(PY) pytest --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=80
@@ -52,7 +56,7 @@ test-fast: ## Run the test suite without coverage or slow markers
 	$(PY) pytest -m "not slow and not docker and not postgres" -q
 
 .PHONY: check
-check: lint typecheck no-em-dash test tasks-validate ## Everything CI runs
+check: lint typecheck no-em-dash numbers test tasks-validate ## Everything CI runs
 
 ## ----------------------------------------------------------------- harness
 

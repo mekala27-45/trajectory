@@ -41,6 +41,9 @@ jobs:
       - name: no em dashes anywhere
         run: uv run python scripts/check_no_em_dash.py
 
+      - name: published numbers match the run records
+        run: uv run python scripts/check_published_numbers.py
+
   test:
     name: tests and coverage
     runs-on: ubuntu-24.04

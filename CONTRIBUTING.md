@@ -37,6 +37,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy
 uv run python scripts/check_no_em_dash.py
+uv run python scripts/check_published_numbers.py
 uv run pytest --cov --cov-fail-under=80
 uv run trajectory tasks validate --strict
 
@@ -118,6 +119,20 @@ those is what found the retry-loop rule's original bug.
 **No em dashes.** Anywhere: code, comments, docstrings, documentation, commit messages, web
 copy. Commas, colons, parentheses, or the word "to" for ranges.
 `scripts/check_no_em_dash.py` enforces it as a pre-commit hook and a CI job.
+
+**Every number in README.md and RESULTS.md is recomputed in CI.**
+`scripts/check_published_numbers.py` re-derives each published figure from the committed run
+records in `fixtures/recorded-runs` and fails the build when a document disagrees. It exists
+because two hand-typed figures shipped wrong: a metric cell that read `n/a` when the metric
+had a value, and a failure hit count that read 177 when the records said 213. Lint reads
+code and tests read code, so a number typed into a markdown table was read by nobody.
+
+Two consequences worth knowing before you edit either document:
+
+- Re-recording the matrix means updating the prose in the same commit. The gate names each
+  figure it could not find, so the failure output is the work list.
+- The check matches on the rendered value with whitespace collapsed, not on a regex over
+  the sentence around it. Rewording and reflowing prose is free; changing a number is not.
 
 **mypy strict, ruff clean.** No exceptions checked in. A `noqa` needs a reason on the same
 line.
