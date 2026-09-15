@@ -1,11 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * The browsers on this machine live outside the default cache, so the path is defaulted
- * here as well as being settable from the environment. Playwright resolves the browser
- * directory lazily, after the config has been read.
+ * Where the browsers live is the environment's business, not this file's. An earlier
+ * version defaulted PLAYWRIGHT_BROWSERS_PATH here, which broke CI: `playwright install`
+ * with an explicit browser name does not read this config, so it installed to the default
+ * cache, while `playwright test` does read it and then looked somewhere else. Set the
+ * variable in your shell if your browsers are not in the default cache.
  */
-process.env.PLAYWRIGHT_BROWSERS_PATH ??= "/opt/pw-browsers";
 
 const PORT = Number(process.env.PORT ?? 3100);
 const BASE_URL = `http://127.0.0.1:${PORT}`;

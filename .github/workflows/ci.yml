@@ -52,6 +52,9 @@ jobs:
       - name: no stage copy that would break an editable virtualenv
         run: uv run python scripts/check_container_paths.py
 
+      - name: no path that only exists on the machine that wrote it
+        run: uv run python scripts/check_no_machine_paths.py
+
   test:
     name: tests and coverage
     runs-on: ubuntu-24.04

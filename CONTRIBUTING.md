@@ -166,6 +166,25 @@ version, does not rebuild when the real sources arrive in the second sync, and t
 ships the empty stub `__init__.py` files from the dependency caching layer. That fails
 silently, which is a strictly worse bug than the one it replaces.
 
+**No absolute path that only exists on one machine.**
+`scripts/check_no_machine_paths.py` rejects a tracked file containing a path into a user
+home directory, on any of the three platforms, or into this project's container tool
+directories. Read the value from the environment or resolve it against the repository root.
+
+Three bugs here had that shape, and only the first was caught by CI:
+
+- five tests drove a verify command needing `pytest`, and passed because the authoring
+  machine's system python happened to have it
+- `playwright.config.ts` defaulted `PLAYWRIGHT_BROWSERS_PATH` to the authoring container's
+  browser cache. `playwright install chromium` does not read that config and installed to
+  the default cache, `playwright test` does read it and looked elsewhere, and the web job
+  died on a missing browser executable
+- `scripts/record_demo.sh` imported Playwright through an absolute `node_modules` path, so
+  the script that regenerates the README demo worked for exactly one person
+
+A wrong path is still valid syntax, still lints, and still passes every test on the machine
+that wrote it, which is why this needed a gate rather than care.
+
 **Publishing to PyPI is opt in.** The `release` workflow runs on a `v*` tag and always
 builds both wheels, checks their metadata, pushes the API image to GHCR and cuts a GitHub
 release. It uploads to PyPI only when the repository variable `PUBLISH_TO_PYPI` is set to

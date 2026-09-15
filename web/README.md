@@ -84,9 +84,11 @@ npm test                          # builds, serves out/, runs the Playwright sui
 export cannot be served by `next start`. A server already listening on the port is reused, which is
 the fast path while iterating.
 
-Two environment notes. `PLAYWRIGHT_BROWSERS_PATH` defaults to `/opt/pw-browsers` in the config, so
-set it if your browsers are elsewhere (or unset the default and run `npx playwright install`). And
-`@playwright/test` is pinned to an exact version: the browser build that a Playwright release
+Two environment notes. The config does not set `PLAYWRIGHT_BROWSERS_PATH`, deliberately: an
+earlier version defaulted it and broke CI, because `playwright install chromium` does not read the
+config while `playwright test` does, so the two resolved different directories. Run
+`npx playwright install chromium` and let the default cache apply, or export the variable yourself
+if your browsers live elsewhere. And `@playwright/test` is pinned to an exact version: the browser build that a Playwright release
 expects is part of that release, and a floating range silently stops matching preinstalled browsers.
 
 `tests/smoke.spec.ts` covers the leaderboard rendering its rows, a task page opening from it, a

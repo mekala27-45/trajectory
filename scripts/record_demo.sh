@@ -16,7 +16,6 @@ FPS="${FPS:-6}"
 WIDTH="${WIDTH:-720}"
 COLORS="${COLORS:-48}"
 VIDEO_DIR="$(mktemp -d)"
-export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}"
 
 echo "building the data bundle and the static site"
 uv run python scripts/build_web_bundle.py --from-fixtures >/dev/null
@@ -42,8 +41,12 @@ echo "recording run $RUN_ID"
 trap 'pkill -f "serve out -l '"$PORT"'" || true' EXIT
 sleep 5
 
-VIDEO_DIR="$VIDEO_DIR" RUN_ID="$RUN_ID" PORT="$PORT" node - <<'EOF_NODE'
-import { chromium } from "/home/claude/trajectory/web/node_modules/@playwright/test/index.mjs";
+# Runs inside web/ so the bare `@playwright/test` import resolves through its own
+# node_modules. This used to import through an absolute path, which worked on exactly one
+# machine. VIDEO_DIR is absolute (mktemp -d), so the directory change does not affect it.
+cd web
+VIDEO_DIR="$VIDEO_DIR" RUN_ID="$RUN_ID" PORT="$PORT" node --input-type=module - <<'EOF_NODE'
+import { chromium } from "@playwright/test";
 import fs from "node:fs";
 
 const out = process.env.VIDEO_DIR;
@@ -68,6 +71,7 @@ await context.close();
 await browser.close();
 console.log(fs.readdirSync(out).find((n) => n.endsWith(".webm")));
 EOF_NODE
+cd ..
 
 VIDEO="$VIDEO_DIR/$(ls "$VIDEO_DIR" | grep '\.webm$' | head -1)"
 FILTER="fps=$FPS,crop=1280:660:0:140,scale=$WIDTH:-1:flags=lanczos"
