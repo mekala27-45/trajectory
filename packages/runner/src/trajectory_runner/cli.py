@@ -35,6 +35,7 @@ from trajectory_core.scoring import rank_failure_modes, rescore
 from trajectory_runner.agent import Budget
 from trajectory_runner.execute import (
     ExecutionOptions,
+    ReferenceCheck,
     check_reference,
     plan,
     prebuild_images,
@@ -364,6 +365,43 @@ steps:
     )
 
 
+def _print_reference_failure(check: ReferenceCheck, run_dir: Path) -> None:
+    """Show the captured hidden test output for one failed reference check."""
+    sections: list[str] = []
+    if not check.starts_broken:
+        sections.append(
+            "This task passes its own hidden tests before an agent touches it, so every "
+            "agent scores it and it measures nothing."
+        )
+    if not check.reference_parse_ok:
+        sections.append(
+            f"The parser ({check.task_id}) found no test result lines, so the counts below "
+            "are an exit code fallback rather than a score. That means the runner never "
+            "reached a test: a compile error, a missing interpreter, a resource ceiling, "
+            "or a command that exited before starting."
+        )
+    output = check.reference_output or check.unfixed_output
+    if output.strip():
+        sections.append("Last of the hidden test output:\n" + output.strip()[-2500:])
+    else:
+        sections.append(
+            "The hidden tests produced no output at all, which usually means the command "
+            "itself never started."
+        )
+    if check.error:
+        sections.append(f"Run error: {check.error}")
+    sections.append(f"Full run record: {run_dir / 'runs'}")
+
+    console.print(
+        Panel(
+            "\n\n".join(sections),
+            title=f"[red]{check.task_id}[/red]  {check.reason}",
+            title_align="left",
+            border_style="red",
+        )
+    )
+
+
 @tasks_app.command("verify-references")
 def tasks_verify_references(
     suite: Annotated[str | None, typer.Option(help="Restrict to one suite.")] = None,
@@ -393,7 +431,7 @@ def tasks_verify_references(
     table.add_column("steps", justify="right")
     table.add_column("verdict")
 
-    failures = 0
+    failures: list[ReferenceCheck] = []
     for loaded in tasks:
         check = check_reference(
             loaded,
@@ -402,7 +440,8 @@ def tasks_verify_references(
             allow_local_override=resolved is SandboxBackend.LOCAL,
             ci=bool(os.environ.get("CI")),
         )
-        failures += 0 if check.ok else 1
+        if not check.ok:
+            failures.append(check)
         table.add_row(
             check.task_id,
             f"{check.unfixed_passed}/{check.unfixed_total}",
@@ -411,8 +450,16 @@ def tasks_verify_references(
             "[green]pass[/green]" if check.ok else f"[red]fail[/red] {check.reason}",
         )
     console.print(table)
+
+    # Print what the hidden tests actually said. A verdict in a table cell is not a
+    # diagnosis, and the alternative is reading a JSON run record by hand to find output
+    # the command already had: `0/1` from a task whose suite failed to compile took an
+    # hour to distinguish from `0/1` from a task whose every test failed.
+    for check in failures:
+        _print_reference_failure(check, run_dir)
+
     if failures:
-        fail(f"{failures} of {len(tasks)} task(s) did not behave the way a task has to.")
+        fail(f"{len(failures)} of {len(tasks)} task(s) did not behave the way a task has to.")
     console.print(
         f"[green]{len(tasks)} task(s) start broken and are solved by their own reference[/green]"
     )

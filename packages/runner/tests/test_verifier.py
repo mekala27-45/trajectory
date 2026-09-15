@@ -168,11 +168,46 @@ class TestVerifyAgainstASandbox:
         assert result.passed is True
         assert result.parse_ok is True
 
-    def test_stderr_tail_is_kept_for_triage(self, task_dir, allow_local):
+    def test_stderr_is_kept_for_triage(self, task_dir, allow_local):
         task = self._task(verify_cmd="echo 'boom' >&2; exit 1")
         with LocalSandbox(task, task_dir) as sandbox:
             result = verify(task, sandbox)
         assert "boom" in result.stderr_tail
+
+    def test_stdout_is_kept_for_triage_too(self, task_dir, allow_local):
+        """The regression that made the field useless on all 180 recorded runs.
+
+        It captured stderr alone. pytest, `go test` and every other runner in this suite
+        print their results and their failure detail on stdout, so a failing task stored
+        an empty triage field and the reason had to be reproduced by hand.
+        """
+        task = self._task(verify_cmd="echo 'AssertionError: 2 != 5'; exit 1")
+        with LocalSandbox(task, task_dir) as sandbox:
+            result = verify(task, sandbox)
+        assert "AssertionError: 2 != 5" in result.stderr_tail
+
+    def test_both_streams_are_kept_in_order(self, task_dir, allow_local):
+        task = self._task(verify_cmd="echo 'on stdout'; echo 'on stderr' >&2; exit 1")
+        with LocalSandbox(task, task_dir) as sandbox:
+            result = verify(task, sandbox)
+        assert "on stdout" in result.stderr_tail
+        assert "on stderr" in result.stderr_tail
+
+    def test_the_tail_is_capped(self, task_dir, allow_local):
+        from trajectory_runner.verifier import OUTPUT_TAIL_BYTES
+
+        task = self._task(verify_cmd="for i in $(seq 1 4000); do echo aaaaaaaaaa; done; exit 1")
+        with LocalSandbox(task, task_dir) as sandbox:
+            result = verify(task, sandbox)
+        assert len(result.stderr_tail) <= OUTPUT_TAIL_BYTES
+
+    def test_a_pytest_failure_leaves_the_assertion_in_the_record(self, task_dir, allow_local):
+        """End to end on the shape that matters: the reason a real task failed."""
+        task = self._task(verify_cmd='python -m pytest -q "$VERIFY_DIR"')
+        with LocalSandbox(task, task_dir) as sandbox:
+            result = verify(task, sandbox)
+        assert result.passed is False
+        assert "assert" in result.stderr_tail.lower()
 
     def test_a_missing_verify_directory_raises_a_clear_error(
         self, sample_task, tmp_path, allow_local

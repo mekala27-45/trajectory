@@ -497,7 +497,15 @@ class Verification(StrictModel):
     tests_passed: int = Field(ge=0, description="Number of hidden tests that passed.")
     tests_total: int = Field(ge=0, description="Number of hidden tests discovered.")
     stderr_tail: str = Field(
-        default="", description="Last few kilobytes of verification stderr, for triage."
+        default="",
+        description=(
+            "Last few kilobytes of the hidden test run's combined stdout and stderr, for "
+            "triage. It held stderr alone until it was noticed that every test runner in "
+            "the suite reports results on stdout, so across 180 recorded runs, 25 of "
+            "which did not solve their task, the field was empty every single time. The "
+            "key keeps the old name because it is a column in the results schema; "
+            "renaming it to output_tail is a schema version 2 change."
+        ),
     )
     duration_ms: int = Field(
         ge=0, description="Wall clock milliseconds for the verification phase."

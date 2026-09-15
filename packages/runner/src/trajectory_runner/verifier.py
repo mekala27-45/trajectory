@@ -24,7 +24,10 @@ from trajectory_runner.sandbox import Sandbox
 
 log = structlog.get_logger(__name__)
 
-STDERR_TAIL_BYTES = 4000
+# Combined, not stderr. pytest, `go test` and every other runner in the suite print
+# their results and their failure detail on stdout, so a stderr only tail captured
+# nothing on all 180 recorded runs, including the 25 that failed.
+OUTPUT_TAIL_BYTES = 4000
 
 _PYTEST_SUMMARY = re.compile(r"(\d+)\s+(passed|failed|error|errors|skipped|xfailed|xpassed)\b")
 _GO_PASS = re.compile(r"^\s*--- PASS:", re.MULTILINE)
@@ -162,7 +165,7 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
             passed=exit_passed,
             tests_passed=1 if exit_passed else 0,
             tests_total=1,
-            stderr_tail=result.stderr[-STDERR_TAIL_BYTES:],
+            stderr_tail=result.combined[-OUTPUT_TAIL_BYTES:],
             duration_ms=duration_ms,
             exit_code=result.exit_code,
             parse_ok=task.verify_parser is VerifyParser.EXIT_CODE,
@@ -175,7 +178,7 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
             passed=exit_passed and tests_passed == tests_total and tests_total > 0,
             tests_passed=tests_passed,
             tests_total=tests_total,
-            stderr_tail=result.stderr[-STDERR_TAIL_BYTES:],
+            stderr_tail=result.combined[-OUTPUT_TAIL_BYTES:],
             duration_ms=duration_ms,
             exit_code=result.exit_code,
             parse_ok=True,

@@ -206,13 +206,13 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
       </section>
 
       {verification && verification.stderr_tail.trim().length > 0 ? (
-        <section aria-labelledby="verify-stderr">
-          <h2 id="verify-stderr" className="mb-1 text-[16px] font-semibold">
-            Verification stderr
+        <section aria-labelledby="verify-output">
+          <h2 id="verify-output" className="mb-1 text-[16px] font-semibold">
+            Verification output
           </h2>
           <p className="mb-1 max-w-[80ch] text-[12.5px] text-muted">
-            The last few kilobytes of stderr from the hidden test run, kept for triage. The agent
-            never saw this.
+            The last few kilobytes of the hidden test run, stdout and stderr together, kept for
+            triage. The agent never saw this.
           </p>
           <CodePane text={verification.stderr_tail} kind="output" collapsedLines={12} />
         </section>

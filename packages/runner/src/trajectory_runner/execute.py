@@ -407,6 +407,16 @@ class ReferenceCheck:
     steps: int
     status: str
     error: str | None
+    # The captured hidden test output from both phases. A task author whose task fails
+    # needs the runner's own words, not a verdict: the reason go-race-01 failed on the
+    # Docker backend was in this string and the command printed a phrase instead.
+    unfixed_output: str = ""
+    reference_output: str = ""
+    # False when the parser found no test result lines at all, which means the runner
+    # never got as far as a test. Without this, a build failure and a task where every
+    # test failed both read as 0 of 1, which are very different problems.
+    unfixed_parse_ok: bool = True
+    reference_parse_ok: bool = True
 
     @property
     def starts_broken(self) -> bool:
@@ -431,6 +441,8 @@ class ReferenceCheck:
         if not self.starts_broken:
             return "starts green, so it measures nothing"
         if not self.reference_solves:
+            if not self.reference_parse_ok:
+                return "the hidden tests never ran, so nothing was measured"
             return "the reference solution does not solve it"
         return self.error or self.status
 
@@ -482,4 +494,8 @@ def check_reference(
         steps=len(run.steps),
         status=run.status.value,
         error=run.error,
+        unfixed_output=before.stderr_tail,
+        reference_output=after.stderr_tail if after else "",
+        unfixed_parse_ok=before.parse_ok,
+        reference_parse_ok=after.parse_ok if after else False,
     )
