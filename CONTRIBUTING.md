@@ -140,6 +140,32 @@ Linux and CI checks out LF. It surfaced the first time anyone ran the Docker bac
 Windows. If you are on Windows and see that error, run `git add --renormalize .` followed by
 `git checkout .`.
 
+**Both stages of the API image share one WORKDIR, and that is load bearing.**
+`scripts/check_container_paths.py` fails the build if a multi-stage Dockerfile copies a
+virtualenv or a package source tree to a different absolute path than it came from.
+
+`uv sync` installs the workspace packages as editable, which writes the absolute source path
+into the virtualenv:
+
+```
+$ cat .venv/lib/python3.12/site-packages/_editable_impl_trajectory_api.pth
+/app/packages/api/src
+```
+
+The builder stage used `WORKDIR /build` and the runtime stage `WORKDIR /app`. Copying the
+virtualenv across moved it to a prefix whose recorded source path no longer existed, so every
+container exited immediately on `ModuleNotFoundError: No module named 'trajectory_api'`. The
+image built clean in 28 seconds and the tag published, because `docker build` succeeds and
+nothing short of starting the container notices. The runtime stage now also runs
+`RUN python -c "import trajectory_api, trajectory_core"`, so the next such break fails the
+build with a readable error instead of a health check timing out.
+
+If you are tempted to swap the editable install for `uv sync --no-editable`, read the comment
+in the builder stage first. It was measured, and it is worse: uv caches the built wheel by
+version, does not rebuild when the real sources arrive in the second sync, and the image
+ships the empty stub `__init__.py` files from the dependency caching layer. That fails
+silently, which is a strictly worse bug than the one it replaces.
+
 **Publishing to PyPI is opt in.** The `release` workflow runs on a `v*` tag and always
 builds both wheels, checks their metadata, pushes the API image to GHCR and cuts a GitHub
 release. It uploads to PyPI only when the repository variable `PUBLISH_TO_PYPI` is set to

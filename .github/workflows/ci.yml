@@ -47,6 +47,11 @@ jobs:
       - name: no carriage returns in anything a container executes
         run: uv run python scripts/check_line_endings.py
 
+      # Static, so it runs in the fast job rather than waiting on a Docker build. The bug
+      # it catches passed `docker build` and only appeared when a container was started.
+      - name: no stage copy that would break an editable virtualenv
+        run: uv run python scripts/check_container_paths.py
+
   test:
     name: tests and coverage
     runs-on: ubuntu-24.04
