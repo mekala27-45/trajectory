@@ -55,6 +55,12 @@ jobs:
   pypi:
     name: publish to pypi
     needs: verify
+    # Opt in by setting the repository variable PUBLISH_TO_PYPI to "true", once a trusted
+    # publisher for this repository exists on PyPI. Trusted publishing cannot be probed
+    # ahead of time: without the publisher configured this job fails, and because the
+    # release job needs it, a failure here means no GitHub release either. An unconfigured
+    # fork should get a green tag build and no PyPI upload, not a red one.
+    if: vars.PUBLISH_TO_PYPI == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
@@ -123,6 +129,10 @@ jobs:
   release:
     name: github release
     needs: [pypi, ghcr]
+    # `always()` so a skipped pypi job does not skip this one. A pypi job that ran and
+    # failed still blocks the release, because announcing a version whose artifact never
+    # uploaded is worse than announcing nothing.
+    if: always() && needs.ghcr.result == 'success' && needs.pypi.result != 'failure'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

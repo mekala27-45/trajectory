@@ -121,6 +121,13 @@ those is what found the retry-loop rule's original bug.
 copy. Commas, colons, parentheses, or the word "to" for ranges.
 `scripts/check_no_em_dash.py` enforces it as a pre-commit hook and a CI job.
 
+**Publishing to PyPI is opt in.** The `release` workflow runs on a `v*` tag and always
+builds both wheels, checks their metadata, pushes the API image to GHCR and cuts a GitHub
+release. It uploads to PyPI only when the repository variable `PUBLISH_TO_PYPI` is set to
+`true`, because trusted publishing cannot be probed before it is used: without a publisher
+configured on PyPI the upload fails, and a failed upload used to take the GitHub release
+down with it. Set the variable once the publisher exists.
+
 **Two test dependencies live outside this repository, and both announce themselves.**
 
 A Docker daemon, for the container backend. And a host `python` that can run
