@@ -492,31 +492,41 @@ class TestDockerSandbox:
             assert sandbox.exec("id -u", timeout_s=20, cap_bytes=1024).stdout.strip() != "0"
             assert sandbox.exec("whoami", timeout_s=20, cap_bytes=1024).stdout.strip() == "agent"
 
-    def test_a_binary_written_to_tmpdir_can_be_executed(self, sample_task, task_dir):
+    def test_a_real_binary_copied_into_tmpdir_can_be_executed(self, sample_task, task_dir):
         """The property go-race-01 needed and did not have.
 
-        Every compiled language in this suite links into TMPDIR and then runs the result.
-        Asserted with a shell script rather than a compiler so it holds for the Python
-        fixture image too, which is the point: this is a sandbox property, not a Go one.
+        Every compiled language in this suite links a binary into TMPDIR and then runs it,
+        so this copies a real ELF binary and executes it rather than writing a shell
+        script: a script would go through the interpreter and could pass on a mount that
+        refuses to exec the file itself. Nothing here is Go specific, which is the point.
+        The fixture image is the Python one and the property still has to hold.
         """
         with DockerSandbox(sample_task, task_dir) as sandbox:
             result = sandbox.exec(
-                'set -e; d="${TMPDIR:-/tmp}"; f="$d/traj_exec_probe"; '
-                'printf "#!/bin/sh\necho ran from tmpdir\n" > "$f"; '
-                'chmod +x "$f"; "$f"',
+                'set -e; d="${TMPDIR:-/tmp}"; cp /bin/sh "$d/traj_probe"; '
+                '"$d/traj_probe" -c "echo ran from tmpdir"',
                 timeout_s=30,
                 cap_bytes=4096,
             )
-        assert result.exit_code == 0, f"could not execute from TMPDIR: {result.combined!r}"
+        assert result.exit_code == 0, (
+            "could not execute a binary from TMPDIR, which is what noexec on the tmpfs "
+            f"did to go-race-01: {result.combined!r}"
+        )
         assert "ran from tmpdir" in result.stdout
 
     def test_tmp_is_still_size_capped(self, sample_task, task_dir):
-        """Dropping noexec must not have dropped the cap that stops a disk filling up."""
+        """Dropping noexec must not have dropped the cap that stops a disk filling up.
+
+        Parsed here rather than with awk, which is not guaranteed to be in a slim image
+        and would turn a real regression into a confusing failure about a missing tool.
+        """
         with DockerSandbox(sample_task, task_dir) as sandbox:
-            result = sandbox.exec(
-                "df -m /tmp | awk 'NR==2 {print $2}'", timeout_s=30, cap_bytes=1024
-            )
-        assert int(result.stdout.strip()) <= 256
+            result = sandbox.exec("df -m /tmp", timeout_s=30, cap_bytes=4096)
+        assert result.exit_code == 0, result.combined
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert len(lines) >= 2, f"unexpected df output: {result.stdout!r}"
+        total_mb = int(lines[-1].split()[1])
+        assert total_mb <= 256, f"/tmp is {total_mb} MB, so the size cap is gone"
 
     def test_the_network_is_off_by_default(self, sample_task, task_dir):
         with DockerSandbox(sample_task, task_dir) as sandbox:

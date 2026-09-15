@@ -12,7 +12,10 @@ from trajectory_core.testing import make_task
 from trajectory_runner.sandbox import docker_available, local_verify_runnable
 
 DOCKERFILE = """\
-FROM python:3.12-slim-bookworm
+# Pinned, for the same reason the real tasks are: a floating tag means these tests
+# can start behaving differently one day with nothing in the history to say why.
+# Validation rejects a floating tag in a task, and the fixture should not be exempt.
+FROM python:3.12.8-slim-bookworm
 ARG AGENT_USER=agent
 RUN useradd --create-home --uid 10001 ${AGENT_USER}
 RUN pip install --no-cache-dir pytest==8.3.4
