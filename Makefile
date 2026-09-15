@@ -51,6 +51,10 @@ numbers: ## Fail if a published figure does not match the committed run records
 local-backend: ## Report whether a local backend task can run its verify command here
 	$(PY) python scripts/check_local_backend.py
 
+.PHONY: line-endings
+line-endings: ## Fail if a tracked text file carries a carriage return
+	$(PY) python scripts/check_line_endings.py
+
 .PHONY: test
 test: ## Run the test suite with the coverage floor
 	$(PY) pytest --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=80
@@ -60,7 +64,7 @@ test-fast: ## Run the test suite without coverage or slow markers
 	$(PY) pytest -m "not slow and not docker and not postgres" -q
 
 .PHONY: check
-check: lint typecheck no-em-dash numbers test tasks-validate ## Everything CI runs
+check: lint typecheck no-em-dash numbers line-endings test tasks-validate ## Everything CI runs
 
 ## ----------------------------------------------------------------- harness
 

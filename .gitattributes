@@ -1,0 +1,31 @@
+# Everything in this repository is ultimately read by a Linux container or a Linux CI
+# runner, so the working tree must be LF on every platform it is cloned on.
+#
+# Without this, Git for Windows converts LF to CRLF on checkout, the task workspaces are
+# copied into containers with those carriage returns intact, and the shell inside reads
+# the CR as part of the command:
+#
+#   vendor/build_repo.sh: 10: set: Illegal option -
+#
+# where line 10 is a perfectly valid `set -eu`. Five of the twelve tasks ship a shell
+# script, so a Windows clone could not run them at all. Found by running the Docker
+# backend on a Windows machine, which is the first time anyone had.
+* text=auto eol=lf
+
+# Left alone entirely. Git must never rewrite a byte of these: the wheelhouse is a real
+# offline package index, the gzipped log is the input to a forensics task whose answer
+# depends on its exact contents, and the GIF is the README hero.
+*.whl binary
+*.gz binary
+*.gif binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.bundle binary
+
+# Generated, and noise in a review.
+uv.lock          -diff linguist-generated
+web/package-lock.json -diff linguist-generated

@@ -44,6 +44,9 @@ jobs:
       - name: published numbers match the run records
         run: uv run python scripts/check_published_numbers.py
 
+      - name: no carriage returns in anything a container executes
+        run: uv run python scripts/check_line_endings.py
+
   test:
     name: tests and coverage
     runs-on: ubuntu-24.04

@@ -38,6 +38,7 @@ uv run ruff format --check .
 uv run mypy
 uv run python scripts/check_no_em_dash.py
 uv run python scripts/check_published_numbers.py
+uv run python scripts/check_line_endings.py
 uv run python scripts/check_local_backend.py
 uv run pytest --cov --cov-fail-under=80
 uv run trajectory tasks validate --strict
@@ -120,6 +121,24 @@ those is what found the retry-loop rule's original bug.
 **No em dashes.** Anywhere: code, comments, docstrings, documentation, commit messages, web
 copy. Commas, colons, parentheses, or the word "to" for ranges.
 `scripts/check_no_em_dash.py` enforces it as a pre-commit hook and a CI job.
+
+**Line endings are LF, enforced twice.** `.gitattributes` sets `* text=auto eol=lf` so a
+clone on any platform gets LF in the working tree, and `scripts/check_line_endings.py` fails
+the build if a tracked text file carries a carriage return.
+
+This is not housekeeping. Five of the twelve tasks ship a shell script, and those scripts are
+copied into a Linux container and run by `sh`, where a trailing carriage return is part of the
+last token rather than whitespace. A valid `set -eu` becomes:
+
+```
+vendor/build_repo.sh: 10: set: Illegal option -
+```
+
+with the CR invisible in the message. Before `.gitattributes` existed, a Windows clone could
+not run those five tasks at all, and it went unnoticed because the repository was authored on
+Linux and CI checks out LF. It surfaced the first time anyone ran the Docker backend on
+Windows. If you are on Windows and see that error, run `git add --renormalize .` followed by
+`git checkout .`.
 
 **Publishing to PyPI is opt in.** The `release` workflow runs on a `v*` tag and always
 builds both wheels, checks their metadata, pushes the API image to GHCR and cuts a GitHub
