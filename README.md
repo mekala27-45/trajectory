@@ -14,6 +14,25 @@ tests, and scores the trajectory, not just the outcome.
 **Live leaderboard:** https://mekala27-45.github.io/trajectory/ &nbsp; **Metrics:**
 [docs/metrics.md](docs/metrics.md) &nbsp; **Results:** [RESULTS.md](RESULTS.md)
 
+## Where to start
+
+Four links, in the order that makes the rest of this readable. No install needed for any of
+them.
+
+1. **[Replay a real run](https://mekala27-45.github.io/trajectory/)**, on the live
+   leaderboard. Click any row, then any step. That step by step record is the thing this
+   project exists to produce, and seeing one is faster than reading about one.
+2. **[The three findings](RESULTS.md#three-findings)**. Three agents tied at 100 percent and
+   what separated them, a pass rate that could have been published as anything from 0 to 50,
+   and a failure whose cause sits eight steps earlier in the trajectory.
+3. **[What gets measured](docs/metrics.md)**, if you want the formulas rather than the prose.
+   Ten metrics, each a pure function of the run record, which is why a metric added later can
+   be applied to results published earlier.
+4. **[Limitations](#limitations)**. Read before quoting anything above. The published matrix
+   comes from scripted offline policies rather than language models, and it ran on the
+   unisolated sandbox. Both are stated in full, and both are one command away from being
+   fixed by anyone who clones this.
+
 ## Why
 
 A model team improving a coding agent gets a pass rate of 41 percent. They ship a change.
@@ -226,3 +245,19 @@ Apache 2.0. See [LICENSE](LICENSE).
 Independent work, built from scratch against public tooling and public data. No employer
 code, data, system names or screenshots. Every task in the suite was written for this
 repository.
+
+## Who built this
+
+[Ajay Mekala](https://linkedin.com/in/ajaymekala). AI/ML Engineer, production ML platforms
+and MLOps, with four years of frontier model evaluation on contract alongside it: agent
+trajectory scoring, benchmark task authoring, rubric design.
+
+That contract work is covered by NDA, which is the reason this repository exists. It applies
+the same methodology to tasks written from scratch, in public, where the numbers can be
+checked rather than taken on trust.
+
+[Portfolio](https://mekala27-45.github.io) &nbsp; [GitHub](https://github.com/mekala27-45)
+&nbsp; mekalaajayk@gmail.com
+
+Open to AI/ML Engineer, Machine Learning Engineer and model evaluation roles. Questions about
+the design are welcome as issues.
