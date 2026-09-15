@@ -153,6 +153,29 @@ records the image IDs it built from as an artefact.
 
 If you want to move the repository to digest pinning, that is a welcome pull request.
 
+### Create the agent at uid 10001 or above
+
+Validation enforces it. The reason is a bug that shipped in all twelve tasks:
+
+```
+useradd: UID 1000 is not unique
+```
+
+Every task created the agent with `useradd --create-home --uid 1000`, which is the
+conventional first human uid on Debian and looks entirely reasonable. It is also the uid the
+official `node` images already gave to their own `node` user, so on the two TypeScript tasks
+that `RUN` line failed and the image never built. Two of twelve tasks could not be built at
+all, and neither the authoring machine nor a code review could see it: it only appears the
+moment someone runs `docker build`.
+
+10001 is free on every base image the suite uses and matches the uid the API image runs as.
+Nothing in the harness depends on the number, only on the user being non-root and named
+`agent`, so if you have a reason to pick a different one, pick another high one.
+
+The wider lesson for a task author: a Dockerfile is not reviewed code, it is executed code,
+and the only review that counts is a build. Run `trajectory tasks verify-references` on your
+task before you open a pull request, which is the next section.
+
 ## Before you open a pull request
 
 ```
@@ -178,8 +201,8 @@ the sentence that tells a reviewer your task works.
 - [ ] The unfixed workspace fails, and the measured score of the plausible wrong fix is in
       the pull request
 - [ ] No network access during the agent phase
-- [ ] Dockerfile drops root, pins an exact base version, copies neither `verify/` nor
-      `reference/`
+- [ ] Dockerfile drops root, creates the agent at uid 10001 or above, pins an exact base
+      version, copies neither `verify/` nor `reference/`
 - [ ] `relevant_paths` covers the files the task is legitimately about, so scope creep is
       detectable
 - [ ] Six to ten independent hidden assertions

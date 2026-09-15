@@ -10,7 +10,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir pytest==8.3.4 \
-    && useradd --create-home --uid 1000 ${AGENT_USER}
+    && useradd --create-home --uid 10001 ${AGENT_USER}
 
 WORKDIR /workspace
 COPY workspace/ /workspace/

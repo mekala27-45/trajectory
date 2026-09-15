@@ -6,7 +6,7 @@ FROM golang:1.23.4-bookworm
 
 ARG AGENT_USER=agent
 
-RUN useradd --create-home --uid 1000 ${AGENT_USER}
+RUN useradd --create-home --uid 10001 ${AGENT_USER}
 
 WORKDIR /workspace
 COPY workspace/ /workspace/

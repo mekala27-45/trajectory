@@ -10,7 +10,7 @@ ARG AGENT_USER=agent
 # generator is plain node with no dependencies.
 RUN npm install --global typescript@5.7.2 \
     && npm cache clean --force \
-    && useradd --create-home --uid 1000 ${AGENT_USER}
+    && useradd --create-home --uid 10001 ${AGENT_USER}
 
 WORKDIR /workspace
 COPY workspace/ /workspace/

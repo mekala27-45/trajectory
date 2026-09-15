@@ -8,7 +8,7 @@ ARG AGENT_USER=agent
 # pytest and the standard library only. This pipeline is deliberately free of pandas and
 # pyarrow: the warehouse format is defined by CONTRACT.md, not by a dataframe library.
 RUN pip install --no-cache-dir pytest==8.3.4 \
-    && useradd --create-home --uid 1000 ${AGENT_USER}
+    && useradd --create-home --uid 10001 ${AGENT_USER}
 
 WORKDIR /workspace
 COPY workspace/ /workspace/

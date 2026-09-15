@@ -51,7 +51,7 @@ GOOD_PLAYBOOK = {
 GOOD_DOCKERFILE = """\
 FROM python:3.12.8-slim-bookworm
 ARG AGENT_USER=agent
-RUN useradd --create-home --uid 1000 ${AGENT_USER}
+RUN useradd --create-home --uid 10001 ${AGENT_USER}
 WORKDIR /workspace
 COPY workspace/ /workspace/
 USER ${AGENT_USER}
@@ -177,6 +177,33 @@ class TestLoading:
 class TestValidation:
     def test_a_good_task_produces_nothing(self, tmp_path: Path):
         assert validate(load_task(write_task(tmp_path))) == []
+
+    def test_a_low_agent_uid_is_an_error(self, tmp_path: Path):
+        """The bug that stopped two task images building at all.
+
+        `node:*` creates its own `node` user at uid 1000, so `useradd --uid 1000` there
+        fails with "UID 1000 is not unique" and the build dies on that RUN line. Every
+        task in the suite shipped with `--uid 1000`, which was invisible until someone
+        built the images on a machine with a Docker daemon.
+        """
+        dockerfile = GOOD_DOCKERFILE.replace("--uid 10001", "--uid 1000")
+        issues = validate(load_task(write_task(tmp_path, dockerfile=dockerfile)))
+        assert any("creates the agent at uid 1000" in message for message in errors(issues))
+
+    def test_the_uid_boundary_is_inclusive(self, tmp_path: Path):
+        dockerfile = GOOD_DOCKERFILE.replace("--uid 10001", "--uid 10000")
+        issues = validate(load_task(write_task(tmp_path, dockerfile=dockerfile)))
+        assert any("uid 10000" in message for message in errors(issues))
+
+        dockerfile = GOOD_DOCKERFILE.replace("--uid 10001", "--uid 10001")
+        assert validate(load_task(write_task(tmp_path, dockerfile=dockerfile))) == []
+
+    def test_the_equals_form_is_caught_too(self, tmp_path: Path):
+        # `--uid=1000` is the same instruction and a regex that only matched a space
+        # would wave it through.
+        dockerfile = GOOD_DOCKERFILE.replace("--uid 10001", "--uid=1000")
+        issues = validate(load_task(write_task(tmp_path, dockerfile=dockerfile)))
+        assert any("creates the agent at uid 1000" in message for message in errors(issues))
 
     def test_a_dockerfile_that_bakes_in_the_hidden_tests_is_an_error(self, tmp_path: Path):
         """The most expensive false negative there is. The benchmark dies silently."""

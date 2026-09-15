@@ -14,7 +14,7 @@ from trajectory_runner.sandbox import docker_available, local_verify_runnable
 DOCKERFILE = """\
 FROM python:3.12-slim-bookworm
 ARG AGENT_USER=agent
-RUN useradd --create-home --uid 1000 ${AGENT_USER}
+RUN useradd --create-home --uid 10001 ${AGENT_USER}
 RUN pip install --no-cache-dir pytest==8.3.4
 WORKDIR /workspace
 COPY workspace/ /workspace/

@@ -6,7 +6,7 @@ FROM python:3.12.8-slim-bookworm
 ARG AGENT_USER=agent
 
 RUN pip install --no-cache-dir pytest==8.3.4 \
-    && useradd --create-home --uid 1000 ${AGENT_USER}
+    && useradd --create-home --uid 10001 ${AGENT_USER}
 
 WORKDIR /workspace
 COPY workspace/ /workspace/

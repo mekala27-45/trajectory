@@ -26,6 +26,13 @@ PLAYBOOK_FILE = "reference/playbook.yaml"
 REQUIRED_DIRS = ("workspace", "verify", "reference")
 
 _ABSOLUTE_WORKSPACE = re.compile(r"(?<![\w/])/workspace\b")
+# Official base images populate the low uid range: node images create `node` at 1000, and
+# `useradd --uid 1000` there fails with "UID 1000 is not unique", so the image never builds.
+# Anything at or above this is free on every base image the suite uses, and matches the uid
+# the API image runs as.
+MIN_AGENT_UID = 10001
+_USERADD_UID = re.compile(r"useradd[^\n]*?--uid[= ](\d+)")
+
 _UNPINNED_FROM = re.compile(r"^\s*FROM\s+(?!scratch\b)(\S+)", re.IGNORECASE | re.MULTILINE)
 
 
@@ -194,6 +201,15 @@ def validate(loaded: LoadedTask) -> list[Issue]:
         # ARG AGENT_USER and would pass a Dockerfile that never drops root.
         if not re.search(r"^\s*USER\s+\S+", text, re.IGNORECASE | re.MULTILINE):
             error("the Dockerfile never switches to a non-root USER")
+        for uid_match in _USERADD_UID.finditer(text):
+            uid = int(uid_match.group(1))
+            if uid < MIN_AGENT_UID:
+                error(
+                    f"the Dockerfile creates the agent at uid {uid}. Use "
+                    f"{MIN_AGENT_UID} or above: official base images already occupy the "
+                    "low range, and `useradd --uid 1000` fails outright on node images, "
+                    "where uid 1000 is the `node` user. The image then never builds"
+                )
         for match in _UNPINNED_FROM.finditer(text):
             image = match.group(1)
             if "@sha256:" in image:
