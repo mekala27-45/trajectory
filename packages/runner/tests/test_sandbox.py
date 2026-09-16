@@ -456,17 +456,29 @@ class TestTheTmpfsMount:
     `noexec` on /tmp broke go-race-01 completely and reported it as `0/1`, which is the
     same thing the harness prints when a task's every test fails. `go test` links the test
     binary into $GOTMPDIR, defaulting to /tmp, and then executes it.
+
+    These assertions are cheap and they are not the real guard. Only
+    `test_a_real_binary_copied_into_tmpdir_can_be_executed`, which needs a daemon, can
+    tell you what the kernel actually mounted, and it is what caught the first fix here
+    being no fix at all.
     """
 
     def test_tmp_is_a_size_capped_tmpfs(self):
         assert "/tmp" in TMPFS_MOUNTS
         assert "size=" in TMPFS_MOUNTS["/tmp"]
 
-    def test_tmp_is_not_noexec(self):
-        # Removing this flag is deliberate. See the comment on TMPFS_MOUNTS: it is not a
-        # security boundary, because /workspace is writable and exec capable by design,
-        # and it breaks every toolchain that stages an executable in TMPDIR.
-        assert "noexec" not in TMPFS_MOUNTS["/tmp"]
+    def test_tmp_is_mounted_exec(self):
+        """Not merely missing noexec: carrying exec.
+
+        The first attempt deleted `noexec` and asserted its absence. That assertion
+        passed while the mount was still noexec, because Docker merges these options
+        with its own `rw,noexec,nosuid,nodev,size=65536k` defaults instead of replacing
+        them. Omitting a flag is not negating it, and a test that checks for an absence
+        cannot tell the difference.
+        """
+        options = TMPFS_MOUNTS["/tmp"].split(",")
+        assert "exec" in options
+        assert "noexec" not in options
 
     def test_nosuid_is_kept(self):
         assert "nosuid" in TMPFS_MOUNTS["/tmp"]
@@ -514,19 +526,29 @@ class TestDockerSandbox:
         )
         assert "ran from tmpdir" in result.stdout
 
-    def test_tmp_is_still_size_capped(self, sample_task, task_dir):
-        """Dropping noexec must not have dropped the cap that stops a disk filling up.
+    def test_tmp_has_the_size_this_repository_asked_for(self, sample_task, task_dir):
+        """Asserts the requested size rather than merely a small one, deliberately.
 
-        Parsed here rather than with awk, which is not guaranteed to be in a slim image
-        and would turn a real regression into a confusing failure about a missing tool.
+        The earlier version asserted `<= 256`, which Docker's own 64 MB default also
+        satisfies, so it could not tell "our options were applied" from "our options were
+        ignored and the defaults used". The second is exactly what happened with `exec`.
+        Asserting the number we asked for makes the next such surprise fail here, with
+        the real value in the message.
+
+        Parsed in Python rather than with awk, which is not guaranteed to be in a slim
+        image and would turn a real regression into a puzzle about a missing tool.
         """
+        expected_mb = int(TMPFS_MOUNTS["/tmp"].split("size=")[1].rstrip("m"))
         with DockerSandbox(sample_task, task_dir) as sandbox:
             result = sandbox.exec("df -m /tmp", timeout_s=30, cap_bytes=4096)
         assert result.exit_code == 0, result.combined
         lines = [line for line in result.stdout.splitlines() if line.strip()]
         assert len(lines) >= 2, f"unexpected df output: {result.stdout!r}"
         total_mb = int(lines[-1].split()[1])
-        assert total_mb <= 256, f"/tmp is {total_mb} MB, so the size cap is gone"
+        assert total_mb == expected_mb, (
+            f"/tmp is {total_mb} MB but this repository asked for {expected_mb} MB. "
+            "64 MB would mean Docker used its own defaults and ignored TMPFS_MOUNTS."
+        )
 
     def test_the_network_is_off_by_default(self, sample_task, task_dir):
         with DockerSandbox(sample_task, task_dir) as sandbox:

@@ -71,12 +71,16 @@ line-endings: ## Fail if a tracked text file carries a carriage return
 test: ## Run the test suite with the coverage floor
 	$(PY) pytest --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
+.PHONY: test-colour
+test-colour: ## Re-run the CLI tests the way CI runs them, with colour forced on
+	FORCE_COLOR=1 $(PY) pytest packages/runner/tests/test_cli.py -q -p no:randomly
+
 .PHONY: test-fast
 test-fast: ## Run the test suite without coverage or slow markers
 	$(PY) pytest -m "not slow and not docker and not postgres" -q
 
 .PHONY: check
-check: lint typecheck no-em-dash numbers line-endings container-paths machine-paths version test tasks-validate ## Everything CI runs
+check: lint typecheck no-em-dash numbers line-endings container-paths machine-paths version test test-colour tasks-validate ## Everything CI runs
 
 ## ----------------------------------------------------------------- harness
 

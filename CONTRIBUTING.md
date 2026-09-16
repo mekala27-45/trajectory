@@ -208,6 +208,20 @@ Three bugs here had that shape, and only the first was caught by CI:
 A wrong path is still valid syntax, still lints, and still passes every test on the machine
 that wrote it, which is why this needed a gate rather than care.
 
+**`make check` runs the CLI tests twice, and the second run is the point.**
+The `ci` workflow sets `FORCE_COLOR=1` so its logs are readable. Rich then highlights
+numbers in the CLI's output, and four tests that asserted on plain substrings failed there
+while passing on every developer machine: `0 error(s)` arrives as
+`\x1b[1;36m0\x1b[0m\x1b[1m error(s)`, and the task id `py-failing-suite-01` arrives as
+`py-failing-suite-\x1b[1;36m01\x1b[0m`, split by the number highlighter.
+
+Two changes, because the symptom and the gap are different problems. `invoke()` in
+`test_cli.py` now strips styling and keeps the unstripped text on `.raw`, so an assertion
+about content cannot fail because of colour. And `make test-colour` re-runs that module with
+`FORCE_COLOR=1`, so the environment CI actually uses is exercised locally. Setting
+`NO_COLOR` in the invocation is not a fix: `cli.console` is a module level `Console` built
+when the app imports, long before any per call environment applies.
+
 **One version, stated the same way in nine places.** `scripts/check_version.py` reads the
 four `pyproject.toml` files, the `HARNESS_VERSION` constant stamped into every run record,
 the resolved versions in `uv.lock` and the heading of `.github/release-notes.md`, and fails

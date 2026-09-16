@@ -71,9 +71,21 @@ AGENT_USER = "agent"
 # only broke tools that follow the TMPDIR convention: Go, cgo, cargo, and any pip install
 # that compiles. Strictly negative.
 #
+# `exec` is here explicitly, and that is the whole point. Deleting `noexec` from this
+# string was the first attempt and it changed nothing: Docker's tmpfs defaults are
+# `rw,noexec,nosuid,nodev,size=65536k`, and the options given here are merged with those
+# defaults rather than replacing them. The absence of a flag is not its negation, so the
+# mount came up noexec anyway and CI reported the identical
+#
+#     fork/exec /tmp/go-build.../b001/zz_hidden.test: permission denied
+#
+# The test that proved it is `test_a_real_binary_copied_into_tmpdir_can_be_executed`,
+# which was written in the same commit as the first attempt and is the only reason the
+# non fix was caught rather than shipped as a fix.
+#
 # The size cap stays, and is measured rather than guessed: a cold race instrumented build
 # of the Go task peaks at 107 MiB of temporary files, unchanged at 24 way parallelism.
-TMPFS_MOUNTS = {"/tmp": "rw,nosuid,size=256m"}  # noqa: S108  container path, not a host one
+TMPFS_MOUNTS = {"/tmp": "rw,exec,nosuid,size=256m"}  # noqa: S108  container path, not host
 ALLOW_LOCAL_ENV = "TRAJECTORY_ALLOW_LOCAL_SANDBOX"
 MANIFEST_FILE_LIMIT = 4000
 

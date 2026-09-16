@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -19,10 +21,41 @@ from trajectory_runner.cli import app
 runner = CliRunner()
 REPO = Path(__file__).resolve().parents[3]
 
+# CSI sequences, which is all Rich emits for styling.
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
-def invoke(*args: str, env: dict[str, str] | None = None):
+
+@dataclass(frozen=True)
+class Invocation:
+    """A CLI result whose `output` is plain text, with `raw` kept for the one test on it."""
+
+    exit_code: int
+    output: str
+    raw: str
+
+
+def invoke(*args: str, env: dict[str, str] | None = None) -> Invocation:
+    """Run the CLI and return its output with styling removed.
+
+    Stripping is not cosmetic, it is what makes these assertions mean what they say.
+    `NO_COLOR` in the invocation environment does not help: `cli.console` is a module
+    level `Console` built when this file imports the app, long before any per call
+    environment applies, so whatever the process started with has already decided.
+
+    Four tests here asserted on plain substrings and passed on a developer machine and
+    failed in CI, because the workflow sets `FORCE_COLOR=1` for readable logs and Rich
+    then highlights numbers. `0 error(s)` arrives as
+    `\x1b[1;36m0\x1b[0m\x1b[1m error(s)`, and `py-failing-suite-01` arrives as
+    `py-failing-suite-\x1b[1;36m01\x1b[0m`, with the task id split by the highlighter.
+    An assertion about content should not be able to fail because of colour.
+    """
     merged = {**os.environ, "NO_COLOR": "1", "COLUMNS": "200", **(env or {})}
-    return runner.invoke(app, list(args), env=merged, catch_exceptions=False)
+    result = runner.invoke(app, list(args), env=merged, catch_exceptions=False)
+    return Invocation(
+        exit_code=result.exit_code,
+        output=_ANSI.sub("", result.output),
+        raw=result.output,
+    )
 
 
 class TestLogging:
@@ -82,9 +115,14 @@ class TestPlumbing:
         for index in range(1, 11):
             assert f"F{index:02d}" in result.output
 
-    def test_no_color_is_respected(self):
+    def test_the_markdown_format_is_plain_text(self):
+        """Reads `raw`, deliberately: against the stripped output this proves nothing.
+
+        `--format md` exists to be piped into a file or a pull request, so it must carry
+        no styling of its own whatever the surrounding process has set.
+        """
         result = invoke("taxonomy", "--format", "md")
-        assert "\x1b[" not in result.output
+        assert "\x1b[" not in result.raw
 
 
 class TestTasks:
