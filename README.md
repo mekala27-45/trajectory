@@ -29,9 +29,8 @@ them.
    Ten metrics, each a pure function of the run record, which is why a metric added later can
    be applied to results published earlier.
 4. **[Limitations](#limitations)**. Read before quoting anything above. The published matrix
-   comes from scripted offline policies rather than language models, and it ran on the
-   unisolated sandbox. Both are stated in full, and both are one command away from being
-   fixed by anyone who clones this.
+   comes from scripted offline policies rather than language models, which is stated in full
+   and is one command and an API key away from being fixed by anyone who clones this.
 
 ## Why
 
@@ -67,10 +66,9 @@ Step efficiency is scored only on runs that solved the task, so `stub:hasty` rea
 enough, it used no more steps than the reference route. Scoring efficiency on a failed
 run would reward giving up, which is the behaviour this policy exists to exhibit.
 
-These five are **scripted offline policies, not language models**, and this matrix ran on
-an unisolated sandbox. Both are stated in full in [RESULTS.md](RESULTS.md), along with
-three written findings and a limitations section that is worth more than the table. Read
-that before quoting any of this.
+These five are **scripted offline policies, not language models**. That is stated in full in
+[RESULTS.md](RESULTS.md), along with three written findings and a limitations section that is
+worth more than the table. Read that before quoting any of this.
 
 ## Quickstart
 
@@ -225,9 +223,13 @@ Not buried, because they decide whether the rest is worth reading.
   anything a front-end engineer would recognise as their job.
 - **The published matrix is scripted policies, not models.** It validates the harness. It
   says nothing about any language model.
-- **The published matrix ran on the unisolated sandbox**, because the authoring machine had
-  no Docker daemon. Every row is labelled `local` and never averaged with container rows.
-  Twenty five minutes on a machine with Docker fixes it, with no code change.
+- **The published matrix ran on the unisolated sandbox until 16 September 2026**, because
+  the authoring machine had no Docker daemon. It now runs in containers, and re-recording it
+  produced a result worth reading: the backend changed no verdict and exactly one
+  behavioural metric cell moved, by a tenth of its own seed variance. The local backend still
+  exists, is still not an isolation boundary, and is still gated behind an environment
+  variable, but that is now a caveat about a tool this repository ships rather than about
+  these numbers.
 - **Judge self-agreement is unmeasured**, because no model key was available. Metric 8 is
   null on all 180 runs and the three judged modes were never applied. Their zeros mean "not
   measured".

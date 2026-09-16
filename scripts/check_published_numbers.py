@@ -124,7 +124,51 @@ def provenance_claims(runs: list[Run]) -> list[Claim]:
         Claim(RESULTS, "measurement date", measured_on(runs)),
         Claim(RESULTS, "recorded harness version", f"with harness `{harness[0]}`"),
         Claim(RESULTS, "recorded schema version", f"schema version {schema[0]}"),
+        *machine_claims(runs),
     ]
+
+
+def machine_claims(runs: list[Run]) -> list[Claim]:
+    """The machine the matrix actually ran on, from the fingerprint on every record.
+
+    Ungated until a re-record moved the matrix from a two core Linux container to a
+    twenty four core Windows desktop, at which point the document still described the old
+    one down to the kernel version. Every record carries a `runner_fingerprint` precisely
+    so that a published number can be traced to the environment that produced it, and the
+    one place the repository summarised that fingerprint in prose was not checked against
+    it.
+
+    Runs from two different machines fail rather than publishing either, because a matrix
+    measured on two machines is not one measurement.
+    """
+    prints = {
+        (
+            run.runner_fingerprint.os,
+            run.runner_fingerprint.os_release,
+            run.runner_fingerprint.arch,
+            run.runner_fingerprint.cpu_count,
+            run.runner_fingerprint.python_version,
+        )
+        for run in runs
+    }
+    if len(prints) != 1:
+        return [
+            Claim(
+                RESULTS,
+                "the records came from one machine",
+                f"{len(prints)} different machines produced these runs",
+            )
+        ]
+    name, release, arch, cpus, python = next(iter(prints))
+    claims = [Claim(RESULTS, "machine", f"{name} {release}, {arch}, {cpus} vCPU, Python {python}")]
+
+    engines = sorted({run.runner_fingerprint.docker_version or "" for run in runs})
+    if engines == [""]:
+        # A local backend matrix has no engine, and saying so is the honest rendering.
+        claims.append(Claim(RESULTS, "container engine", "no container engine"))
+    elif len(engines) == 1:
+        claims.append(Claim(RESULTS, "container engine", f"Docker {engines[0]}"))
+    return claims
 
 
 def measured_on(runs: list[Run]) -> str:
@@ -147,7 +191,20 @@ def measured_on(runs: list[Run]) -> str:
 
 
 def leaderboard_claims(runs: list[Run]) -> list[Claim]:
-    """Every metric cell on both leaderboard tables, per model."""
+    """Every per model cell on the leaderboard except one, and that one on purpose.
+
+    The docstring here used to say "every metric cell" and covered six of the nine
+    columns. Re-recording the matrix on Docker exposed what that costs: the whole mean
+    wall clock column was left describing the previous machine, so the five cells summed
+    to the previous total while the total row beside them carried the new one. The
+    document contradicted itself and every gate passed.
+
+    Now: solve rate, partial credit, step efficiency, tool call validity, redundant
+    action rate, recovery rate, premature termination and mean wall clock. The destructive
+    column is the exception, because four of its five cells are `0` and a claim of `| 0 |`
+    would be satisfied by any table in the document; its one meaningful value is gated by
+    `destructive_claims`, which checks the total and the per pattern split.
+    """
     claims: list[Claim] = []
     for row in aggregate.leaderboard(runs):
         for label, rendered in (
@@ -157,6 +214,13 @@ def leaderboard_claims(runs: list[Run]) -> list[Claim]:
             ("tool call validity", row.tool_call_validity.render()),
             ("redundant action rate", row.redundant_action_rate.render()),
             ("recovery rate", row.recovery_rate.render()),
+            (
+                "premature termination",
+                row.premature_termination_rate.render(digits=1, percent=True),
+            ),
+            # Hardware rather than behaviour, which is exactly why it has to be checked:
+            # it is the one column that moves when nothing about the run changed.
+            ("mean wall clock", f"{row.mean_wall_clock_s:.1f} s"),
         ):
             claims.append(
                 Claim(RESULTS, f"{row.model} {label}", rendered),

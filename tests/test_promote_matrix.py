@@ -117,18 +117,37 @@ class TestBackendProse:
     def test_no_advisory_when_the_backend_is_unchanged(self, runs: list[Run]) -> None:
         assert promote.backend_prose_to_review(runs, runs) == []
 
-    def test_a_backend_change_lists_the_prose_that_still_says_local(self, runs: list[Run]) -> None:
+    def test_a_backend_change_lists_the_prose_describing_the_old_one(self, runs: list[Run]) -> None:
+        """Flips to whichever backend the committed matrix is not currently on.
+
+        This hardcoded Docker as the destination, which became a silent no-op the day the
+        published matrix moved to Docker: old and new agreed, the advisory correctly
+        returned nothing, and the test failed for the right reason. Deriving the
+        destination from the data keeps it meaningful whichever way the matrix is
+        recorded.
+        """
+        current = {run.config.sandbox_backend for run in runs}
+        assert len(current) == 1, current
+        destination = (
+            SandboxBackend.LOCAL
+            if next(iter(current)) is SandboxBackend.DOCKER
+            else SandboxBackend.DOCKER
+        )
         moved = [run.model_copy(deep=True) for run in runs[:5]]
         for run in moved:
-            run.config.sandbox_backend = SandboxBackend.DOCKER
+            run.config.sandbox_backend = destination
         lines = promote.backend_prose_to_review(runs, moved)
-        assert lines, "re-recording on Docker must flag the prose about the local backend"
+        assert lines, f"changing the backend to {destination} must flag the prose"
         assert any("RESULTS.md" in line for line in lines)
         assert any("README.md" in line for line in lines)
 
     def test_the_advisory_names_files_and_line_numbers(self, runs: list[Run]) -> None:
+        current = next(iter({run.config.sandbox_backend for run in runs}))
+        destination = (
+            SandboxBackend.LOCAL if current is SandboxBackend.DOCKER else SandboxBackend.DOCKER
+        )
         moved = [run.model_copy(deep=True) for run in runs[:1]]
-        moved[0].config.sandbox_backend = SandboxBackend.DOCKER
+        moved[0].config.sandbox_backend = destination
         for line in promote.backend_prose_to_review(runs, moved):
             head = line.strip().split(":", 2)
             assert head[0].endswith(".md")

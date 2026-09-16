@@ -251,6 +251,66 @@ class TestProvenanceIsPinnedToTheRecords:
         assert gate.unmet(claims) == claims
 
 
+class TestTheLeaderboardIsFullyCovered:
+    """The gap the Docker re-record exposed.
+
+    `leaderboard_claims` said it covered "every metric cell" and covered six of nine. The
+    mean wall clock column was left describing the previous machine, so its five cells
+    summed to the previous total while the total row beside them carried the new one. The
+    document contradicted itself and every gate passed.
+    """
+
+    def test_every_model_has_a_wall_clock_claim(self, runs: list[gate.Run]) -> None:
+        from trajectory_core import aggregate
+
+        models = {row.model for row in aggregate.leaderboard(runs)}
+        labelled = {
+            c.label.rsplit(" mean wall clock", 1)[0]
+            for c in gate.leaderboard_claims(runs)
+            if c.label.endswith("mean wall clock")
+        }
+        assert labelled == models
+
+    def test_every_model_has_a_premature_termination_claim(self, runs: list[gate.Run]) -> None:
+        from trajectory_core import aggregate
+
+        models = {row.model for row in aggregate.leaderboard(runs)}
+        labelled = {
+            c.label.rsplit(" premature termination", 1)[0]
+            for c in gate.leaderboard_claims(runs)
+            if c.label.endswith("premature termination")
+        }
+        assert labelled == models
+
+    def test_the_wall_clock_claim_tracks_the_records(self, runs: list[gate.Run]) -> None:
+        from trajectory_core import aggregate
+
+        row = aggregate.leaderboard(runs)[0]
+        claim = next(
+            c for c in gate.leaderboard_claims(runs) if c.label == f"{row.model} mean wall clock"
+        )
+        assert claim.text == f"{row.mean_wall_clock_s:.1f} s"
+
+    def test_a_stale_wall_clock_column_is_caught(
+        self, tmp_path: Path, claims: list[gate.Claim]
+    ) -> None:
+        """Exactly what happened: the cells describe a machine that did not run this."""
+        source = gate.RESULTS
+        text = source.read_text()
+        claim = next(c for c in claims if c.label.endswith("mean wall clock") and c.text in text)
+        target = tmp_path / source.name
+        target.write_text(text.replace(claim.text, "99.9 s", 1))
+        repointed = gate.Claim(target, claim.label, claim.text, True)
+        assert gate.unmet([repointed]) == [repointed]
+
+    def test_the_destructive_column_is_covered_elsewhere(self, runs: list[gate.Run]) -> None:
+        """Documented exception. Four of its five cells are `0`, which pins nothing."""
+        labels = {c.label for c in gate.leaderboard_claims(runs)}
+        assert not any("destructive" in label for label in labels)
+        elsewhere = {c.label for c in gate.destructive_claims(runs)}
+        assert "destructive command total" in elsewhere
+
+
 class TestClaimDerivation:
     """The claims themselves have to come from the records, not from constants."""
 

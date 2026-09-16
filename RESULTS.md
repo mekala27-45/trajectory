@@ -1,12 +1,17 @@
 # Results: core-12
 
-Measured on 14 September 2026 with harness `0.1.1`, schema version 1.
+Measured on 16 September 2026 with harness `0.1.1`, schema version 1.
 
 **Read the [Methodology and limitations](#methodology-and-limitations) section before
-quoting anything here.** Two things about this run matter more than any number in it: the
-models are scripted offline policies rather than language models, and the sandbox was the
-unisolated local backend rather than Docker. Both are stated in full below, and both are
-one command away from being fixed by anyone who clones this repository.
+quoting anything here.** One thing about this run matters more than any number in it: the
+models are scripted offline policies rather than language models, so nothing here says
+anything about any model's capability. It is stated in full below, and it is one command
+and an API key away from being fixed by anyone who clones this repository.
+
+Until 16 September this section named a second caveat, that the sandbox was the unisolated
+local backend rather than Docker. That one is now measured rather than apologised for, and
+what the measurement showed is in [The sandbox, and what changing it
+proved](#the-sandbox-and-what-changing-it-proved).
 
 ## What was run
 
@@ -21,8 +26,9 @@ one command away from being fixed by anyone who clones this repository.
 | Trajectory steps recorded | 2,090 |
 | Total wall clock | 18.2 minutes (1,089 s) |
 | Total provider spend | **0.00 USD** |
-| Sandbox backend | `docker` (unisolated, see limitations) |
-| Machine | Linux 6.18.44, x86_64, 2 vCPU, Python 3.12.3 |
+| Sandbox backend | `docker`, one container per run, network disabled |
+| Container engine | Docker 29.8.0 |
+| Machine | Windows 11, AMD64, 24 vCPU, Python 3.12.13 |
 | Reproduce with | `python scripts/run_matrix.py --parallel 2` |
 
 The spend is a true zero rather than a rounded one. Offline policies make no provider
@@ -38,11 +44,11 @@ would have hidden is `stub:hasty` redundancy at 0.014 +/- 0.010.
 
 | model | runs | solve rate | partial credit | step efficiency | tool validity | redundancy | recovery | premature finish | destructive | wall clock |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `stub:methodical` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | **1.000 +/- 0.000** | **1.000 +/- 0.000** | **0.062 +/- 0.000** | 1.000 +/- 0.000 | 0.0% | 0 | 14.9 s |
-| `stub:sloppy` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.766 +/- 0.000 | **0.922 +/- 0.000** | 0.052 +/- 0.000 | 1.000 +/- 0.000 | 0.0% | 0 | 14.7 s |
-| `stub:thrasher` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.664 +/- 0.000 | 1.000 +/- 0.000 | **0.493 +/- 0.000** | **0.847 +/- 0.137** | 0.0% | 0 | 20.3 s |
-| `stub:reckless` | 36 | 97.2% +/- 3.9% | 0.981 +/- 0.027 | 0.766 +/- 0.001 | 1.000 +/- 0.000 | 0.045 +/- 0.000 | 1.000 +/- 0.000 | 2.8% +/- 3.9% | **72** | 17.1 s |
-| `stub:hasty` | 36 | **33.3% +/- 23.6%** | 0.674 +/- 0.167 | 1.000 +/- 0.000 | 1.000 +/- 0.000 | **0.014 +/- 0.010** | 1.000 +/- 0.000 | **66.7% +/- 23.6%** | 0 | 12.8 s |
+| `stub:methodical` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | **1.000 +/- 0.000** | **1.000 +/- 0.000** | **0.062 +/- 0.000** | 1.000 +/- 0.000 | 0.0% +/- 0.0% | 0 | 6.0 s |
+| `stub:sloppy` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.766 +/- 0.000 | **0.922 +/- 0.000** | 0.052 +/- 0.000 | 1.000 +/- 0.000 | 0.0% +/- 0.0% | 0 | 5.6 s |
+| `stub:thrasher` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.664 +/- 0.000 | 1.000 +/- 0.000 | **0.493 +/- 0.000** | **0.847 +/- 0.137** | 0.0% +/- 0.0% | 0 | 8.8 s |
+| `stub:reckless` | 36 | 97.2% +/- 3.9% | 0.981 +/- 0.027 | 0.766 +/- 0.001 | 1.000 +/- 0.000 | 0.045 +/- 0.000 | 1.000 +/- 0.000 | 2.8% +/- 3.9% | **72** | 5.7 s |
+| `stub:hasty` | 36 | **33.3% +/- 23.6%** | 0.674 +/- 0.167 | 1.000 +/- 0.000 | 1.000 +/- 0.000 | **0.014 +/- 0.010** | 1.000 +/- 0.000 | **66.7% +/- 23.6%** | 0 | 4.2 s |
 
 Cost per solved task is `n/a` for every row because spend was zero.
 
@@ -260,21 +266,49 @@ What it is not: a comparison of language models. Nothing here says anything abou
 model's capability. The same `scripts/run_matrix.py` produces the model matrix with a key
 and a different `--model` list, and the nightly workflow is already wired to do it.
 
-### The sandbox was not isolated
+### The sandbox, and what changing it proved
 
-Every run in this matrix carries `sandbox_backend: local`, because no Docker daemon was
-reachable on the machine that produced it. The local backend runs commands in a temporary
-directory on the host. It is not an isolation boundary, and the specific weakness is that
-the host filesystem is visible, so the hidden tests for the task being run are reachable by
-absolute path. The scripted policies do not do that, and their trajectories are recorded in
-full so anyone can check, but the guarantee does not hold and so the results do not carry
-it.
+Every run in this matrix carries `sandbox_backend: docker`: one container per run, network
+disabled, non-root, capabilities dropped, with the hidden tests copied in only after the
+agent has stopped.
 
-This is why the leaderboard keys rows by sandbox backend and labels every row here `local`.
-Local rows are never averaged together with container rows.
+It was not always so. The first published matrix ran on the unisolated local backend,
+because no Docker daemon was reachable on the machine that authored this repository, and
+this section used to be an apology for that. Re-recording the same matrix on Docker turned
+the apology into a measurement, and the measurement is more interesting than the apology
+was:
 
-**This is the single thing a reader should discount, and it takes about 25 minutes to fix
-on any machine with Docker:**
+**The backend changed no verdict.** 155 of 180 runs solved on Docker, against 155 of 180 on
+the local backend. Per model the counts are identical too, `stub:reckless` solving 35 of its
+36 both times.
+
+Across the whole leaderboard exactly one behavioural cell moved: `stub:thrasher` recovery
+after failure, from 0.833 +/- 0.136 to 0.847 +/- 0.137, which is a tenth of that cell's own
+seed variance. Solve rate, partial credit, step efficiency, tool call validity, redundancy
+and premature termination are identical for all five policies, as are both failure mode
+tables and the per seed breakdown.
+
+The mean wall clock column did move, by a lot, and it is worth being clear that this says
+nothing about the backend: the first matrix ran on a two core Linux container and this one on
+a twenty four core desktop, so the per run means fell from 12.8 to 20.3 seconds down to 4.2 to
+8.8 seconds. Both machines are recorded in the run fingerprints, which is what lets that be
+stated rather than guessed at.
+
+That is worth saying plainly because it cuts against the earlier caveat rather than for it.
+The local backend was never an isolation boundary and the published numbers did not carry
+that guarantee, which was the right thing to disclose. What could not be known at the time
+is whether it also distorted the scores. It did not.
+
+The local backend still exists, still is not an isolation boundary, and is still gated
+behind `TRAJECTORY_ALLOW_LOCAL_SANDBOX=1`. Its specific weakness is that the host
+filesystem is visible, so a task's hidden tests are reachable by absolute path. That is now
+a caveat about a tool this repository ships, rather than a caveat about these numbers.
+
+The leaderboard keys rows by sandbox backend and never averages the two together, which is
+what made this comparison possible at all: the old rows were labelled by the data model
+rather than by a footnote, so they are still there to compare against.
+
+Reproducing the matrix takes about 25 minutes on any machine with Docker:
 
 ```
 make install
@@ -283,10 +317,8 @@ make matrix                                           # 180 runs, real isolation
 make promote RUN_DIR=runs/<the directory that printed>
 ```
 
-No code changes. The rows relabel themselves from `local` to `docker`, because the backend
-is part of a row's identity rather than a footnote. CI already runs the Docker path on
-every push: the `tasks` job builds all twelve images and replays every reference solution
-in real containers.
+CI runs the Docker path on every push as well: the `tasks` job builds all twelve images and
+replays every reference solution in real containers.
 
 `make promote` exists because the numbers gate cuts both ways. Re-recording the matrix moves
 every figure derived from it, and `scripts/check_published_numbers.py` then fails until all
@@ -337,9 +369,15 @@ is the floor for `core-12`, not zero. Read an agent's rate against that floor.
 
 ### Wall clock is not comparable across machines
 
-Every wall clock figure here comes from one 2 vCPU machine running two evaluations in
-parallel. It is useful for comparing policies within this matrix and useless for comparing
-against a number produced anywhere else.
+Every wall clock figure here comes from the single machine named in [What was
+run](#what-was-run), running two evaluations in parallel. It is useful for comparing
+policies within this matrix and useless for comparing against a number produced anywhere
+else. Re-recording the matrix on different hardware halved every figure in that column
+while changing one behavioural cell, which is the demonstration rather than the claim.
+
+The hardware is deliberately stated in one place and checked against the run fingerprints.
+It used to be restated here as well, and when the matrix moved machines this paragraph went
+on describing the old one.
 
 ### The harness is early, and the metric definitions will change
 
