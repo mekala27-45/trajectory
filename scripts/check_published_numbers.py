@@ -121,9 +121,29 @@ def provenance_claims(runs: list[Run]) -> list[Claim]:
             )
         ]
     return [
+        Claim(RESULTS, "measurement date", measured_on(runs)),
         Claim(RESULTS, "recorded harness version", f"with harness `{harness[0]}`"),
         Claim(RESULTS, "recorded schema version", f"schema version {schema[0]}"),
     ]
+
+
+def measured_on(runs: list[Run]) -> str:
+    """The date the matrix was recorded, rendered as the document states it.
+
+    Unguarded until a re-record made it wrong. The header read "Measured on 14 September
+    2026" while the records underneath it had been replaced by a run from the 16th, and
+    nothing in the repository could tell: a date is a published figure derived from the
+    data, exactly like the harness version next to it, and it was the only one in that
+    sentence with no claim behind it.
+
+    UTC, because `started_at` is stored in UTC and a local rendering would depend on who
+    ran the check. A span across midnight renders both ends rather than picking one.
+    """
+    dates = sorted({run.started_at.date() for run in runs})
+    first, last = dates[0], dates[-1]
+    if first == last:
+        return f"Measured on {first.day} {first:%B %Y}"
+    return f"Measured on {first.day} {first:%B %Y} to {last.day} {last:%B %Y}"
 
 
 def leaderboard_claims(runs: list[Run]) -> list[Claim]:

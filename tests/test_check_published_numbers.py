@@ -186,6 +186,36 @@ class TestProvenanceIsPinnedToTheRecords:
         labels = {c.label for c in claims}
         assert "recorded harness version" in labels
         assert "recorded schema version" in labels
+        assert "measurement date" in labels
+
+    def test_the_date_comes_from_the_records(self, runs: list[gate.Run]) -> None:
+        """Unguarded until a re-record made it wrong, which is how it was found."""
+        earliest = min(run.started_at for run in runs).date()
+        claim = next(c for c in gate.provenance_claims(runs) if c.label == "measurement date")
+        assert str(earliest.day) in claim.text
+        assert earliest.strftime("%B") in claim.text
+        assert str(earliest.year) in claim.text
+
+    def test_a_re_recorded_matrix_moves_the_date(self, runs: list[gate.Run]) -> None:
+        from datetime import timedelta
+
+        moved = [run.model_copy(deep=True) for run in runs[:4]]
+        for run in moved:
+            run.started_at = run.started_at + timedelta(days=40)
+        before = gate.measured_on(runs)
+        after = gate.measured_on(moved)
+        assert before != after
+
+    def test_a_single_day_matrix_names_one_date(self, runs: list[gate.Run]) -> None:
+        assert " to " not in gate.measured_on(runs)
+
+    def test_a_matrix_spanning_midnight_names_both_ends(self, runs: list[gate.Run]) -> None:
+        from datetime import timedelta
+
+        spanning = [run.model_copy(deep=True) for run in runs[:4]]
+        spanning[-1].started_at = spanning[-1].started_at + timedelta(days=1)
+        text = gate.measured_on(spanning)
+        assert " to " in text, text
 
     def test_it_tracks_the_records_not_the_current_version(self, runs: list[gate.Run]) -> None:
         from trajectory_core.models import HARNESS_VERSION
