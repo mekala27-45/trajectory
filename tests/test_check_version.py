@@ -43,6 +43,44 @@ class TestTheRepositoryAsCommitted:
         assert gate.main([f"--tag={version}"]) == 0
 
 
+class TestTheKeysAreNotPlatformSpecific:
+    """The bug that made this gate unusable on the machine that needed it.
+
+    The keys were rendered with `str(Path(...))`, and the required source names were
+    forward slash literals. On Windows the two never matched, so the check reported
+    "could not read a version from: packages/core/pyproject.toml" about a file it had
+    just read, and exited 1 no matter what the versions said. It was written the day
+    before a release tag and failed the first time anyone ran it off Linux.
+
+    Asserted here rather than fixed and forgotten, because this repository has now had
+    seven bugs of this shape and the only durable answer is a check.
+    """
+
+    def test_no_key_contains_a_backslash(self) -> None:
+        found = gate.declared_versions()
+        offenders = [key for key in found if "\\" in key]
+        assert offenders == [], offenders
+
+    def test_every_required_source_is_keyed_exactly(self) -> None:
+        found = gate.declared_versions()
+        for name in gate.REQUIRED_SOURCES:
+            assert name in found, f"{name!r} not among {sorted(found)}"
+
+    def test_the_required_names_use_forward_slashes(self) -> None:
+        for name in gate.REQUIRED_SOURCES:
+            assert "\\" not in name, name
+
+    def test_the_paths_would_render_the_same_on_windows(self) -> None:
+        """as_posix() is separator independent, which str() is not."""
+        from pathlib import PureWindowsPath
+
+        for relative in gate.PYPROJECTS:
+            windows = PureWindowsPath(relative)
+            assert windows.as_posix() == relative.as_posix()
+            # And the thing the old code did, which differs:
+            assert str(windows) != relative.as_posix() or "/" not in relative.as_posix()
+
+
 class TestDisagreement:
     def test_a_mismatched_tag_fails(self, capsys: pytest.CaptureFixture[str]) -> None:
         assert gate.main(["--tag=v99.0.0"]) == 1

@@ -47,6 +47,16 @@ MODELS = Path("packages/core/src/trajectory_core/models.py")
 LOCK = Path("uv.lock")
 RELEASE_NOTES = Path(".github/release-notes.md")
 
+# Keys are rendered with as_posix(), never str(). `str(Path("a/b"))` is "a\\b" on Windows,
+# and the first version of this used str() for the keys while matching them against
+# forward slash literals, so the check could not pass on Windows at all: it reported
+# "could not read a version from: packages/core/pyproject.toml" about a file it had just
+# read successfully. Found by running it on Windows to clear a release tag, which is the
+# one moment it needed to work.
+CORE_PYPROJECT = "packages/core/pyproject.toml"
+HARNESS_KEY = f"{MODELS.as_posix()} (HARNESS_VERSION)"
+REQUIRED_SOURCES = ("pyproject.toml", CORE_PYPROJECT, HARNESS_KEY)
+
 HARNESS_RE = re.compile(r'^HARNESS_VERSION\s*=\s*"([^"]+)"', re.MULTILINE)
 NOTES_RE = re.compile(r"^#+\s*trajectory\s+v([0-9][^\s]*)", re.MULTILINE | re.IGNORECASE)
 WORKSPACE_PACKAGES = ("trajectory-api", "trajectory-core", "trajectory-eval")
@@ -79,21 +89,21 @@ def declared_versions() -> dict[str, str]:
         data = tomllib.loads((ROOT / relative).read_text(encoding="utf-8"))
         project = data.get("project", {})
         if "version" in project:
-            found[str(relative)] = str(project["version"])
+            found[relative.as_posix()] = str(project["version"])
 
     models = (ROOT / MODELS).read_text(encoding="utf-8")
     if match := HARNESS_RE.search(models):
-        found[f"{MODELS} (HARNESS_VERSION)"] = match.group(1)
+        found[HARNESS_KEY] = match.group(1)
 
     lock = (ROOT / LOCK).read_text(encoding="utf-8")
     for name in WORKSPACE_PACKAGES:
         pattern = re.compile(rf'name = "{re.escape(name)}"\nversion = "([^"]+)"')
         if match := pattern.search(lock):
-            found[f"{LOCK} ({name})"] = match.group(1)
+            found[f"{LOCK.as_posix()} ({name})"] = match.group(1)
 
     notes = (ROOT / RELEASE_NOTES).read_text(encoding="utf-8")
     if match := NOTES_RE.search(notes):
-        found[f"{RELEASE_NOTES} (heading)"] = match.group(1)
+        found[f"{RELEASE_NOTES.as_posix()} (heading)"] = match.group(1)
 
     return found
 
@@ -103,8 +113,9 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
     found = declared_versions()
 
-    expected = ("pyproject.toml", "packages/core/pyproject.toml", str(MODELS))
-    missing = [name for name in expected if not any(name in key for key in found)]
+    # Equality against known keys, not a substring over a rendered path. The substring
+    # form is what let a separator difference read as a missing file.
+    missing = [name for name in REQUIRED_SOURCES if name not in found]
     if missing:
         print(
             "could not read a version from: " + ", ".join(missing),
