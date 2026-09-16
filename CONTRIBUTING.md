@@ -140,6 +140,29 @@ Linux and CI checks out LF. It surfaced the first time anyone ran the Docker bac
 Windows. If you are on Windows and see that error, run `git add --renormalize .` followed by
 `git checkout .`.
 
+**Re-recording the matrix is one command, not sixty-four edits.**
+`scripts/check_published_numbers.py` recomputes every published figure from the committed run
+records, so re-recording the matrix invalidates all of them at once. That gate is the reason
+two wrong numbers cannot ship again, and taken alone it would discourage the single
+improvement the results section most needs.
+
+```
+uv run python scripts/run_matrix.py --parallel 2
+make promote RUN_DIR=runs/<the directory that printed>
+git diff
+```
+
+`promote_matrix.py` inverts the gate. Each claim carries the exact rendered string the
+document must contain, so the code that detects a mismatch can repair it: it replaces the old
+figure with the new one wherever the gate had already confirmed the old one was present. It
+refuses to guess, reporting anything that appears twice or cannot be found, and it will not
+run when the files it edits already have uncommitted changes, so `git diff` afterwards shows
+exactly what it did.
+
+It updates figures, not meaning. When the sandbox backend changes it lists every line whose
+prose still describes the old backend, because those sentences become wrong at the same
+instant and no number-based check can see it. Rewriting them is yours.
+
 **Both stages of the API image share one WORKDIR, and that is load bearing.**
 `scripts/check_container_paths.py` fails the build if a multi-stage Dockerfile copies a
 virtualenv or a package source tree to a different absolute path than it came from.

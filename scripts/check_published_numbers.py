@@ -174,11 +174,22 @@ def failure_claims(runs: list[Run]) -> list[Claim]:
         counts = aggregate.failure_mode_counts(runs, among=among)
         for entry in counts:
             share = 100.0 * entry.count / denominator if denominator else 0.0
+            # The whole row, not just the two numeric cells. Three modes shared the count
+            # 36 and the share 23.2%, so a claim of `| 36 | 23.2% |` was satisfied by any
+            # of those rows. A wrong number on one row was therefore masked by a correct
+            # identical number on another, which is exactly the quiet error this gate
+            # exists to catch. It also left `promote_matrix.py` unable to tell which of
+            # three identical strings to rewrite. Pinning the id and the name fixes both.
+            #
+            # Note what this still cannot see: presence is not position, so two rows whose
+            # entire contents are exchanged leave both strings in the document and pass.
+            # Catching that needs the table parsed rather than searched, and is not worth
+            # the machinery for a reordering no editing mistake produces.
             claims.append(
                 Claim(
                     RESULTS,
                     f"{entry.id.value} on {among} runs",
-                    f"| {entry.count} | {share:.1f}% |",
+                    f"| {entry.id.value} | {entry.name} | {entry.count} | {share:.1f}% |",
                 )
             )
 

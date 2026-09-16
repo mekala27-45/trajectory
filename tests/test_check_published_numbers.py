@@ -119,6 +119,59 @@ class TestCorruptedDocuments:
         assert gate.unmet([stale]) == []
 
 
+class TestTheFailureModeRowsAreDistinguishable:
+    """A weakness the promotion tool exposed, now asserted.
+
+    Three modes shared a count of 36 and a share of 23.2 percent. While a claim was just
+    the two numeric cells, `| 36 | 23.2% |`, it matched any of those rows, so the gate
+    would have accepted a table with two modes' figures swapped, which is precisely the
+    kind of quiet error it exists to catch.
+    """
+
+    def test_each_failure_row_claim_pins_its_mode_id(self, claims: list[gate.Claim]) -> None:
+        rows = [c for c in claims if " on solved runs" in c.label or " on unsolved runs" in c.label]
+        assert rows, "no failure mode row claims found"
+        for claim in rows:
+            mode_id = claim.label.split()[0]
+            assert claim.text.startswith(f"| {mode_id} |"), claim
+
+    def test_two_modes_with_equal_counts_get_different_claims(
+        self, claims: list[gate.Claim]
+    ) -> None:
+        rows = [c for c in claims if " on solved runs" in c.label]
+        texts = [c.text for c in rows]
+        assert len(set(texts)) == len(texts), "two failure rows render identically"
+
+    def test_a_wrong_number_is_no_longer_masked_by_an_identical_correct_one(
+        self, tmp_path: Path, claims: list[gate.Claim]
+    ) -> None:
+        """The precise bug the full row claim closes.
+
+        F01, F02 and F05 all read `| 36 | 23.2% |`. With the claim being only those two
+        cells, corrupting F01's numbers still left the string present on F02's row, so
+        F01's claim passed while the document was wrong. The row now carries the id, so
+        the corruption has nowhere to hide.
+        """
+        source = gate.RESULTS
+        text = source.read_text()
+        rows = [c for c in claims if c.label.endswith("on solved runs") and c.text in text]
+        sharing = [c for c in rows if c.text.endswith("| 36 | 23.2% |")]
+        assert len(sharing) >= 2, "the fixtures no longer have two rows with equal figures"
+
+        victim = sharing[0]
+        corrupted = victim.text.replace("| 36 | 23.2% |", "| 99 | 63.9% |")
+        target = tmp_path / source.name
+        target.write_text(text.replace(victim.text, corrupted, 1))
+
+        # The old claim, two cells only, is still satisfied by its neighbours' rows.
+        old_style = gate.Claim(target, victim.label, "| 36 | 23.2% |", True)
+        assert gate.unmet([old_style]) == [], "the old claim should have been fooled"
+
+        # The claim as it is now is not.
+        current = gate.Claim(target, victim.label, victim.text, True)
+        assert gate.unmet([current]) == [current]
+
+
 class TestClaimDerivation:
     """The claims themselves have to come from the records, not from constants."""
 

@@ -132,6 +132,11 @@ bundle: ## Rebuild the web demo data from the committed fixture runs
 fixtures: ## Re-record the committed fixture runs from the newest matrix run
 	$(PY) python scripts/build_web_bundle.py runs/matrix --fixtures fixtures/recorded-runs
 
+.PHONY: promote
+promote: ## Promote a matrix run: fixtures, demo data, and every published figure
+	@test -n "$(RUN_DIR)" || { echo "usage: make promote RUN_DIR=runs/<dir>"; exit 2; }
+	$(PY) python scripts/promote_matrix.py "$(RUN_DIR)"
+
 .PHONY: clean
 clean: ## Remove build and cache artefacts
 	rm -rf .mypy_cache .ruff_cache .pytest_cache htmlcov coverage.xml .coverage

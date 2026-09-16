@@ -280,13 +280,23 @@ on any machine with Docker:**
 make install
 trajectory tasks verify-references --backend docker   # proves the twelve tasks in containers
 make matrix                                           # 180 runs, real isolation
-make fixtures && make bundle                          # re-record and rebuild the demo data
+make promote RUN_DIR=runs/<the directory that printed>
 ```
 
 No code changes. The rows relabel themselves from `local` to `docker`, because the backend
 is part of a row's identity rather than a footnote. CI already runs the Docker path on
 every push: the `tasks` job builds all twelve images and replays every reference solution
 in real containers.
+
+`make promote` exists because the numbers gate cuts both ways. Re-recording the matrix moves
+every figure derived from it, and `scripts/check_published_numbers.py` then fails until all
+of them are corrected in both documents, which nobody does accurately by hand. So the same
+claims that detect a mismatch are used to repair it: the old rendered figure is replaced with
+the new one, wherever the gate had already confirmed the old one was present. It refuses to
+guess, reporting anything that appears twice or not at all, and it does not touch a sentence,
+only a figure. Where the backend itself changed it lists every line whose prose still
+describes the old one, because that text becomes wrong at the same moment and no
+number-based check can see it.
 
 ### Twelve tasks is twelve tasks
 
