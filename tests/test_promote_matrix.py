@@ -159,7 +159,9 @@ class TestTheRepositoryAsCommitted:
     ) -> None:
         """The identity case. If this moves a figure, the tool is not idempotent."""
         assert promote.main([str(gate.FIXTURES), "--dry-run"]) == 0
-        assert "0 of 64 published figures would change" in capsys.readouterr().out
+        # Not the literal count, which moves whenever a claim is added.
+        total = len(gate.build_claims(gate.load_runs()))
+        assert f"0 of {total} published figures would change" in capsys.readouterr().out
 
     def test_the_paths_it_guards_include_both_documents(self) -> None:
         assert "README.md" in promote.TOUCHED

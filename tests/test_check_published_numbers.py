@@ -172,6 +172,55 @@ class TestTheFailureModeRowsAreDistinguishable:
         assert gate.unmet([current]) == [current]
 
 
+class TestProvenanceIsPinnedToTheRecords:
+    """The harness version in the header describes the data, not the checkout.
+
+    A version bump must not change it: the matrix was measured with 0.1.0 and always will
+    have been. `check_version.py` therefore ignores this line, which left it the one
+    version statement in the repository with no gate at all until 0.1.1 made the
+    distinction matter.
+    """
+
+    def test_the_recorded_harness_version_is_claimed(self, runs: list[gate.Run]) -> None:
+        claims = gate.provenance_claims(runs)
+        labels = {c.label for c in claims}
+        assert "recorded harness version" in labels
+        assert "recorded schema version" in labels
+
+    def test_it_tracks_the_records_not_the_current_version(self, runs: list[gate.Run]) -> None:
+        from trajectory_core.models import HARNESS_VERSION
+
+        recorded = {run.harness_version for run in runs}
+        assert len(recorded) == 1
+        claim = next(c for c in gate.provenance_claims(runs) if "harness" in c.label)
+        assert claim.text == f"with harness `{next(iter(recorded))}`"
+        if next(iter(recorded)) != HARNESS_VERSION:
+            assert HARNESS_VERSION not in claim.text, (
+                "the provenance claim must not drift to the checkout's version"
+            )
+
+    def test_a_changed_harness_version_in_the_records_moves_the_claim(
+        self, runs: list[gate.Run]
+    ) -> None:
+        moved = [run.model_copy(deep=True) for run in runs[:4]]
+        for run in moved:
+            run.harness_version = "9.9.9"
+        claim = next(c for c in gate.provenance_claims(moved) if "harness" in c.label)
+        assert claim.text == "with harness `9.9.9`"
+
+    def test_a_mixed_set_of_records_is_reported_rather_than_averaged(
+        self, runs: list[gate.Run]
+    ) -> None:
+        mixed = [run.model_copy(deep=True) for run in runs[:4]]
+        mixed[0].harness_version = "9.9.9"
+        claims = gate.provenance_claims(mixed)
+        assert len(claims) == 1
+        assert "one harness version" in claims[0].label
+        # The claim cannot hold, which is the point: a two harness matrix is not one
+        # measurement and must not quietly publish either number.
+        assert gate.unmet(claims) == claims
+
+
 class TestClaimDerivation:
     """The claims themselves have to come from the records, not from constants."""
 

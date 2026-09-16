@@ -100,6 +100,32 @@ def totals_claims(runs: list[Run]) -> list[Claim]:
     ]
 
 
+def provenance_claims(runs: list[Run]) -> list[Claim]:
+    """The harness and schema version the published matrix was actually recorded with.
+
+    This is a fact about the stored data, not about the current checkout, so it must not
+    follow a version bump: the matrix was measured with 0.1.0 and always will have been.
+    `scripts/check_version.py` deliberately does not look at it for that reason, which
+    left it ungated until a bump made the distinction matter. A mixed set of records is
+    reported rather than averaged, because a matrix recorded by two harness versions is
+    not one measurement.
+    """
+    harness = sorted({run.harness_version for run in runs})
+    schema = sorted({run.schema_version for run in runs})
+    if len(harness) != 1 or len(schema) != 1:
+        return [
+            Claim(
+                RESULTS,
+                "the records were produced by one harness version",
+                f"harness {', '.join(harness)}, schema {', '.join(map(str, schema))}",
+            )
+        ]
+    return [
+        Claim(RESULTS, "recorded harness version", f"with harness `{harness[0]}`"),
+        Claim(RESULTS, "recorded schema version", f"schema version {schema[0]}"),
+    ]
+
+
 def leaderboard_claims(runs: list[Run]) -> list[Claim]:
     """Every metric cell on both leaderboard tables, per model."""
     claims: list[Claim] = []
@@ -244,6 +270,7 @@ def build_claims(runs: list[Run]) -> list[Claim]:
     """Every claim the documents are checked against, for one set of runs."""
     return [
         *totals_claims(runs),
+        *provenance_claims(runs),
         *leaderboard_claims(runs),
         *step_claims(runs),
         *seed_claims(runs),

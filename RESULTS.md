@@ -341,12 +341,17 @@ Every wall clock figure here comes from one 2 vCPU machine running two evaluatio
 parallel. It is useful for comparing policies within this matrix and useless for comparing
 against a number produced anywhere else.
 
-### The harness is version 0.1.0
+### The harness is early, and the metric definitions will change
 
-Metric definitions will change. When they do, previously recorded runs can be rescored,
-because every metric is a pure function of the run record: `trajectory score <run-dir>`
-recomputes everything without rerunning an agent. That is why the metrics are pure, and it
-is the mechanism by which these numbers stay comparable to later ones.
+Which is survivable rather than disqualifying, because every metric is a pure function of
+the run record: `trajectory score <run-dir>` recomputes all ten without rerunning an agent,
+so a definition settled next month applies to every trajectory already archived. That is
+the mechanism by which these numbers stay comparable to later ones, and it is most of the
+reason the metrics are pure.
+
+The version that produced this matrix is stated at the top of this file and checked against
+the stored records, so it stays correct when the harness moves on. It is deliberately not
+the version in your checkout.
 
 ## Reproducing this
 
