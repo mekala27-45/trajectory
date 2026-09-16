@@ -1,6 +1,6 @@
 [project]
 name = "trajectory-core"
-version = "0.1.0"
+version = "0.1.1"
 description = "Schemas, trajectory scoring and failure mode classification for the trajectory harness"
 readme = "README.md"
 requires-python = ">=3.12"

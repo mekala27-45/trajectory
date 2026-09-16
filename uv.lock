@@ -2534,7 +2534,7 @@ wheels = [
 
 [[package]]
 name = "trajectory-api"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/api" }
 dependencies = [
     { name = "alembic" },
@@ -2563,7 +2563,7 @@ requires-dist = [
 
 [[package]]
 name = "trajectory-core"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/core" }
 dependencies = [
     { name = "pydantic" },
@@ -2585,7 +2585,7 @@ provides-extras = ["judge"]
 
 [[package]]
 name = "trajectory-eval"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/runner" }
 dependencies = [
     { name = "docker" },
@@ -2612,7 +2612,7 @@ requires-dist = [
 
 [[package]]
 name = "trajectory-workspace"
-version = "0.1.0"
+version = "0.1.1"
 source = { virtual = "." }
 dependencies = [
     { name = "trajectory-api" },

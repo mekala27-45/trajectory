@@ -1,6 +1,6 @@
 [project]
 name = "trajectory-workspace"
-version = "0.1.0"
+version = "0.1.1"
 description = "Development workspace for the trajectory evaluation harness"
 requires-python = ">=3.12"
 dependencies = [

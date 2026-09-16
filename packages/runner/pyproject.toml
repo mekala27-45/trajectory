@@ -1,6 +1,6 @@
 [project]
 name = "trajectory-eval"
-version = "0.1.0"
+version = "0.1.1"
 description = "Evaluation harness for coding agents: containerized tasks, hidden tests, trajectory scoring"
 readme = "README.md"
 requires-python = ">=3.12"

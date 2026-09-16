@@ -55,6 +55,9 @@ jobs:
       - name: no path that only exists on the machine that wrote it
         run: uv run python scripts/check_no_machine_paths.py
 
+      - name: one version, stated the same way everywhere
+        run: uv run python scripts/check_version.py
+
   test:
     name: tests and coverage
     runs-on: ubuntu-24.04

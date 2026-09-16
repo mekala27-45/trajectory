@@ -48,8 +48,26 @@ jobs:
           sudo /usr/bin/python3 -m pip install --quiet --break-system-packages "pytest==8.3.4"
           uv run python scripts/check_local_backend.py
       - run: uv run ruff check .
+      - run: uv run ruff format --check .
       - run: uv run mypy
+
+      # Every gate the push workflow runs. This job had only the em dash check, which
+      # meant a tag could ship a stale published figure, a CRLF script, a container path
+      # that cannot start, or a machine specific path, all of which `ci` would have
+      # rejected on the commit the tag points at. A release is the worst place to be
+      # laxer than a push.
       - run: uv run python scripts/check_no_em_dash.py
+      - run: uv run python scripts/check_published_numbers.py
+      - run: uv run python scripts/check_line_endings.py
+      - run: uv run python scripts/check_container_paths.py
+      - run: uv run python scripts/check_no_machine_paths.py
+
+      # The tag has to be the version the artifacts carry. Nothing breaks when it is not:
+      # the wheel is built with the old number and the release page announces the previous
+      # version, quietly and permanently. GITHUB_REF_NAME is read automatically.
+      - run: uv run python scripts/check_version.py
+
+      - run: uv run trajectory tasks validate --strict
       - run: uv run pytest --cov --cov-fail-under=80 -q
 
   pypi:

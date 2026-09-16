@@ -208,6 +208,22 @@ Three bugs here had that shape, and only the first was caught by CI:
 A wrong path is still valid syntax, still lints, and still passes every test on the machine
 that wrote it, which is why this needed a gate rather than care.
 
+**One version, stated the same way in nine places.** `scripts/check_version.py` reads the
+four `pyproject.toml` files, the `HARNESS_VERSION` constant stamped into every run record,
+the resolved versions in `uv.lock` and the heading of `.github/release-notes.md`, and fails
+when they disagree. On a tagged build it also checks the tag, reading `GITHUB_REF_NAME`
+itself.
+
+Bumping a version means all of them, in this order: the four pyprojects, then
+`HARNESS_VERSION`, then `uv lock`, then the release notes heading. Run
+`uv run python scripts/check_version.py --tag vX.Y.Z` before pushing the tag.
+
+The check exists because every one of those failures is silent. A wheel built with the
+previous number still installs. A run record with a stale `harness_version` still validates,
+in a project whose whole argument is that the run record tells you what produced a number.
+And a release page announcing the previous version renders perfectly. When `v0.1.1` was
+prepared, six of the nine sources still said `0.1.0`.
+
 **Publishing to PyPI is opt in.** The `release` workflow runs on a `v*` tag and always
 builds both wheels, checks their metadata, pushes the API image to GHCR and cuts a GitHub
 release. It uploads to PyPI only when the repository variable `PUBLISH_TO_PYPI` is set to

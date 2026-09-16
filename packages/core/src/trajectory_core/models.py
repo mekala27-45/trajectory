@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validat
 
 from trajectory_core.ids import uuid7_str
 
-HARNESS_VERSION = "0.1.0"
+HARNESS_VERSION = "0.1.1"
 
 SCHEMA_VERSION = 1
 """Bumped whenever a change to these models is not backward compatible.
