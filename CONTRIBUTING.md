@@ -222,6 +222,19 @@ about content cannot fail because of colour. And `make test-colour` re-runs that
 `NO_COLOR` in the invocation is not a fix: `cli.console` is a module level `Console` built
 when the app imports, long before any per call environment applies.
 
+**Recompute the test count in the release notes at tag time.**
+`.github/release-notes.md` states a test count, and it is a point in time statement about
+one release, so no gate can own it: checking it against the current suite would fail the
+moment a test is added. It is therefore the one number here that depends on a person, and
+v0.1.1 shipped it wrong by 28 because it was typed six commits before the tag.
+
+```
+uv run pytest --collect-only -q | tail -1
+```
+
+Prefer not adding a new drifting number to that file. A published release body can be edited
+on GitHub afterwards without re-tagging, which is the only remedy once it is out.
+
 **One version, stated the same way in nine places.** `scripts/check_version.py` reads the
 four `pyproject.toml` files, the `HARNESS_VERSION` constant stamped into every run record,
 the resolved versions in `uv.lock` and the heading of `.github/release-notes.md`, and fails

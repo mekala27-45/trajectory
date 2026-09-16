@@ -59,7 +59,7 @@ and distinguishes "every test failed" from "the tests never ran".
 `check_line_endings`, `check_container_paths`, `check_no_machine_paths`, `check_version`, and
 `promote_matrix` for re-recording the published matrix without retyping 64 figures by hand.
 
-687 tests, 86.7 percent coverage against an enforced floor.
+715 tests, 86.7 percent coverage against an enforced floor.
 
 ### Install
 
