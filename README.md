@@ -60,7 +60,7 @@ solved runs, and a failure table scoped to failures shows none of them.
 | `stub:reckless` | 97.2% +/- 3.9% | 0.766 | 1.000 | 0.045 | 1.000 |
 | `stub:hasty` | **33.3% +/- 23.6%** | 1.000 | 1.000 | 0.014 | 1.000 |
 
-180 runs, 12 tasks, 3 seeds, 47.9 minutes, 0.00 USD.
+180 runs, 12 tasks, 3 seeds, 18.2 minutes, 0.00 USD.
 
 Step efficiency is scored only on runs that solved the task, so `stub:hasty` reaching
 1.000 is not a contradiction: on the third of runs where quitting early happened to be

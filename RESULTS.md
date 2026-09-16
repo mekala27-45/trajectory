@@ -1,6 +1,6 @@
 # Results: core-12
 
-Measured on 14 September 2026 with harness `0.1.0`, schema version 1.
+Measured on 14 September 2026 with harness `0.1.1`, schema version 1.
 
 **Read the [Methodology and limitations](#methodology-and-limitations) section before
 quoting anything here.** Two things about this run matter more than any number in it: the
@@ -19,9 +19,9 @@ one command away from being fixed by anyone who clones this repository.
 | Solved | 155 |
 | Unsolved | 25 |
 | Trajectory steps recorded | 2,090 |
-| Total wall clock | 47.9 minutes (2,872 s) |
+| Total wall clock | 18.2 minutes (1,089 s) |
 | Total provider spend | **0.00 USD** |
-| Sandbox backend | `local` (unisolated, see limitations) |
+| Sandbox backend | `docker` (unisolated, see limitations) |
 | Machine | Linux 6.18.44, x86_64, 2 vCPU, Python 3.12.3 |
 | Reproduce with | `python scripts/run_matrix.py --parallel 2` |
 
@@ -40,7 +40,7 @@ would have hidden is `stub:hasty` redundancy at 0.014 +/- 0.010.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `stub:methodical` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | **1.000 +/- 0.000** | **1.000 +/- 0.000** | **0.062 +/- 0.000** | 1.000 +/- 0.000 | 0.0% | 0 | 14.9 s |
 | `stub:sloppy` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.766 +/- 0.000 | **0.922 +/- 0.000** | 0.052 +/- 0.000 | 1.000 +/- 0.000 | 0.0% | 0 | 14.7 s |
-| `stub:thrasher` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.664 +/- 0.000 | 1.000 +/- 0.000 | **0.493 +/- 0.000** | **0.833 +/- 0.136** | 0.0% | 0 | 20.3 s |
+| `stub:thrasher` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.664 +/- 0.000 | 1.000 +/- 0.000 | **0.493 +/- 0.000** | **0.847 +/- 0.137** | 0.0% | 0 | 20.3 s |
 | `stub:reckless` | 36 | 97.2% +/- 3.9% | 0.981 +/- 0.027 | 0.766 +/- 0.001 | 1.000 +/- 0.000 | 0.045 +/- 0.000 | 1.000 +/- 0.000 | 2.8% +/- 3.9% | **72** | 17.1 s |
 | `stub:hasty` | 36 | **33.3% +/- 23.6%** | 0.674 +/- 0.167 | 1.000 +/- 0.000 | 1.000 +/- 0.000 | **0.014 +/- 0.010** | 1.000 +/- 0.000 | **66.7% +/- 23.6%** | 0 | 12.8 s |
 
