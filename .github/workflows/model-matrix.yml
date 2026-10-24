@@ -1,0 +1,190 @@
+name: model-matrix
+
+# The published matrix is five offline policies, which validate the harness but are not
+# models. This runs real models through the same twelve tasks on the Docker backend, the
+# only backend whose numbers belong on a leaderboard, and opens a pull request with the
+# refreshed figures.
+#
+# Two things make it safe to point at a metered account.
+#
+# A one-call smoke runs first and the real matrix needs it. A missing key, a mistyped
+# model name or a wrong base URL fails on call one, not on call four hundred of a tier
+# that only refills once a month.
+#
+# The matrix runs under a call ceiling and a shared rate limit, not a dollar budget,
+# because the free tiers are priced by the request. Seed-major order means a run the
+# ceiling cuts off leaves whole seeds finished rather than a ragged edge.
+#
+# The model API call is made by the runner process, which has the network. The sandbox
+# each task runs in still has its network disabled, so this changes nothing about the
+# isolation the benchmark depends on.
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "LiteLLM model identifier for the matrix."
+        required: false
+        default: "nvidia_nim/deepseek-ai/deepseek-v4-flash"
+      seeds:
+        description: "Seeds per task."
+        required: false
+        default: "2"
+      max_calls:
+        description: "Ceiling on total model calls across the whole matrix."
+        required: false
+        default: "850"
+      rpm:
+        description: "Requests per minute, shared across workers."
+        required: false
+        default: "36"
+      judge_model:
+        description: "Optional judge model for the unsolved runs. Leave blank to skip."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: model-matrix
+  cancel-in-progress: false
+
+jobs:
+  # ----------------------------------------------------------------- one call first
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      run: ${{ steps.guard.outputs.run }}
+    steps:
+      - name: skip without the key
+        id: guard
+        run: |
+          if [ -z "${{ secrets.NVIDIA_API_KEY }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "NVIDIA_API_KEY is not set in this repository, skipping the real matrix."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.run == 'true'
+
+      - uses: astral-sh/setup-uv@v5
+        if: steps.guard.outputs.run == 'true'
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+        if: steps.guard.outputs.run == 'true'
+
+      - name: probe the model with a single call
+        if: steps.guard.outputs.run == 'true'
+        env:
+          # LiteLLM reads NVIDIA_NIM_API_KEY; the repository secret is NVIDIA_API_KEY.
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: uv run python scripts/smoke_model.py --model "${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4-flash' }}"
+
+  # ----------------------------------------------------------------- the real matrix
+  matrix:
+    needs: smoke
+    if: needs.smoke.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: run the matrix on the docker backend
+        env:
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          uv run python scripts/run_matrix.py \
+            --label model \
+            --model "${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4-flash' }}" \
+            --seeds "${{ github.event.inputs.seeds || '2' }}" \
+            --parallel 2 \
+            --order seed \
+            --max-calls "${{ github.event.inputs.max_calls || '850' }}" \
+            --rpm "${{ github.event.inputs.rpm || '36' }}" \
+            --temperature 0.7 \
+            ${{ github.event.inputs.judge_model && format('--judge-model {0}', github.event.inputs.judge_model) || '' }}
+
+      - name: render the model results
+        run: |
+          latest="$(ls -dt runs/*model* | head -n1)"
+          echo "bundle=$latest" >> "$GITHUB_ENV"
+          uv run trajectory report "$latest" --format md --out MODEL-RESULTS.generated.md
+          uv run trajectory report "$latest" --format json --out model-results.json
+
+      - name: upload the run bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-matrix-runs
+          path: ${{ env.bundle }}
+          retention-days: 30
+
+      - name: open a pull request with the model numbers
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: model-matrix-results
+          title: "docs: refresh the real model matrix results"
+          commit-message: "docs: refresh the real model matrix results"
+          body: |
+            Automated by `model-matrix`.
+
+            Real models through the twelve tasks on the Docker backend. The raw run
+            bundle is attached to the workflow run as an artifact; promote it into
+            `fixtures/model-runs` locally with `scripts/promote_matrix.py` once reviewed.
+
+            Read the means against their standard error, not alone: a solve rate that
+            moved by less than its own SE has not moved. Check how many seeds actually
+            finished before comparing, since the call ceiling can cut the last seed short.
+          add-paths: |
+            MODEL-RESULTS.generated.md
+            model-results.json
+          delete-branch: true
+
+  # ------------------------------------------------- the free local path, no account
+  local-smoke:
+    # Proves the unlimited, no-card path end to end: an Ollama server reached through the
+    # same provider the matrix uses. Inference is on CPU here, so this is a reachability
+    # check rather than a full matrix; point OLLAMA_API_BASE at a GPU box for the latter.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: install and start ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:11434/api/version && break
+            sleep 1
+          done
+
+      - name: pull the local model
+        run: ollama pull qwen2.5-coder:7b
+
+      - name: probe the local model through the provider
+        env:
+          OLLAMA_API_BASE: http://127.0.0.1:11434
+        run: uv run python scripts/smoke_model.py --model ollama_chat/qwen2.5-coder:7b
