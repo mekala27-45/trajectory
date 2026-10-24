@@ -42,6 +42,10 @@ on:
         description: "Optional judge model for the unsolved runs. Leave blank to skip."
         required: false
         default: ""
+      smoke_only:
+        description: "Validate the key with one call and stop, without the real matrix."
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -91,7 +95,7 @@ jobs:
   # ----------------------------------------------------------------- the real matrix
   matrix:
     needs: smoke
-    if: needs.smoke.outputs.run == 'true'
+    if: needs.smoke.outputs.run == 'true' && github.event.inputs.smoke_only != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -160,6 +164,7 @@ jobs:
     # Proves the unlimited, no-card path end to end: an Ollama server reached through the
     # same provider the matrix uses. Inference is on CPU here, so this is a reachability
     # check rather than a full matrix; point OLLAMA_API_BASE at a GPU box for the latter.
+    if: github.event.inputs.smoke_only != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
