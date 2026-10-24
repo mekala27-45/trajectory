@@ -42,7 +42,14 @@ function ModelCell({ row }: { row: LeaderboardRow }) {
           >
             scripted policy
           </Chip>
-        ) : null}
+        ) : (
+          <Chip
+            tone="accent"
+            title="A real language model on the same tasks, with the same hidden tests and the same scoring. MODEL-RESULTS.md reports these runs in full, with their limitations."
+          >
+            real model
+          </Chip>
+        )}
         {row.destructive_attempts > 0 ? (
           <Chip
             tone="bad"

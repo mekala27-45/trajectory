@@ -11,6 +11,7 @@ on:
     paths:
       - "web/**"
       - "fixtures/recorded-runs/**"
+      - "fixtures/model-runs/**"
       - "tasks/**"
       - "packages/core/**"
       - "scripts/build_web_bundle.py"

@@ -3,12 +3,12 @@ import Link from "next/link";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { DifficultyMeter, EmptyState, Field, NoteBanner, Panel, Tag } from "@/components/ui";
 import { getIndex, getLeaderboard, getTasks, listRuns } from "@/lib/api";
-import { count, percent, seconds, timestamp, usd } from "@/lib/format";
+import { count, isStubModel, percent, seconds, splitModel, timestamp, usd } from "@/lib/format";
 
 export const metadata = {
   title: "Leaderboard",
   description:
-    "Solve rate with its spread across seeds, plus eight trajectory metrics, for every model in the dataset.",
+    "Solve rate with its spread across seeds, plus eight trajectory metrics, for every agent in the dataset: scripted policies that check the harness, and real models.",
 };
 
 export default async function LeaderboardPage() {
@@ -28,6 +28,18 @@ export default async function LeaderboardPage() {
     byTask.set(run.task_id, entry);
   }
 
+  // Read from the bundle, never typed in, so the card cannot drift from the runs behind it.
+  const scripted = index.models.filter(isStubModel).length;
+  const realModels = index.models.filter((model) => !isStubModel(model));
+  const realRuns = runs.filter((run) => !isStubModel(run.model));
+  const realSolved = realRuns.filter((run) => run.solved).length;
+  const realResult =
+    realModels.length === 1
+      ? ` First result: ${splitModel(realModels[0]!).name} solved ${realSolved} of ${realRuns.length} runs.`
+      : realModels.length > 1
+        ? ` ${realModels.length} real models so far, ${realSolved} of ${realRuns.length} runs solved.`
+        : "";
+
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
@@ -35,11 +47,12 @@ export default async function LeaderboardPage() {
           Coding agent results, with the spread
         </h1>
         <p className="max-w-[78ch] text-[14px] text-muted">
-          Each row is one model on one suite from one sandbox. Solve rate is the headline, and the
-          other columns are what a solve rate cannot tell you: whether the agent got there in a
-          sensible number of steps, whether it recovered when a command failed, and whether it
-          declared victory while the hidden tests were still red. Every number carries its standard
-          deviation across seeds, and a cell with no runs behind it reads n/a rather than zero.
+          Each row is one agent on one suite from one sandbox: a scripted policy that checks the
+          harness, or a real model. Solve rate is the headline, and the other columns are what a
+          solve rate cannot tell you: whether the agent got there in a sensible number of steps,
+          whether it recovered when a command failed, and whether it declared victory while the
+          hidden tests were still red. Every number carries its standard deviation across seeds, and
+          a cell with no runs behind it reads n/a rather than zero.
         </p>
       </section>
 
@@ -56,7 +69,15 @@ export default async function LeaderboardPage() {
             <span className="text-dim"> ({count(index.solved_count)} solved)</span>
           </Field>
           <Field label="Tasks">{count(index.task_count)}</Field>
-          <Field label="Models">{count(index.models.length)}</Field>
+          <Field label="Agents">
+            {count(index.models.length)}
+            {realModels.length > 0 && scripted > 0 ? (
+              <span className="text-dim">
+                {" "}
+                ({count(scripted)} scripted, {count(realModels.length)} real)
+              </span>
+            ) : null}
+          </Field>
           <Field label="Total spend">{usd(index.total_cost_usd)}</Field>
           <Field label="Total wall clock">{seconds(index.total_wall_clock_s)}</Field>
         </dl>
@@ -95,19 +116,19 @@ export default async function LeaderboardPage() {
           {[
             {
               title: "Runs in your stack",
-              body: "Every task exports to the Harbor task format, and CI proves each export grades the same as the native harness. ATIF trajectories from Claude Code, Codex and others import and score here.",
+              body: "Every task exports to the Harbor task format, and CI grades a sample of the exports both ways: the oracle must score 1.0 and the untouched workspace 0.0. ATIF trajectories from Claude Code, Codex and others import and score with the same metrics.",
               href: "https://github.com/mekala27-45/trajectory/blob/main/docs/interop.md",
               link: "Harbor and ATIF",
             },
             {
               title: "Resists reward hacking",
-              body: "The verifier is hardened so a file the agent plants cannot shadow the hidden tests, and failure mode F11 flags any attempt. A gamed grader is the one thing a pass rate hides.",
+              body: "Verification no longer reads the implicit import paths a planted file would use, and failure mode F11 flags an agent that leaves such a hook behind. A gamed grader is the one thing a pass rate hides.",
               href: "https://github.com/mekala27-45/trajectory/blob/main/docs/grader-audit.md",
               link: "The grader audit",
             },
             {
               title: "Runs real models for free",
-              body: "The same suite drives a real model through a no-card tier, capped by a shared call ceiling and rate limit, with a one-call smoke that fails before the credits do.",
+              body: `The same suite drives a real model through a free tier, capped by a shared call ceiling and rate limit, with a one-call smoke that fails before a full matrix starts.${realResult}`,
               href: "https://github.com/mekala27-45/trajectory/blob/main/docs/real-models.md",
               link: "Real models",
             },
@@ -164,7 +185,7 @@ export default async function LeaderboardPage() {
                     </span>
                     <span className="tnum font-mono text-[11px] text-muted">
                       {stats
-                        ? `${stats.total} runs, ${percent(stats.solved / stats.total, 0)} solved, ${stats.models.size} ${stats.models.size === 1 ? "model" : "models"}`
+                        ? `${stats.total} runs, ${percent(stats.solved / stats.total, 0)} solved, ${stats.models.size} ${stats.models.size === 1 ? "agent" : "agents"}`
                         : "no runs yet"}
                     </span>
                   </Link>

@@ -12,6 +12,12 @@ idea which one it is talking to.
 
     python scripts/build_web_bundle.py                          # newest run directory
     python scripts/build_web_bundle.py runs/matrix --out web/public/data
+    python scripts/build_web_bundle.py --from-fixtures          # what CI and the deploy run
+
+`--from-fixtures` reads both committed sets: the scripted policies that validate the harness
+and the real model runs behind MODEL-RESULTS.md. They share one leaderboard because a row is
+one agent on one suite from one sandbox, so a scripted policy and a real model never share
+a row, and the note above the table says which rows are which.
 """
 
 from __future__ import annotations
@@ -55,6 +61,11 @@ STUB_NOTE = (
     "Models whose identifier starts with stub: are scripted offline policies, not language "
     "models. They validate the harness and give this demo real trajectories to replay."
 )
+REAL_NOTE = (
+    "A row without that prefix is a real language model, and MODEL-RESULTS.md reports its "
+    "runs in full, with their limitations."
+)
+DEFAULT_FIXTURES = (Path("fixtures/recorded-runs"), Path("fixtures/model-runs"))
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -65,12 +76,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--from-fixtures",
         type=Path,
-        nargs="?",
-        const=Path("fixtures/recorded-runs"),
+        nargs="*",
         default=None,
+        metavar="DIR",
         help=(
-            "Read the committed fixture runs instead of a run directory. This is the path "
-            "CI and the static deploy take, so the demo needs nothing but the repository."
+            "Read committed fixture runs instead of a run directory: every directory given, "
+            "or with none given, fixtures/recorded-runs and fixtures/model-runs. This is the "
+            "path CI and the static deploy take, so the demo needs nothing but the repository."
         ),
     )
     parser.add_argument("--out", type=Path, default=Path("web/public/data"))
@@ -109,8 +121,12 @@ def build(runs: list[Run], tasks_root: Path, out: Path) -> DatasetIndex:
     note_parts = []
     if SandboxBackend.LOCAL in backends:
         note_parts.append(LOCAL_NOTE)
-    if any(s.model.startswith("stub:") for s in summaries):
+    scripted = any(s.model.startswith("stub:") for s in summaries)
+    real = any(not s.model.startswith("stub:") for s in summaries)
+    if scripted:
         note_parts.append(STUB_NOTE)
+        if real:
+            note_parts.append(REAL_NOTE)
     note = " ".join(note_parts)
 
     if out.exists():
@@ -197,21 +213,29 @@ def build(runs: list[Run], tasks_root: Path, out: Path) -> DatasetIndex:
     return index
 
 
+def read_fixtures(sources: list[Path]) -> list[Run]:
+    """Every committed run record under the given directories, in id order."""
+    return sorted(
+        (
+            Run.model_validate_json(path.read_text(encoding="utf-8"))
+            for source in sources
+            for path in source.glob("*.json")
+        ),
+        key=lambda run: run.id,
+    )
+
+
 def main(argv: list[str]) -> int:
     """Build the bundle."""
     args = parse_args(argv)
     if args.from_fixtures is not None:
-        source = args.from_fixtures
-        runs = sorted(
-            (
-                Run.model_validate_json(path.read_text(encoding="utf-8"))
-                for path in source.glob("*.json")
-            ),
-            key=lambda run: run.id,
-        )
+        sources = args.from_fixtures or [d for d in DEFAULT_FIXTURES if d.is_dir()]
+        runs = read_fixtures(sources)
+        source = " and ".join(d.as_posix() for d in sources)
     else:
-        source = args.run_dir or newest_run_dir(args.runs_root)
-        runs = read_runs(source)
+        run_dir = args.run_dir or newest_run_dir(args.runs_root)
+        runs = read_runs(run_dir)
+        source = run_dir.as_posix()
     if not runs:
         raise SystemExit(f"no run records under {source}")
 
