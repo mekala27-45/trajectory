@@ -512,11 +512,11 @@ def _verification(
     """
     if reward is not None:
         solved = reward >= 1.0
-        total = declared or 1
+        count = declared or 1
         return Verification(
             passed=solved,
-            tests_passed=total if solved else 0,
-            tests_total=total,
+            tests_passed=count if solved else 0,
+            tests_total=count,
             stderr_tail="",
             duration_ms=0,
             exit_code=0 if solved else 1,
