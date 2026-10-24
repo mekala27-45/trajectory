@@ -388,10 +388,15 @@ def run_agent(
         if budget is not None:
             budget.record(reply.cost_usd)
 
+        # What the replay shows: the visible text, or a reasoning model's thinking when the
+        # visible text is empty. The conversation history below still carries only the
+        # visible text, so recording the reasoning changes nothing about the next turn.
+        shown = reply.thought or reply.reasoning
+
         if not reply.has_tool_call:
             consecutive_no_tool += 1
             step = _no_tool_step(
-                len(outcome.steps), reply.thought, reply.tokens_in, reply.tokens_out, reply.cost_usd
+                len(outcome.steps), shown, reply.tokens_in, reply.tokens_out, reply.cost_usd
             )
             outcome.steps.append(step)
             if on_step:
@@ -436,7 +441,7 @@ def run_agent(
             step = Step(
                 index=len(outcome.steps),
                 timestamp=datetime.now(UTC),
-                thought=reply.thought if position == 0 else None,
+                thought=shown if position == 0 else None,
                 tool_name=call.name,
                 tool_args=dict(call.arguments)
                 if call.arguments

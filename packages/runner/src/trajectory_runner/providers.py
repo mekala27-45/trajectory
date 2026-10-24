@@ -111,7 +111,14 @@ class ToolCall:
 
 @dataclass(slots=True)
 class ModelReply:
-    """One assistant turn."""
+    """One assistant turn.
+
+    `thought` is the visible message text and is what goes back into the conversation.
+    `reasoning` is a reasoning model's separate thinking channel, when the provider exposes
+    one. It is recorded on the step so a replay can show why the model did what it did, but
+    it is never sent back as visible content: that would double the context for nothing and
+    change what the model sees on its next turn.
+    """
 
     thought: str | None
     tool_calls: list[ToolCall]
@@ -119,6 +126,7 @@ class ModelReply:
     tokens_out: int = 0
     cost_usd: float = 0.0
     finish_reason: str | None = None
+    reasoning: str | None = None
 
     @property
     def has_tool_call(self) -> bool:
@@ -341,6 +349,7 @@ class LiteLLMProvider:
         except Exception:  # noqa: BLE001  unpriced or local models return nothing usable
             cost = 0.0
 
+        reasoning = getattr(message, "reasoning_content", None)
         return ModelReply(
             thought=(message.content or None),
             tool_calls=calls,
@@ -348,6 +357,7 @@ class LiteLLMProvider:
             tokens_out=tokens_out,
             cost_usd=cost,
             finish_reason=getattr(choice, "finish_reason", None),
+            reasoning=reasoning if isinstance(reasoning, str) and reasoning.strip() else None,
         )
 
 

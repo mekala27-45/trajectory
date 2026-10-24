@@ -42,7 +42,13 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True, help="LiteLLM model identifier to probe.")
     parser.add_argument("--timeout", type=int, default=90, help="Hard cap in seconds.")
-    parser.add_argument("--max-tokens", type=int, default=64)
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=1024,
+        help="Generous on purpose. A reasoning model spends its budget on hidden reasoning "
+        "before it writes a word, so a small cap reads as an empty reply.",
+    )
     parser.add_argument("--temperature", type=float, default=0.0)
     args = parser.parse_args(argv)
 
@@ -76,18 +82,27 @@ def main(argv: list[str]) -> int:
 
     elapsed = round(time.monotonic() - started, 1)
     choice = response.choices[0]
+    finish = getattr(choice, "finish_reason", None)
     content = (getattr(choice.message, "content", None) or "").strip()
+    reasoning = (getattr(choice.message, "reasoning_content", None) or "").strip()
     tool_calls = getattr(choice.message, "tool_calls", None) or []
     usage = getattr(response, "usage", None)
-    print(
-        f"ok in {elapsed}s: finish_reason={getattr(choice, 'finish_reason', None)!r} "
+    summary = (
+        f"in {elapsed}s: finish_reason={finish!r} "
         f"prompt_tokens={getattr(usage, 'prompt_tokens', 0)} "
         f"completion_tokens={getattr(usage, 'completion_tokens', 0)} "
-        f"content={content[:80]!r} tool_calls={len(tool_calls)}"
+        f"reasoning_chars={len(reasoning)} "
+        f"content={content[:60]!r} tool_calls={len(tool_calls)}"
     )
     if not content and not tool_calls:
-        print("FAILED: the model returned neither text nor a tool call", file=sys.stderr)
+        hint = (
+            " It reasoned but never answered; raise --max-tokens."
+            if reasoning or finish == "length"
+            else ""
+        )
+        print(f"FAILED: empty reply {summary}.{hint}", file=sys.stderr)
         return 1
+    print(f"OK {summary}")
     return 0
 
 

@@ -103,6 +103,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           reason="$(grep -i 'FAILED' /tmp/smoke.txt | tail -1)"
           [ -n "$reason" ] && echo "::error::$reason"
+          verdict="$(grep '^OK ' /tmp/smoke.txt | tail -1)"
+          [ -n "$verdict" ] && echo "::notice::$model $verdict"
           exit "$rc"
 
   # ----------------------------------------------------------------- the real matrix
