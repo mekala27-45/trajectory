@@ -34,9 +34,9 @@ export type SandboxBackend = "docker" | "local";
 /** `Detector`. Whether a failure mode came from a deterministic rule or the rubric judge. */
 export type Detector = "rule" | "judge";
 
-/** `FailureModeId`. Taxonomy identifiers, F01 to F10. */
+/** `FailureModeId`. Taxonomy identifiers, F01 to F11. */
 export type FailureModeId =
-  "F01" | "F02" | "F03" | "F04" | "F05" | "F06" | "F07" | "F08" | "F09" | "F10";
+  "F01" | "F02" | "F03" | "F04" | "F05" | "F06" | "F07" | "F08" | "F09" | "F10" | "F11";
 
 // ------------------------------------------------------------------------ task
 

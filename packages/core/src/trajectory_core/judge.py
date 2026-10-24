@@ -1,6 +1,6 @@
 """The rubric judge.
 
-Three of the ten failure modes need judgement about intent rather than a pattern match.
+Three of the eleven failure modes need judgement about intent rather than a pattern match.
 Whether an agent's next action addressed what a test failure actually said is not something
 a regular expression can decide, and pretending otherwise would produce a taxonomy that
 looks rigorous and is not.

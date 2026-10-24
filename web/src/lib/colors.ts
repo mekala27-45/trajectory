@@ -22,6 +22,7 @@ export const FAILURE_COLORS: Record<FailureModeId, string> = {
   F08: "#b5603c",
   F09: "#d46fb5",
   F10: "#7c8896",
+  F11: "#5a7d9a",
 };
 
 /** Fallback for an identifier a newer harness added that this build does not know. */

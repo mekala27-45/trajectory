@@ -16,6 +16,7 @@ from trajectory_core.failure_modes import (
     TAXONOMY,
     classify_rules,
     detect_destructive_action,
+    detect_grader_tampering,
     detect_path_hallucination,
     detect_premature_success,
     detect_retry_loop,
@@ -55,9 +56,9 @@ class TestTaxonomy:
             assert len(mode.definition) > 40, mode.id
             assert len(mode.example) > 20, mode.id
 
-    def test_seven_rules_and_three_judged(self):
+    def test_eight_rules_and_three_judged(self):
         """The split is worth asserting: a reader should know which numbers are mechanical."""
-        assert len(RULE_MODES) == 7
+        assert len(RULE_MODES) == 8
         assert len(JUDGE_MODES) == 3
         assert set(JUDGE_MODES) == {
             FailureModeId.IGNORED_TEST_OUTPUT,
@@ -66,7 +67,7 @@ class TestTaxonomy:
         }
 
     def test_table_is_in_identifier_order(self):
-        assert [mode.id.value for mode in taxonomy_table()] == [f"F{i:02d}" for i in range(1, 11)]
+        assert [mode.id.value for mode in taxonomy_table()] == [f"F{i:02d}" for i in range(1, 12)]
 
     def test_judge_modes_are_marked_as_such(self):
         for mode_id in JUDGE_MODES:
@@ -345,6 +346,7 @@ class TestF09ScopeCreep:
         run = self._run_with_changes("src/app.py")
         assert detect_scope_creep(run, make_task(relevant_paths=["src/*"])) is None
 
+
     def test_silent_on_build_output(self):
         """Running a build produces build output. Counting that would make the metric noise."""
         run = self._run_with_changes(
@@ -371,6 +373,37 @@ class TestF09ScopeCreep:
     def test_generated_patterns_are_documented(self):
         assert GENERATED_PATTERNS
         assert all(isinstance(pattern, str) for pattern in GENERATED_PATTERNS)
+
+
+class TestF11GraderTampering:
+    def _run(self, before: tuple[str, ...], after_extra: tuple[str, ...]):
+        run = make_run([*bash_steps("ls"), finish_step(1)])
+        run.initial_workspace = manifest(*before)
+        files = dict(run.initial_workspace.files)
+        for path in after_extra:
+            files[path] = "deadbeefdeadbeef"
+        run.final_workspace = WorkspaceManifest(files=files)
+        return run
+
+    def test_fires_on_a_planted_sitecustomize(self):
+        run = self._run(("src/app.py",), ("src/sitecustomize.py",))
+        hit = detect_grader_tampering(run, make_task())
+        assert hit is not None
+        assert "sitecustomize.py" in hit.evidence
+        assert hit.confidence == pytest.approx(0.9)
+
+    def test_fires_on_a_planted_pth_file(self):
+        run = self._run(("src/app.py",), ("extra.pth",))
+        assert detect_grader_tampering(run, make_task()) is not None
+
+    def test_silent_when_the_hook_file_was_there_to_begin_with(self):
+        """A file the task shipped is not the agent planting one. Only new files count."""
+        run = self._run(("conftest.py", "src/app.py"), ("src/app.py",))
+        assert detect_grader_tampering(run, make_task()) is None
+
+    def test_silent_on_an_ordinary_solution(self):
+        run = self._run(("src/app.py",), ("src/app.py", "src/helper.py"))
+        assert detect_grader_tampering(run, make_task()) is None
 
 
 class TestClassifyRules:

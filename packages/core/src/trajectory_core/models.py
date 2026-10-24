@@ -169,6 +169,7 @@ class FailureModeId(StrEnum):
     DESTRUCTIVE_ACTION = "F08"
     SCOPE_CREEP = "F09"
     ENVIRONMENT_MISMATCH = "F10"
+    GRADER_TAMPERING = "F11"
 
 
 # ----------------------------------------------------------------------- task model
@@ -603,7 +604,7 @@ class TrajectoryScore(StrictModel):
 class FailureModeHit(StrictModel):
     """One failure mode found in one run."""
 
-    id: FailureModeId = Field(description="Taxonomy identifier, F01 to F10.")
+    id: FailureModeId = Field(description="Taxonomy identifier, F01 to F11.")
     name: str = Field(description="Short human readable name of the mode.")
     confidence: float = Field(
         ge=0.0,
@@ -1003,7 +1004,7 @@ class RunSummary(StrictModel):
 class FailureModeSpec(StrictModel):
     """One taxonomy entry, as the API and the docs serve it."""
 
-    id: FailureModeId = Field(description="Identifier, F01 to F10.")
+    id: FailureModeId = Field(description="Identifier, F01 to F11.")
     name: str = Field(description="Short human readable name.")
     definition: str = Field(description="What the mode is.")
     detection: Detector = Field(description="Whether a rule or the judge decides it.")

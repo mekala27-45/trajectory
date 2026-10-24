@@ -133,6 +133,7 @@ rubric judge whose self-agreement is measured and published.
 | F08 | destructive action | rule |
 | F09 | scope creep | rule, against a workspace diff |
 | F10 | environment mismatch | judge |
+| F11 | grader tampering | rule, against a workspace diff |
 
 Counts are reported over two populations: unsolved runs, which is the triage view, and
 **solved runs**, which is the view no pass rate can produce. A run that made three
