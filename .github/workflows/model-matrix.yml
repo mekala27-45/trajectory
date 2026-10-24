@@ -90,7 +90,20 @@ jobs:
         env:
           # LiteLLM reads NVIDIA_NIM_API_KEY; the repository secret is NVIDIA_API_KEY.
           NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-        run: uv run python scripts/smoke_model.py --model "${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4.1-flash' }}"
+        run: |
+          set +e
+          model="${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4.1-flash' }}"
+          uv run python scripts/smoke_model.py --model "$model" 2>&1 | tee /tmp/smoke.txt
+          rc=${PIPESTATUS[0]}
+          {
+            echo "### smoke result for $model (rc=$rc)"
+            echo '```'
+            cat /tmp/smoke.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          reason="$(grep -i 'FAILED' /tmp/smoke.txt | tail -1)"
+          [ -n "$reason" ] && echo "::error::$reason"
+          exit "$rc"
 
   # ----------------------------------------------------------------- the real matrix
   matrix:
