@@ -145,6 +145,11 @@ jobs:
           echo "bundle=$latest" >> "$GITHUB_ENV"
           uv run trajectory report "$latest" --format md --out MODEL-RESULTS.generated.md
           uv run trajectory report "$latest" --format json --out model-results.json
+          # The raw run records go on the results branch too, under fixtures/, so the
+          # figures can be recomputed and gated in CI the way the published matrix is.
+          rm -rf fixtures/model-runs && mkdir -p fixtures/model-runs
+          cp "$latest"/runs/*.json fixtures/model-runs/
+          echo "copied $(ls fixtures/model-runs | wc -l) run records to fixtures/model-runs"
           # Surface the results on channels that do not depend on the pull request, since
           # creating one needs a repository setting that may be off. The step summary is for
           # a human; the base64 annotation is the exact file, so it can be read back and
@@ -185,6 +190,7 @@ jobs:
           add-paths: |
             MODEL-RESULTS.generated.md
             model-results.json
+            fixtures/model-runs
           delete-branch: true
 
   # ------------------------------------------------- the free local path, no account
