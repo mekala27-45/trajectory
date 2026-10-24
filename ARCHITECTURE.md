@@ -112,8 +112,8 @@ demo does not go dark when the API scales to zero.
 ## Packages
 
 ```
-packages/core     trajectory_core    schemas, scoring, taxonomy, judge, aggregation
-packages/runner   trajectory_runner  sandbox, agent loop, verifier, CLI, upload
+packages/core     trajectory_core    schemas, scoring, taxonomy, judge, aggregation, ATIF
+packages/runner   trajectory_runner  sandbox, agent loop, verifier, Harbor export, CLI, upload
 packages/api      trajectory_api     the results service
 web/                                 the leaderboard and replay viewer
 ```
@@ -135,6 +135,20 @@ phase and asserts the test file is not there.
 An agent that can read the verification tests will read them, and the benchmark is
 worthless from the first time that happens quietly. Every other design choice here is
 negotiable; this one is not.
+
+## The second property: the grader runs nothing the agent left in its path
+
+Keeping the tests out of reach stops an agent learning what they check. It does not stop
+an agent changing what they see. The verifier runs in the container the agent just used,
+with the agent's workspace as its working directory, and an interpreter puts that directory
+at the front of its import path. A file the agent left there, named after a module the
+tests import, would be loaded in its place.
+
+So verification runs with `PYTHONSAFEPATH` and `PYTHONNOUSERSITE`, which remove the implicit
+directory and the user site from the path, and failure mode F11 names any run that left an
+interpreter or test runner hook behind. The first is the defence; the second is what makes
+the attempt visible, because a defence that silently works teaches nobody anything.
+[docs/grader-audit.md](docs/grader-audit.md) has the detail.
 
 ## Why these dependencies
 
