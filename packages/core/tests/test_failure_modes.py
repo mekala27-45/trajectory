@@ -346,7 +346,6 @@ class TestF09ScopeCreep:
         run = self._run_with_changes("src/app.py")
         assert detect_scope_creep(run, make_task(relevant_paths=["src/*"])) is None
 
-
     def test_silent_on_build_output(self):
         """Running a build produces build output. Counting that would make the metric noise."""
         run = self._run_with_changes(

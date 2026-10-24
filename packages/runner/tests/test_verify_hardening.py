@@ -35,9 +35,7 @@ def _sandbox(task_dir: Path) -> LocalSandbox:
 
 
 class TestImplicitImportPath:
-    def test_without_hardening_a_planted_module_is_importable(
-        self, planted_task_dir: Path
-    ) -> None:
+    def test_without_hardening_a_planted_module_is_importable(self, planted_task_dir: Path) -> None:
         with _sandbox(planted_task_dir) as sb:
             result = sb.exec(
                 'python3 -c "import planted; print(planted.VALUE)"',
