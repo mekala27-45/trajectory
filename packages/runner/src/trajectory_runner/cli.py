@@ -1098,10 +1098,13 @@ def _markdown_report(
 ) -> str:
     """Render a report as markdown, ready to paste into RESULTS.md."""
     unsolved = sum(1 for r in runs if not r.solved)
+    # The version that recorded the runs, not the one checked out now. A report re-rendered
+    # after a version bump must still say what produced the data it describes.
+    recorded = ", ".join(sorted({r.harness_version for r in runs})) or HARNESS_VERSION
     lines = [
         f"# Results: {directory.name}",
         "",
-        f"- Harness version: `{HARNESS_VERSION}`",
+        f"- Harness version: `{recorded}`",
         f"- Runs: {len(runs)} ({len(runs) - unsolved} solved, {unsolved} unsolved)",
         f"- Models: {', '.join(sorted({r.config.model for r in runs}))}",
         f"- Tasks: {len({r.task_id for r in runs})}",
