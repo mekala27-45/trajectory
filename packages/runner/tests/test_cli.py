@@ -349,3 +349,41 @@ class TestRunArgumentChecks:
         assert result.exit_code == 1
         assert "Did you mean" in result.output
         assert "py-failing-suite-01" in result.output
+
+
+class TestExportHarbor:
+    def test_exports_one_named_task(self, tmp_path: Path) -> None:
+        out = tmp_path / "harbor"
+        result = invoke(
+            "export",
+            "harbor",
+            "--out",
+            str(out),
+            "cli-implement-01",
+            "--tasks-root",
+            str(REPO / "tasks"),
+        )
+        assert result.exit_code == 0
+        assert (out / "cli-implement-01" / "task.toml").is_file()
+        assert (out / "cli-implement-01" / "tests" / "test.sh").is_file()
+        assert "exported" in result.output
+
+    def test_exports_the_whole_suite(self, tmp_path: Path) -> None:
+        out = tmp_path / "all"
+        result = invoke("export", "harbor", "--out", str(out), "--tasks-root", str(REPO / "tasks"))
+        assert result.exit_code == 0
+        assert (out / "cli-implement-01").is_dir()
+        assert (out / "ts-api-contract-01").is_dir()
+        assert "12 task(s) written" in result.output
+
+    def test_an_unknown_task_fails(self, tmp_path: Path) -> None:
+        result = invoke(
+            "export",
+            "harbor",
+            "--out",
+            str(tmp_path / "h"),
+            "no-such-task-99",
+            "--tasks-root",
+            str(REPO / "tasks"),
+        )
+        assert result.exit_code == 1
