@@ -1,73 +1,109 @@
-## trajectory v0.1.1
+## trajectory v0.2.0
 
-A fix release. `v0.1.0` passed every gate in the repository and then failed five of six CI
-jobs the first time it ran on a machine with a Docker daemon, which the authoring machine
-did not have. Nothing below is a logic error. Six of the eight are the same bug in different
-clothes: something true about one machine, committed as though it were true everywhere.
+The first release that measures a real language model, and the first that checks whether
+an agent tried to cheat its grader. v0.1.x validated the harness with five scripted
+policies. This release points the same twelve tasks at a real model for free, exports every
+task to the Harbor format and every run to ATIF, scores other agents' trajectories, and
+closes the cheapest reward-hacking surface a reused-container verifier has.
 
-### Two of the twelve task images could never be built
+### Real models, for free
 
-Every task Dockerfile created the agent at uid 1000, the conventional first human uid on
-Debian. It is also the uid the official `node` images already give their own `node` user, so
-both TypeScript images failed at `useradd` and never existed. Now 10001, and validation
-rejects a task that creates the agent below that.
+`nvidia/nemotron-3.5-lightning-30b-a3b`, through NVIDIA's free tier, at two seeds on the
+Docker backend. Seven of twenty runs solved, and the average run passed 0.725 of its hidden
+tests: it gets most of the way and stops. Two of the seven solved runs still made a
+malformed tool call. On git-surgery both seeds reached for destructive git and finished
+below the untouched workspace. F11 grader tampering fired on none. Every figure is in
+`MODEL-RESULTS.md`, rendered from the twenty committed run records and gated in CI.
 
-### Five tasks could not run from a Windows clone
+Free tiers are priced by the request, not the dollar, so the controls changed with them. A
+shared call ceiling (`--max-calls`) is reserved before each call under a lock, so parallel
+workers cannot overshoot it, and reports `budget_exceeded` like the dollar cap does. A
+shared rate limit (`--rpm`) spaces calls across every worker. Seed-major ordering means a
+run the ceiling cuts off leaves earlier seeds whole.
 
-No `.gitattributes`, so git checked the tasks' shell scripts out with CRLF, and `sh` reads a
-trailing carriage return as part of the last token. A valid `set -eu` became
-`vendor/build_repo.sh: 10: set: Illegal option -`, with the character causing it invisible in
-the message. `.gitattributes` now pins LF and a check rejects a carriage return in anything a
-container executes.
+A one-call smoke gates the real matrix, and checks the model calls a tool, because the agent
+acts only through tools. It found, for free, that the first model chosen did not exist under
+that name, that the common fallback had reached end of life, and that DeepSeek V4.1 Flash
+does not answer a trivial prompt inside 90 seconds. Reasoning models spend their budget on a
+hidden thinking channel; the provider now keeps it for the replay and never feeds it back.
 
-### The API image built clean and could not import its own code
+### Two measurement bugs the real run found
 
-`uv sync` installs the workspace packages as editable, which records the absolute source path
-inside the virtualenv. The two build stages used different working directories, so the
-runtime image looked for a path that was not in it and every container exited on
-`ModuleNotFoundError: No module named 'trajectory_api'` before the server started. The image
-now smoke tests its own imports at build time, and a check holds the invariant statically.
+Neither could surface on the scripted matrix.
 
-If you pulled `ghcr.io/.../api:0.1.0`, it does not start. This is the fix.
+The call ceiling was checked when a job was queued, not when it started. A thread pool
+queues every job at once, so four jobs that started after the ceiling ran out were recorded
+as attempts with no model call, scored on the untouched workspace. The caps are now checked
+as each job starts, and a run refused on its first call is dropped.
 
-### One task was unrunnable and the harness reported it as a low score
+A verifier that timed out scored a failed run as full credit: seven of ten Go tests printed a
+pass before the timeout, and dividing by what ran gave 7 of 7. Tasks now declare
+`expected_tests`. A declared test that never ran counts as not passed, a run reporting fewer
+cannot be solved, and partial credit divides by the declaration. That also closes a reward
+hack: an agent can no longer raise its score by stopping tests from running.
+`verify-references` fails a task whose reference runs a different count.
 
-The sandbox mounted `/tmp` with `noexec`. `go test` links its test binary into `$GOTMPDIR`
-and then executes it, so the Go task died before a single test ran. With no result lines to
-count, the exit code fallback recorded `0/1`, which is also what the harness prints when a
-task's every test fails: the symptom pointed away from the cause. `noexec` is gone, with the
-reasoning recorded, and the size cap stays.
+### Harbor tasks and ATIF trajectories
 
-`tasks verify-references` now prints what the hidden tests actually said instead of a verdict,
-and distinguishes "every test failed" from "the tests never ran".
+`trajectory export harbor` writes every task as a Harbor task directory: the instruction,
+an environment with the workspace baked in and the tests left out, a verifier that writes a
+reward on every exit path, and the reference playbook as an oracle. CI grades a sample both
+ways with no Docker: the oracle must score 1.0 and the untouched workspace 0.0.
 
-### The rest
+`trajectory export atif` writes runs as ATIF trajectories, and all 180 recorded runs
+validate against Harbor's own models. `trajectory import atif` scores a trajectory from
+Claude Code, Codex, mini-swe-agent or OpenHands with the same metrics and failure modes as a
+native run: their tool names map to this harness's, and a closing text turn reads as that
+agent's finish, so F03 premature success applies to an agent that says done with the tests
+red. A native export round-trips losslessly; on all 180 records the score comes back
+identical. See `docs/interop.md`.
 
-- The Playwright config pinned a browser directory that existed on one machine, so the two CI
-  steps resolved different paths and the web job failed on a missing browser.
-- Five tests needed `pytest` on the host and passed only because the authoring machine
-  happened to have it. They declare it now, and CI installs it for the interpreter the
-  sandbox actually resolves.
-- A tagged release produced no release: PyPI trusted publishing cannot be probed before use,
-  it failed, and the release job depended on it. PyPI is opt in now.
-- The field kept "for triage" stored stderr, while every test runner here reports on stdout,
-  so it was empty on all 180 recorded runs including the 25 that failed. It stores both
-  streams.
+### The grader audit
 
-### New checks, because a lesson decays and a gate does not
+The verifier ran the hidden tests with the agent's workspace at the front of the import
+path, so a file the agent dropped there, named after a module the tests import, would have
+been loaded in its place. Verification now runs with `PYTHONSAFEPATH` and
+`PYTHONNOUSERSITE`. All twelve references still start broken and solve with it on.
 
-`check_line_endings`, `check_container_paths`, `check_no_machine_paths`, `check_version`, and
-`promote_matrix` for re-recording the published matrix without retyping 64 figures by hand.
+Failure mode **F11 grader tampering** names the attempt: an agent that leaves an interpreter
+or test-runner hook behind. It is reported rather than blocked, because the verifier already
+stops the hook running, and because a run that gamed its grader is exactly what a reward
+model must never be paid to repeat. The taxonomy is now eleven modes, eight by rule and three
+by the judge. See `docs/grader-audit.md`.
 
-715 tests, 86.7 percent coverage against an enforced floor.
+### The results as an RL reward signal
+
+`MODEL-RESULTS.md` ends with each task read as a reward signal: a task whose samples all pass
+or all fail gives a group relative method no gradient. Under a binary reward, two of the
+eight tasks sampled twice give this model anything to learn from. Partial credit raises that
+to six, with a caveat the git-surgery result makes concrete: credit has to be measured above
+the starting score. It describes the signal; it is not a training run.
+
+### Fixes
+
+- Timestamps came back in the database server's zone rather than UTC.
+- The markdown report labelled every result with the harness version checked out at render
+  time rather than the version that recorded the runs.
+- An API test pinned the taxonomy at ten modes; it now checks the endpoint serves every
+  identifier the harness knows.
+
+### New checks
+
+`check_harbor_export` grades exported tasks both ways. `check_model_numbers` holds every
+real model figure to its committed records, the guarantee the published matrix has had since
+v0.1.1. The CI test step now names a failing test and the coverage total in annotations, so
+a failure says what it is.
+
+801 tests in CI, 89 percent coverage against an enforced floor of 80.
 
 ### Install
 
 ```
 pip install trajectory-eval
-trajectory tasks list
+trajectory export harbor --out harbor-tasks
+trajectory import atif trajectory.json --task py-perf-01 --reward 0
 trajectory run --suite core-12 --model stub:methodical
 ```
 
-Read `RESULTS.md` for the published numbers and, more importantly, for the limitations
-section. Twelve tasks is twelve tasks.
+Read `MODEL-RESULTS.md` and `RESULTS.md`, and the limitations in both, before quoting
+either. Twelve tasks is twelve tasks.
