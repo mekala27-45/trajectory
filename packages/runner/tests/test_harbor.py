@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import base64
+import json
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -17,6 +20,7 @@ from trajectory_runner.harbor import (
     render_task_toml,
 )
 from trajectory_runner.loader import LoadedTask
+from trajectory_runner.verifier import VERIFY_HARDENING_ENV
 
 
 def _write_task(root: Path, dockerfile: str) -> LoadedTask:
@@ -76,6 +80,69 @@ class TestStructure:
         assert data["metadata"]["id"] == "demo-01"
         assert data["trajectory"]["task_id"] == "demo-01"
         assert data["agent"]["timeout_sec"] == loaded.task.timeout_seconds
+
+
+class TestTheExportGradesLikeTheNativeVerifier:
+    """The export carries the native defences, so a reader grading it in Harbor gets them."""
+
+    def test_task_toml_declares_the_hardening_environment(self, tmp_path: Path) -> None:
+        loaded = _write_task(tmp_path / "src", GOOD_DOCKERFILE)
+        target = export_task(loaded, tmp_path / "out")
+        data = tomllib.loads((target / "task.toml").read_text(encoding="utf-8"))
+        assert data["verifier"]["env"] == VERIFY_HARDENING_ENV
+
+    def test_test_sh_exports_it_and_runs_the_parser_isolated(self, tmp_path: Path) -> None:
+        loaded = _write_task(tmp_path / "src", GOOD_DOCKERFILE)
+        target = export_task(loaded, tmp_path / "out")
+        script = (target / "tests" / "test.sh").read_text(encoding="utf-8")
+        assert "export PYTHONSAFEPATH=1 PYTHONNOUSERSITE=1" in script
+        assert 'python3 -I -S "$HERE/score.py" \\' in script
+
+    @pytest.mark.parametrize(
+        ("output", "parser", "exit_code", "expected", "graded"),
+        [
+            # Nothing the parser can read: no test reported, so none passed.
+            ("no summary here\n", "pytest", 0, 8, (0.0, 0, 8)),
+            ("no summary here\n", "pytest", 0, None, (0.0, 0, 1)),
+            # A declared test that never ran did not pass.
+            ("7 passed in 1.00s\n", "pytest", 0, 10, (0.0, 7, 10)),
+            # A full count is graded as reported.
+            ("8 passed in 1.00s\n", "pytest", 0, 8, (1.0, 8, 8)),
+            # Only the exit_code parser grades by the exit code.
+            ("", "exit_code", 0, None, (1.0, 1, 1)),
+            ("", "exit_code", 1, None, (0.0, 0, 1)),
+        ],
+    )
+    def test_score_py_counts_like_the_native_verifier(
+        self,
+        tmp_path: Path,
+        output: str,
+        parser: str,
+        exit_code: int,
+        expected: int | None,
+        graded: tuple[float, int, int],
+    ) -> None:
+        loaded = _write_task(tmp_path / "src", GOOD_DOCKERFILE)
+        target = export_task(loaded, tmp_path / "out")
+        reward_file = tmp_path / "reward.json"
+        command = [
+            sys.executable,
+            "-I",
+            "-S",
+            str(target / "tests" / "score.py"),
+            "--parser",
+            parser,
+            "--exit",
+            str(exit_code),
+            "--out",
+            str(reward_file),
+        ]
+        if expected is not None:
+            command += ["--expected", str(expected)]
+        # The interpreter and the script the export just wrote, nothing from outside.
+        subprocess.run(command, input=output, text=True, check=True, capture_output=True)  # noqa: S603
+        payload = json.loads(reward_file.read_text(encoding="utf-8"))
+        assert (payload["reward"], payload["tests_passed"], payload["tests_total"]) == graded
 
 
 class TestGuards:

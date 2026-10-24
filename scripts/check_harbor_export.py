@@ -2,11 +2,16 @@
 """Export tasks to Harbor and prove the exports grade correctly, for CI.
 
 An exporter is only trustworthy if its output grades the way the native harness does. So
-this exports the suite and, for a sample of tasks, runs each one twice through the exported
-verifier: once after the reference oracle has solved it, which must score a reward of 1,
-and once on the untouched workspace, which must score 0. A task that cannot tell its own
-solution from its starting state has a broken verifier, and that is the one defect an
-exporter must never ship.
+this exports the suite and, for a sample of tasks, runs each one three times through the
+exported verifier: once after the reference oracle has solved it, which must score a
+reward of 1; once on the untouched workspace, which must score 0; and once on the
+untouched workspace with a module named after the test runner planted at its root, which
+must never run and must leave the grade exactly as the untouched one. A task that cannot
+tell its own solution from its starting state has a broken verifier, and one that runs a
+file the agent planted has an unhardened one. Neither may ship.
+
+It is a sample, not the suite, and it checks the export against its oracle, not against a
+run of the native verifier.
 
 The grade runs with the workspace and reward paths pointed at a temporary directory, so no
 container and no Docker daemon are needed. Only the task's own language runtime is, which
@@ -32,8 +37,24 @@ from trajectory_runner.loader import default_tasks_root, discover
 DEFAULT_SAMPLE = ("cli-implement-01", "py-failing-suite-01")
 
 
-def grade(task_dir: Path, *, solve: bool) -> dict[str, object]:
-    """Grade one exported task in a throwaway workspace, optionally after the oracle."""
+# A module named after the test runner, dropped at the workspace root. It only records
+# that it ran. If the exported verifier put the working directory first on the import path,
+# `python -m pytest` would run this file instead of pytest, which is the gap an audit found
+# in the export before it carried the native hardening.
+PLANTED_MARKER = ".planted-module-ran"
+PLANTED_PYTEST = (
+    "# Planted by check_harbor_export. It records that it ran and does nothing else.\n"
+    "from pathlib import Path\n"
+    f"Path(__file__).with_name({PLANTED_MARKER!r}).write_text('ran')\n"
+)
+
+
+def grade(task_dir: Path, *, solve: bool, plant: bool = False) -> dict[str, object]:
+    """Grade one exported task in a throwaway workspace, optionally after the oracle.
+
+    With `plant`, a module named after the test runner is written to the workspace root
+    first, so the grade shows whether the exported verifier carries the hardening.
+    """
     workspace = Path(tempfile.mkdtemp(prefix="harbor-grade-"))
     logs = Path(tempfile.mkdtemp(prefix="harbor-logs-"))
     try:
@@ -44,6 +65,8 @@ def grade(task_dir: Path, *, solve: bool) -> dict[str, object]:
                 shutil.copytree(item, dest)
             else:
                 shutil.copy2(item, dest)
+        if plant:
+            (workspace / "pytest.py").write_text(PLANTED_PYTEST, encoding="utf-8")
         env = {"HARBOR_WORKSPACE": str(workspace), "LOGS_VERIFIER_DIR": str(logs)}
         if solve:
             subprocess.run(
@@ -64,6 +87,8 @@ def grade(task_dir: Path, *, solve: bool) -> dict[str, object]:
         if not reward_file.is_file():
             raise SystemExit(f"{task_dir.name}: verifier wrote no reward.json")
         payload: dict[str, object] = json.loads(reward_file.read_text(encoding="utf-8"))
+        if plant:
+            payload["planted_ran"] = (workspace / PLANTED_MARKER).exists()
         return payload
     finally:
         shutil.rmtree(workspace, ignore_errors=True)
@@ -102,18 +127,25 @@ def main(argv: list[str]) -> int:
         task_dir = out / task_id
         oracle = grade(task_dir, solve=True)
         nop = grade(task_dir, solve=False)
-        ok = oracle.get("reward") == 1.0 and nop.get("reward") == 0.0
+        planted = grade(task_dir, solve=False, plant=True)
+        counts = ("reward", "tests_passed", "tests_total")
+        held = planted.get("planted_ran") is False and all(
+            planted.get(k) == nop.get(k) for k in counts
+        )
+        ok = oracle.get("reward") == 1.0 and nop.get("reward") == 0.0 and held
         mark = "ok" if ok else "FAIL"
         print(
             f"  [{mark}] {task_id}: oracle reward={oracle.get('reward')} "
             f"({oracle.get('tests_passed')}/{oracle.get('tests_total')}), "
             f"nop reward={nop.get('reward')} "
-            f"({nop.get('tests_passed')}/{nop.get('tests_total')})"
+            f"({nop.get('tests_passed')}/{nop.get('tests_total')}), "
+            f"planted module ran={planted.get('planted_ran')}"
         )
         if not ok:
             failures.append(
-                f"{task_id}: expected oracle 1.0 and nop 0.0, got {oracle.get('reward')} "
-                f"and {nop.get('reward')}"
+                f"{task_id}: expected oracle 1.0, nop 0.0, and a planted module that never "
+                f"runs; got {oracle.get('reward')}, {nop.get('reward')} and "
+                f"ran={planted.get('planted_ran')}"
             )
 
     if failures:
@@ -121,7 +153,10 @@ def main(argv: list[str]) -> int:
         for line in failures:
             print(f"  {line}", file=sys.stderr)
         return 1
-    print(f"\n{len(sample)} task(s) graded: every oracle scored 1.0 and every nop scored 0.0.")
+    print(
+        f"\n{len(sample)} task(s) graded three ways: every oracle scored 1.0, every nop 0.0, "
+        "and no planted module ran."
+    )
     return 0
 
 

@@ -29,6 +29,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from pydantic import ValidationError
+
 from trajectory_core.failure_modes import classify_rules
 from trajectory_core.models import (
     Run,
@@ -262,6 +264,13 @@ def run_to_atif(
                 "solved": run.solved,
                 "tests_passed": verification.tests_passed if verification else None,
                 "tests_total": verification.tests_total if verification else None,
+                # The whole verification record, exit code and output tail included, so the
+                # import restores it exactly instead of rebuilding an outcome from counts.
+                "verification": (
+                    verification.model_dump(mode="json", exclude={"partial_credit"})
+                    if verification
+                    else None
+                ),
                 "failure_modes": [hit.id.value for hit in run.failure_modes],
                 "seed": run.config.seed,
                 "temperature": run.config.temperature,
@@ -417,7 +426,11 @@ def atif_to_run(doc: dict[str, Any], task: Task, *, reward: float | None = None)
             )
 
     recorded = (doc.get("extra") or {}).get("trajectory") or {}
-    verification = _verification(reward, recorded)
+    verification = _verification(reward, recorded, task.expected_tests)
+    if verification is not None:
+        # The same counting rule as a native run, so an import cannot be solved by tests
+        # that never reported.
+        verification = verification.counting_declared(task.expected_tests)
     # A foreign agent declares itself done by stopping, so the end of its trajectory reads
     # as completion. A native export says exactly why it stopped, and that is kept.
     known = {member.value for member in RunStatus}
@@ -487,19 +500,36 @@ def _closing_turn(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
     return None
 
 
-def _verification(reward: float | None, recorded: dict[str, Any]) -> Verification | None:
-    """The outcome, from the reward when one is given, else from a native export's record."""
+def _verification(
+    reward: float | None, recorded: dict[str, Any], declared: int | None
+) -> Verification | None:
+    """The outcome: from the reward when one is given, else from a native export's record.
+
+    A reward says solved or not and nothing about counts, so it is spread over the task's
+    declared test count: all of them on a reward of 1, none otherwise. A native export
+    carries its whole verification record and gets it back exactly. An older export that
+    carried only the counts is rebuilt from them.
+    """
     if reward is not None:
         solved = reward >= 1.0
+        total = declared or 1
         return Verification(
             passed=solved,
-            tests_passed=1 if solved else 0,
-            tests_total=1,
+            tests_passed=total if solved else 0,
+            tests_total=total,
             stderr_tail="",
             duration_ms=0,
             exit_code=0 if solved else 1,
-            parse_ok=False,
+            parse_ok=True,
         )
+    stored = recorded.get("verification")
+    if isinstance(stored, dict):
+        try:
+            return Verification.model_validate(
+                {key: value for key, value in stored.items() if key != "partial_credit"}
+            )
+        except ValidationError:
+            pass  # a record this version cannot read falls back to the counts below
     passed, total = recorded.get("tests_passed"), recorded.get("tests_total")
     if isinstance(passed, int) and isinstance(total, int) and total > 0:
         return Verification(

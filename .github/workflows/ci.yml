@@ -140,8 +140,18 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
 
-      - name: harbor export grades the way the native harness does
+      - name: a sample of harbor exports grades three ways
         run: uv run python scripts/check_harbor_export.py
+
+      # Harbor's own models, in an environment that has nothing but Harbor, so the
+      # exports cannot pass a reimplementation of its rules.
+      - name: every export validates against Harbor's own models
+        run: |
+          uv run trajectory export harbor --out "$RUNNER_TEMP/harbor-tasks"
+          uv run trajectory export atif fixtures/recorded-runs --out "$RUNNER_TEMP/atif"
+          uv run trajectory export atif fixtures/model-runs --out "$RUNNER_TEMP/atif"
+          uv run --no-project --with harbor==0.24.0 python scripts/check_harbor_models.py \
+            --tasks "$RUNNER_TEMP/harbor-tasks" --atif "$RUNNER_TEMP/atif"
 
   tasks:
     name: task images and reference solutions

@@ -93,7 +93,15 @@ files = [
 exclude = ["packages/api/migrations/versions/.*"]
 
 [[tool.mypy.overrides]]
-module = ["litellm.*", "docker.*", "testcontainers.*", "slowapi.*", "prometheus_client.*"]
+module = [
+    "litellm.*",
+    "docker.*",
+    "testcontainers.*",
+    "slowapi.*",
+    "prometheus_client.*",
+    # Only installed where scripts/check_harbor_models.py runs, never in this workspace.
+    "harbor.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

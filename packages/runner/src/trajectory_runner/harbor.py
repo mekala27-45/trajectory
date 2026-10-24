@@ -31,6 +31,13 @@ The reward file is written on every exit path. A verifier that crashes without w
 reward is scored by Harbor as a missing result, which is the one outcome that silently
 drops a task from an aggregate, so `test.sh` traps its own exit and writes a zero reward
 if nothing else did.
+
+The export grades the way the native verifier does, including its defences. The verify
+command runs with the same hardening environment, declared in `task.toml` and exported
+again in `test.sh`. Output the parser cannot read scores zero rather than falling back to
+the exit code, and a declared test that never ran counts as failed. The parser itself
+runs isolated and without the site module, because in a Harbor container it shares the
+agent's environment, where the native one parses on the host.
 """
 
 from __future__ import annotations
@@ -42,6 +49,7 @@ from pathlib import Path
 
 from trajectory_core.models import Task, ToolName
 from trajectory_runner.loader import LoadedTask
+from trajectory_runner.verifier import VERIFY_HARDENING_ENV
 
 HARBOR_VERSION = "1.0"
 REWARD_DIR = "/logs/verifier"
@@ -74,6 +82,11 @@ def _toml_array(values: list[str]) -> str:
     return "[" + ", ".join(_toml_basic(v) for v in values) + "]"
 
 
+def _toml_inline(table: dict[str, str]) -> str:
+    """Render a flat string table as a TOML inline table."""
+    return "{ " + ", ".join(f"{key} = {_toml_basic(v)}" for key, v in table.items()) + " }"
+
+
 def render_task_toml(task: Task) -> str:
     """Build the Harbor `task.toml` from a trajectory task.
 
@@ -100,7 +113,7 @@ def render_task_toml(task: Task) -> str:
         "",
         "[verifier]",
         f"timeout_sec = {task.verify_timeout_seconds}",
-        "env = {}",
+        f"env = {_toml_inline(VERIFY_HARDENING_ENV)}",
         "",
         "[environment]",
         f"cpus = {task.cpus}",
@@ -108,7 +121,9 @@ def render_task_toml(task: Task) -> str:
         f"storage_mb = {DEFAULT_STORAGE_MB}",
         "gpus = 0",
         "mcp_servers = []",
-        f"network = {str(task.network_allowed).lower()}",
+        # Harbor's default is a public network, and the native sandbox has none. An earlier
+        # export wrote `network = false`, a key Harbor ignores, so the agent got the network.
+        f"network_mode = {_toml_basic('public' if task.network_allowed else 'no-network')}",
         "",
         "[solution]",
         "env = {}",
@@ -153,20 +168,32 @@ trap write_zero EXIT
 
 # Run the task's own verify command verbatim, with the working directory and VERIFY_DIR
 # the native harness uses, and capture both streams together the way the parser expects.
+# The same hardening as the native verifier: the agent's working directory is not put on
+# the import path, and the user site directory, where an agent could plant a startup hook,
+# is ignored. task.toml declares it too; it is repeated here so the verifier is hardened
+# however it is run.
 export VERIFY_DIR="$HERE/verify"
+export {hardening}
 out="$(cd "$WORKDIR" && VERIFY_DIR="$VERIFY_DIR" bash "$HERE/run_verify.sh" 2>&1)"
 rc=$?
 printf '%s\n' "$out"
 
-printf '%s' "$out" | python3 "$HERE/score.py" --parser {parser} --exit "$rc" --out "$OUT"{expected}
+# The parser runs isolated and without the site module, so no file the agent left in any
+# site directory can run inside the process that writes the reward.
+printf '%s' "$out" | python3 -I -S "$HERE/score.py" \
+  --parser {parser} --exit "$rc" --out "$OUT"{expected}
 """
 
 
 def render_test_sh(task: Task) -> str:
     """The grading entrypoint, parameterised by the task's parser and the reward path."""
     expected = f" --expected {task.expected_tests}" if task.expected_tests else ""
+    hardening = " ".join(f"{key}={value}" for key, value in VERIFY_HARDENING_ENV.items())
     return _TEST_SH.format(
-        reward_dir=REWARD_DIR, parser=task.verify_parser.value, expected=expected
+        reward_dir=REWARD_DIR,
+        parser=task.verify_parser.value,
+        expected=expected,
+        hardening=hardening,
     )
 
 
@@ -254,15 +281,17 @@ def main(argv):
     output = sys.stdin.read()
     parsed = None if args.parser == "exit_code" else PARSERS[args.parser](output)
 
-    if parsed is None:
-        ok = args.exit == 0
-        passed, total = (1, 1) if ok else (0, 1)
-        partial = 1.0 if ok else 0.0
+    if parsed is None and args.parser == "exit_code":
+        passed, total = (1, 1) if args.exit == 0 else (0, 1)
+    elif parsed is None:
+        # The parser read no test result, so no test is known to have passed, whatever the
+        # exit code says. A solution that ends the test process early lands here.
+        passed, total = 0, (args.expected or 1)
     else:
         passed, total = parsed
         if args.expected and total < args.expected:
             total = args.expected  # a declared test that never ran did not pass
-        partial = (passed / total) if total else 0.0
+    partial = (passed / total) if total else 0.0
 
     solved = total > 0 and passed == total and args.exit == 0
     reward = 1.0 if solved else 0.0

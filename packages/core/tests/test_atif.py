@@ -57,7 +57,7 @@ class TestExport:
 
 class TestRoundTrip:
     def test_a_native_export_imports_back_without_loss(self, recorded: list[Run]):
-        """Every one of the 180 records: same steps, same failure modes, same score."""
+        """Every recorded run: same steps, failure modes, score and verification record."""
         for run in recorded:
             task = _task_for(run)
             back = atif_to_run(run_to_atif(run, task), task)
@@ -69,6 +69,18 @@ class TestRoundTrip:
             assert {hit.id for hit in back.failure_modes} == {hit.id for hit in run.failure_modes}
             assert back.score is not None and run.score is not None
             assert back.score.model_dump() == run.score.model_dump(), run.id
+            # The verification record survives: counts, exit code and parse flag. Rebuilding
+            # it from counts alone used to turn the timed-out Go run, 7 of 10 with exit 124,
+            # into a solved 7 of 7.
+            if run.verification is None:
+                assert back.verification is None
+            else:
+                assert back.verification is not None
+                assert back.verification.tests_passed == run.verification.tests_passed
+                assert back.verification.tests_total == run.verification.tests_total
+                assert back.verification.exit_code == run.verification.exit_code
+                assert back.verification.parse_ok == run.verification.parse_ok
+                assert back.verification.passed == run.verification.passed
 
     def test_an_import_is_kept_off_the_leaderboard(self, recorded: list[Run]):
         task = _task_for(recorded[0])
@@ -120,6 +132,16 @@ class TestForeignImport:
         doc = _foreign(("Bash", {"command": "pytest -q"}, "1 passed"))
         assert atif_to_run(doc, make_task(), reward=1.0).solved
         assert not atif_to_run(doc, make_task(), reward=0.0).solved
+
+    def test_a_reward_is_spread_over_the_declared_test_count(self):
+        """A reward carries no counts, so it reads as all or none of the declared tests."""
+        doc = _foreign(("Bash", {"command": "pytest -q"}, "1 passed"))
+        solved = atif_to_run(doc, make_task(expected_tests=9), reward=1.0)
+        assert solved.verification is not None
+        assert (solved.verification.tests_passed, solved.verification.tests_total) == (9, 9)
+        missed = atif_to_run(doc, make_task(expected_tests=9), reward=0.0)
+        assert missed.verification is not None
+        assert (missed.verification.tests_passed, missed.verification.tests_total) == (0, 9)
 
     def test_a_text_turn_between_tool_calls_is_skipped(self):
         doc = _foreign(("Bash", {"command": "ls"}, "src"), ("Bash", {"command": "pwd"}, "/w"))
