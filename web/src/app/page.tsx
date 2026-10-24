@@ -82,6 +82,55 @@ export default async function LeaderboardPage() {
         )}
       </section>
 
+      <section aria-labelledby="beyond">
+        <h2 id="beyond" className="mb-1 text-[16px] font-semibold">
+          Beyond the leaderboard
+        </h2>
+        <p className="mb-3 max-w-[78ch] text-[13px] text-muted">
+          Three things this harness does that a pass rate cannot. Each is a pure part of the same
+          run record, so a result published here can be dropped into another stack, checked for a
+          gamed grader, or reproduced against a real model.
+        </p>
+        <ul className="grid gap-3 sm:grid-cols-3">
+          {[
+            {
+              title: "Runs in your stack",
+              body: "Every task exports to the Harbor task format, verifier and oracle included, and CI proves each export grades the same as the native harness.",
+              href: "https://github.com/mekala27-45/trajectory#beyond-the-leaderboard",
+              link: "trajectory export harbor",
+            },
+            {
+              title: "Resists reward hacking",
+              body: "The verifier is hardened so a file the agent plants cannot shadow the hidden tests, and failure mode F11 flags any attempt. A gamed grader is the one thing a pass rate hides.",
+              href: "https://github.com/mekala27-45/trajectory/blob/main/docs/grader-audit.md",
+              link: "The grader audit",
+            },
+            {
+              title: "Runs real models for free",
+              body: "The same suite drives a real model through a no-card tier, capped by a shared call ceiling and rate limit, with a one-call smoke that fails before the credits do.",
+              href: "https://github.com/mekala27-45/trajectory/blob/main/docs/real-models.md",
+              link: "Real models",
+            },
+          ].map((card) => (
+            <li
+              key={card.title}
+              className="flex h-full flex-col gap-2 rounded-lg border border-line bg-raised px-3.5 py-3"
+            >
+              <span className="text-[13.5px] font-medium">{card.title}</span>
+              <span className="text-[12.5px] text-muted">{card.body}</span>
+              <a
+                href={card.href}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-auto pt-1 font-mono text-[11.5px] text-accent hover:underline"
+              >
+                {card.link} &rarr;
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <section aria-labelledby="tasks">
         <h2 id="tasks" className="mb-1 text-[16px] font-semibold">
           Tasks
