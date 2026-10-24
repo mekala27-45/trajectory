@@ -16,18 +16,25 @@ the probe fails, and the matrix it gates never starts. Exits non-zero on any fai
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import sys
 import time
 from types import FrameType
 
-
-class _ProbeTimeoutError(Exception):
-    """Raised by the alarm when the model has not answered in time."""
+_TIMEOUT_SECONDS = 0  # set in main, read by the alarm handler
 
 
-def _raise_timeout(signum: int, frame: FrameType | None) -> None:
-    raise _ProbeTimeoutError()
+def _hard_timeout(signum: int, frame: FrameType | None) -> None:
+    """Exit the process the instant the cap is reached.
+
+    Raising an exception here is not enough: LiteLLM wraps the call in its own broad
+    handling and would swallow it, spend the one-shot alarm, and hang for the rest of the
+    job. os._exit cannot be caught, so the probe always stops on time.
+    """
+    sys.stderr.write(f"FAILED: no response within {_TIMEOUT_SECONDS}s\n")
+    sys.stderr.flush()
+    os._exit(1)
 
 
 def main(argv: list[str]) -> int:
@@ -39,6 +46,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--temperature", type=float, default=0.0)
     args = parser.parse_args(argv)
 
+    global _TIMEOUT_SECONDS
+    _TIMEOUT_SECONDS = args.timeout
+
     import litellm
 
     litellm.drop_params = True
@@ -47,7 +57,7 @@ def main(argv: list[str]) -> int:
     messages = [{"role": "user", "content": "Reply with the single word: ready."}]
     print(f"probing {args.model} (cap {args.timeout}s) ...", flush=True)
 
-    signal.signal(signal.SIGALRM, _raise_timeout)
+    signal.signal(signal.SIGALRM, _hard_timeout)
     signal.alarm(args.timeout)
     started = time.monotonic()
     try:
@@ -58,9 +68,6 @@ def main(argv: list[str]) -> int:
             temperature=args.temperature,
             timeout=args.timeout,
         )
-    except _ProbeTimeoutError:
-        print(f"FAILED: no response within {args.timeout}s", file=sys.stderr)
-        return 1
     except Exception as exc:  # noqa: BLE001  any provider error means the probe failed
         print(f"FAILED: {type(exc).__name__}: {str(exc)[:300]}", file=sys.stderr)
         return 1
