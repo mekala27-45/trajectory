@@ -1,0 +1,99 @@
+{
+  "id": "01a16fdf-e610-7077-aa34-7d63a59079a8",
+  "schema_version": 1,
+  "task_id": "py-perf-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+    "temperature": 0.7,
+    "max_steps": 40,
+    "seed": 1,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 900,
+    "command_timeout_seconds": 240,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-24T21:45:06.823727Z",
+  "finished_at": "2026-10-24T21:45:21.427803Z",
+  "status": "budget_exceeded",
+  "steps": [],
+  "verification": {
+    "passed": false,
+    "tests_passed": 7,
+    "tests_total": 9,
+    "stderr_tail": ".FF......                                                                [100%]\n=================================== FAILURES ===================================\n_____________ test_the_shipped_fixture_rolls_up_inside_the_budget ______________\n\n    def test_the_shipped_fixture_rolls_up_inside_the_budget():\n        rows, _, elapsed = full_rollup()\n>       assert elapsed < BUDGET_S, (\n            f\"summarise took {elapsed:.3f}s on {len(rows)} rows, and the budget is \"\n            f\"{BUDGET_S:.1f}s. The export cannot wait that long\"\n        )\nE       AssertionError: summarise took 9.054s on 200000 rows, and the budget is 2.0s. The export cannot wait that long\nE       assert 9.05397946300036 < 2.0\n\n/verify/test_rollup_perf.py:116: AssertionError\n__________ test_a_differently_shaped_ledger_is_also_fast_and_correct ___________\n\n    def test_a_differently_shaped_ledger_is_also_fast_and_correct():\n        rows = second_ledger()\n        started = time.perf_counter()\n        result = summarise(rows)\n        elapsed = time.perf_counter() - started\n>       assert elapsed < SECOND_BUDGET_S, (\n            f\"summarise took {elapsed:.3f}s on {len(rows)} rows over {SECOND_ACCOUNTS} accounts \"\n            f\"against a {SECOND_BUDGET_S:.1f}s budget. Whatever made the shipped fixture fast \"\n            \"did not make the rollup fast\"\n        )\nE       AssertionError: summarise took 3.602s on 100000 rows over 5000 accounts against a 1.0s budget. Whatever made the shipped fixture fast did not make the rollup fast\nE       assert 3.6024684349999916 < 1.0\n\n/verify/test_rollup_perf.py:127: AssertionError\n=============================== warnings summary ===============================\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/verify/pytest-cache-files-3tck03wn'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/lastfailed: [Errno 13] Permission denied: '/verify/pytest-cache-files-9yp7z65v'\n    config.cache.set(\"cache/lastfailed\", self.lastfailed)\n\n../usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51\n  /usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/stepwise: [Errno 13] Permission denied: '/verify/pytest-cache-files-to9jujul'\n    session.config.cache.set(STEPWISE_CACHE_DIR, [])\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED ../verify/test_rollup_perf.py::test_the_shipped_fixture_rolls_up_inside_the_budget\nFAILED ../verify/test_rollup_perf.py::test_a_differently_shaped_ledger_is_also_fast_and_correct\n2 failed, 7 passed, 3 warnings in 13.47s\n",
+    "duration_ms": 13770,
+    "exit_code": 1,
+    "parse_ok": true,
+    "partial_credit": 0.777778
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.777778,
+    "step_efficiency": null,
+    "tool_call_validity": 1.0,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 14.604,
+    "destructive_attempts": 0,
+    "total_steps": 0,
+    "total_commands": 0,
+    "schema_violations": 0,
+    "failed_commands": 0
+  },
+  "failure_modes": [],
+  "image_id": "sha256:dd11f562343161a83b4c7edfd0b18f509191be4b4ff3810ce23dce0388773346",
+  "harness_version": "0.1.1",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "bb15566d5aede654",
+      "bench.py": "dedd5caac02df023",
+      "data/ledger.csv": "991e0abeabf41f57",
+      "pytest.ini": "d6e3e89cc6aab794",
+      "src/rollup/__init__.py": "80f29aad5fcb6450",
+      "src/rollup/core.py": "e41c0c42309a347d",
+      "tests/test_rollup.py": "53df293c75d328c8",
+      "tools/make_fixture.py": "f19404313d6d2d7b"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "bb15566d5aede654",
+      "bench.py": "dedd5caac02df023",
+      "data/ledger.csv": "991e0abeabf41f57",
+      "pytest.ini": "d6e3e89cc6aab794",
+      "src/rollup/__init__.py": "80f29aad5fcb6450",
+      "src/rollup/core.py": "e41c0c42309a347d",
+      "tests/test_rollup.py": "53df293c75d328c8",
+      "tools/make_fixture.py": "f19404313d6d2d7b"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": "the shared call ceiling of 500 model call(s) was reached before this call could be made",
+  "wall_clock_s": 14.604,
+  "solved": false,
+  "total_cost_usd": 0.0
+}

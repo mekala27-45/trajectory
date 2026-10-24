@@ -1,0 +1,101 @@
+{
+  "id": "01a16fe0-68bd-709f-a464-cd5c56bccdad",
+  "schema_version": 1,
+  "task_id": "ts-build-break-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+    "temperature": 0.7,
+    "max_steps": 35,
+    "seed": 1,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 720,
+    "command_timeout_seconds": 240,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-24T21:45:40.276479Z",
+  "finished_at": "2026-10-24T21:45:41.205391Z",
+  "status": "budget_exceeded",
+  "steps": [],
+  "verification": {
+    "passed": false,
+    "tests_passed": 3,
+    "tests_total": 7,
+    "stderr_tail": "'\n  code: 'ERR_TEST_FAILURE'\n  stack: |-\n    genericNodeError (node:internal/errors:983:15)\n    wrappedFn (node:internal/errors:537:14)\n    checkExecSyncError (node:child_process:882:11)\n    execFileSync (node:child_process:918:15)\n    run (file:///verify/build.test.mjs:29:10)\n    TestContext.<anonymous> (file:///verify/build.test.mjs:93:3)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n  ...\n# Subtest: the dependency was built by the reference, not by hand\nnot ok 6 - the dependency was built by the reference, not by hand\n  ---\n  duration_ms: 0.446958\n  location: '/verify/build.test.mjs:97:1'\n  failureType: 'testCodeFailure'\n  error: 'core was not built, so the app does not declare it as a project reference'\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: true\n  actual: false\n  operator: '=='\n  stack: |-\n    TestContext.<anonymous> (file:///verify/build.test.mjs:98:10)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n# Subtest: the report is correct\nnot ok 7 - the report is correct\n  ---\n  duration_ms: 18.559582\n  location: '/verify/build.test.mjs:110:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    Command failed: node packages/app/dist/main.js\n    node:internal/modules/cjs/loader:1252\n      throw err;\n      ^\n    \n    Error: Cannot find module '@core/index.js'\n    Require stack:\n    - /workspace/packages/app/dist/main.js\n        at Function._resolveFilename (node:internal/modules/cjs/loader:1249:15)\n        at Function._load (node:internal/modules/cjs/loader:1075:27)\n        at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n        at wrapModuleLoad (node:internal/modules/cjs/loader:219:24)\n        at Module.require (node:internal/modules/cjs/loader:1340:12)\n        at require (node:internal/modules/helpers:138:16)\n        at Object.<anonymous> (/workspace/packages/app/dist/main.js:4:20)\n        at Module._compile (node:internal/modules/cjs/loader:1565:14)\n        at Object..js (node:internal/modules/cjs/loader:1708:10)\n        at Module.load (node:internal/modules/cjs/loader:1318:32) {\n      code: 'MODULE_NOT_FOUND',\n      requireStack: [ '/workspace/packages/app/dist/main.js' ]\n    }\n    \n    Node.js v22.12.0\n    \n  code: 'ERR_TEST_FAILURE'\n  stack: |-\n    Function._resolveFilename (node:internal/modules/cjs/loader:1249:15)\n    Function._load (node:internal/modules/cjs/loader:1075:27)\n    TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    wrapModuleLoad (node:internal/modules/cjs/loader:219:24)\n    Module.require (node:internal/modules/cjs/loader:1340:12)\n    require (node:internal/modules/helpers:138:16)\n    Object.<anonymous> (/workspace/packages/app/dist/main.js:4:20)\n    Module._compile (node:internal/modules/cjs/loader:1565:14)\n    Object..js (node:internal/modules/cjs/loader:1708:10)\n    Module.load (node:internal/modules/cjs/loader:1318:32) {\n    genericNodeError (node:internal/errors:983:15)\n    wrappedFn (node:internal/errors:537:14)\n    checkExecSyncError (node:child_process:882:11)\n    execFileSync (node:child_process:918:15)\n    run (file:///verify/build.test.mjs:29:10)\n    TestContext.<anonymous> (file:///verify/build.test.mjs:111:18)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n  ...\n1..7\n# tests 7\n# suites 0\n# pass 3\n# fail 4\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 606.867234\n",
+    "duration_ms": 666,
+    "exit_code": 1,
+    "parse_ok": true,
+    "partial_credit": 0.428571
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.428571,
+    "step_efficiency": null,
+    "tool_call_validity": 1.0,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 0.929,
+    "destructive_attempts": 0,
+    "total_steps": 0,
+    "total_commands": 0,
+    "schema_violations": 0,
+    "failed_commands": 0
+  },
+  "failure_modes": [],
+  "image_id": "sha256:60f1590f68637653d42bd1162cd7b5f2b811c866c5a06b864b26d65b07921093",
+  "harness_version": "0.1.1",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "0834bac887445de5",
+      "build.sh": "47acffabedf0f82c",
+      "packages/app/src/ambient.d.ts": "0ca32c1f3f1b66e7",
+      "packages/app/src/main.ts": "83a89addf628437b",
+      "packages/app/tsconfig.json": "f7693badf10c1148",
+      "packages/core/src/index.ts": "0d6a2e66a39a7f1d",
+      "packages/core/src/shapes.ts": "98023d13f458428e",
+      "packages/core/tsconfig.json": "b1df01c7b3ffbfde",
+      "tsconfig.base.json": "08d4f09bf7b44f2b"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "0834bac887445de5",
+      "build.sh": "47acffabedf0f82c",
+      "packages/app/src/ambient.d.ts": "0ca32c1f3f1b66e7",
+      "packages/app/src/main.ts": "83a89addf628437b",
+      "packages/app/tsconfig.json": "f7693badf10c1148",
+      "packages/core/src/index.ts": "0d6a2e66a39a7f1d",
+      "packages/core/src/shapes.ts": "98023d13f458428e",
+      "packages/core/tsconfig.json": "b1df01c7b3ffbfde",
+      "tsconfig.base.json": "08d4f09bf7b44f2b"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": "the shared call ceiling of 500 model call(s) was reached before this call could be made",
+  "wall_clock_s": 0.929,
+  "solved": false,
+  "total_cost_usd": 0.0
+}
