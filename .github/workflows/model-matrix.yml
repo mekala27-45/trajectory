@@ -145,6 +145,18 @@ jobs:
           echo "bundle=$latest" >> "$GITHUB_ENV"
           uv run trajectory report "$latest" --format md --out MODEL-RESULTS.generated.md
           uv run trajectory report "$latest" --format json --out model-results.json
+          # Surface the results on channels that do not depend on the pull request, since
+          # creating one needs a repository setting that may be off. The step summary is for
+          # a human; the base64 annotation is the exact file, so it can be read back and
+          # committed even when the run log and the artifact are out of reach.
+          {
+            echo "## Model matrix results"
+            echo '```'
+            cat MODEL-RESULTS.generated.md
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=model-results-md::$(base64 -w0 MODEL-RESULTS.generated.md)"
+          echo "::notice title=model-results-json::$(base64 -w0 model-results.json)"
 
       - name: upload the run bundle
         uses: actions/upload-artifact@v4
@@ -154,6 +166,7 @@ jobs:
           retention-days: 30
 
       - name: open a pull request with the model numbers
+        continue-on-error: true
         uses: peter-evans/create-pull-request@v7
         with:
           branch: model-matrix-results
