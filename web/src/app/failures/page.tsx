@@ -7,7 +7,7 @@ import { failureColor } from "@/lib/colors";
 export const metadata = {
   title: "Failure modes",
   description:
-    "The ten failure modes the harness classifies, how each one is detected, and how often each fired, by model and by task difficulty.",
+    "The failure modes the harness classifies, how each one is detected, and how often each fired, by model and by task difficulty.",
 };
 
 export default async function FailuresPage() {
@@ -21,6 +21,7 @@ export default async function FailuresPage() {
   const difficultyByTask = Object.fromEntries(tasks.map((task) => [task.id, task.difficulty]));
   const titleByTask = Object.fromEntries(tasks.map((task) => [task.id, task.title]));
   const ruleCount = breakdown.taxonomy.filter((spec) => spec.detection === "rule").length;
+  const modeCount = breakdown.taxonomy.length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,12 +29,12 @@ export default async function FailuresPage() {
         <h1 className="text-[22px] font-semibold sm:text-[26px]">Failure modes</h1>
         <p className="max-w-[80ch] text-[14px] text-muted">
           A pass rate says a run failed. It does not say how. Every run is classified against this
-          taxonomy, {ruleCount} of the ten by deterministic rules over the trajectory and the rest
-          by a rubric judge, and each hit carries the evidence a human can check it against. Two
-          models with the same solve rate usually fail for different reasons, and the reason is what
-          a model team can act on. Runs that passed are classified too, which is the view no pass
-          rate can produce: a run that made malformed tool calls, invented paths and got the hidden
-          tests green anyway is a process problem that happened to succeed.
+          taxonomy, {ruleCount} of the {modeCount} by deterministic rules over the trajectory and
+          the rest by a rubric judge, and each hit carries the evidence a human can check it
+          against. Two models with the same solve rate usually fail for different reasons, and the
+          reason is what a model team can act on. Runs that passed are classified too, which is the
+          view no pass rate can produce: a run that made malformed tool calls, invented paths and
+          got the hidden tests green anyway is a process problem that happened to succeed.
         </p>
       </section>
 
@@ -69,10 +70,10 @@ export default async function FailuresPage() {
           The taxonomy
         </h2>
         <p className="mb-3 max-w-[80ch] text-[13px] text-muted">
-          Ten modes. A rule based hit is deterministic and reproducible from the trajectory alone. A
-          judge hit is a model reading the trajectory against a rubric, which is the only way to
-          reach the modes that need reading comprehension, and it is labelled as such everywhere it
-          appears.
+          {modeCount} modes. A rule based hit is deterministic and reproducible from the trajectory
+          alone. A judge hit is a model reading the trajectory against a rubric, which is the only
+          way to reach the modes that need reading comprehension, and it is labelled as such
+          everywhere it appears.
         </p>
         <ul className="grid gap-3 lg:grid-cols-2">
           {breakdown.taxonomy.map((spec) => {
