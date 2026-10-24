@@ -387,3 +387,63 @@ class TestExportHarbor:
             str(REPO / "tasks"),
         )
         assert result.exit_code == 1
+
+
+class TestAtifCommands:
+    def test_export_writes_one_trajectory_per_run(self, tmp_path: Path) -> None:
+        out = tmp_path / "atif"
+        result = invoke(
+            "export",
+            "atif",
+            str(REPO / "fixtures" / "recorded-runs"),
+            "--out",
+            str(out),
+            "--tasks-root",
+            str(REPO / "tasks"),
+        )
+        assert result.exit_code == 0
+        assert len(list(out.glob("*.json"))) == 180
+
+    def test_an_exported_trajectory_imports_and_scores(self, tmp_path: Path) -> None:
+        out = tmp_path / "atif"
+        invoke(
+            "export",
+            "atif",
+            str(REPO / "fixtures" / "recorded-runs"),
+            "--out",
+            str(out),
+            "--tasks-root",
+            str(REPO / "tasks"),
+        )
+        path = sorted(out.glob("*.json"))[0]
+        task_id = json.loads(path.read_text())["extra"]["trajectory"]["task_id"]
+        scored = tmp_path / "scored.json"
+        result = invoke(
+            "import",
+            "atif",
+            str(path),
+            "--task",
+            task_id,
+            "--out",
+            str(scored),
+            "--tasks-root",
+            str(REPO / "tasks"),
+        )
+        assert result.exit_code == 0
+        assert "failure modes" in result.output
+        assert Run.model_validate_json(scored.read_text()).task_id == task_id
+
+    def test_an_invalid_trajectory_is_refused(self, tmp_path: Path) -> None:
+        bad = tmp_path / "bad.json"
+        bad.write_text(json.dumps({"schema_version": "ATIF-v1.6", "steps": []}))
+        result = invoke(
+            "import",
+            "atif",
+            str(bad),
+            "--task",
+            "py-failing-suite-01",
+            "--tasks-root",
+            str(REPO / "tasks"),
+        )
+        assert result.exit_code == 1
+        assert "not a valid ATIF trajectory" in result.output

@@ -28,9 +28,16 @@ from rich.table import Table
 from rich.text import Text
 
 from trajectory_core.aggregate import failure_mode_counts, leaderboard
+from trajectory_core.atif import AtifError, atif_to_run, run_to_atif
 from trajectory_core.failure_modes import TAXONOMY, classify_rules, taxonomy_table
 from trajectory_core.judge import LiteLLMJudge, judge_run, measure_agreement, verdict_to_hits
-from trajectory_core.models import HARNESS_VERSION, Run, RunnerFingerprint, SandboxBackend
+from trajectory_core.models import (
+    HARNESS_VERSION,
+    Run,
+    RunnerFingerprint,
+    SandboxBackend,
+    ToolName,
+)
 from trajectory_core.scoring import rank_failure_modes, rescore
 from trajectory_runner.agent import Budget
 from trajectory_runner.execute import (
@@ -61,6 +68,7 @@ from trajectory_runner.store import (
     read_runs,
     write_bundle,
 )
+from trajectory_runner.tools import tool_specs
 
 app = typer.Typer(
     name="trajectory",
@@ -77,8 +85,15 @@ tasks_app = typer.Typer(
 )
 app.add_typer(tasks_app, name="tasks")
 
-export_app = typer.Typer(help="Export tasks to other benchmark formats.", no_args_is_help=True)
+export_app = typer.Typer(
+    help="Export tasks and runs to other benchmark formats.", no_args_is_help=True
+)
 app.add_typer(export_app, name="export")
+
+import_app = typer.Typer(
+    help="Import trajectories from other formats and score them.", no_args_is_help=True
+)
+app.add_typer(import_app, name="import")
 
 console = Console(no_color=bool(os.environ.get("NO_COLOR")), soft_wrap=False)
 error_console = Console(stderr=True, no_color=bool(os.environ.get("NO_COLOR")))
@@ -518,6 +533,91 @@ def export_harbor(
     except HarborExportError as exc:
         fail(str(exc))
     console.print(f"\n{len(selected)} task(s) written to {out}")
+
+
+def _load_records(source: Path) -> list[Run]:
+    """Read one run record, or every record in a run directory."""
+    if source.is_file():
+        return [Run.model_validate_json(source.read_text(encoding="utf-8"))]
+    return read_runs(source)
+
+
+@export_app.command("atif")
+def export_atif(
+    source: Annotated[Path, typer.Argument(help="A run directory, or a single run record.")],
+    out: Annotated[Path, typer.Option("--out", "-o", help="Directory to write into.")],
+    tasks_root: Annotated[Path | None, typer.Option(help="Where the tasks live.")] = None,
+) -> None:
+    """Export runs as ATIF trajectories, one file per run, that any ATIF tool can read.
+
+    The task statement is the opening user turn and each step becomes one agent turn with
+    its tool call and output. Everything ATIF has no field for, exit codes, workspace
+    manifests and the run's outcome, travels in `extra`, so the export imports back here
+    without losing a metric.
+    """
+    runs = _load_records(source)
+    if not runs:
+        fail(f"no run records found under {source}")
+    tasks = {loaded.id: loaded.task for loaded in load_tasks(tasks_root, None)}
+    definitions = [spec.to_wire() for spec in tool_specs(list(ToolName))]
+    out.mkdir(parents=True, exist_ok=True)
+    for run in runs:
+        doc = run_to_atif(run, tasks.get(run.task_id), tool_definitions=definitions)
+        (out / f"{run.id}.json").write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    console.print(f"{len(runs)} trajectory file(s) written to {out}")
+
+
+@import_app.command("atif")
+def import_atif(
+    path: Annotated[Path, typer.Argument(help="An ATIF trajectory file.")],
+    task_id: Annotated[str, typer.Option("--task", help="The task the trajectory attempted.")],
+    reward: Annotated[
+        float | None,
+        typer.Option(help="The verifier reward for the trial, when known. 1.0 is solved."),
+    ] = None,
+    out: Annotated[Path | None, typer.Option(help="Write the scored run record here.")] = None,
+    tasks_root: Annotated[Path | None, typer.Option(help="Where the tasks live.")] = None,
+) -> None:
+    """Score an ATIF trajectory from any agent with this harness's metrics and failure modes.
+
+    Claude Code, Codex, mini-swe-agent and OpenHands all write ATIF under Harbor. Their tool
+    names are mapped to this harness's, so the command based metrics apply. The result is
+    marked with an `atif:` model prefix and the local backend, which keeps it off every
+    leaderboard: it scores another machine's trajectory, it does not measure one.
+    """
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"could not read {path}: {exc}")
+        raise AssertionError("unreachable") from exc  # pragma: no cover
+    loaded = pick_task(load_tasks(tasks_root, None), task_id)
+    try:
+        run = atif_to_run(doc, loaded.task, reward=reward)
+    except AtifError as exc:
+        fail(f"{path} is not a valid ATIF trajectory: {exc}")
+        raise AssertionError("unreachable") from exc  # pragma: no cover
+
+    metrics = run.score
+    table = Table(title=f"{run.config.model} on {run.task_id}", title_justify="left")
+    table.add_column("metric", style="cyan")
+    table.add_column("value", justify="right")
+    outcome = "unknown, no reward given" if run.verification is None else str(run.solved)
+    table.add_row("solved", outcome)
+    table.add_row("steps", str(len(run.steps)))
+    if metrics is not None:
+        if metrics.step_efficiency is not None:
+            table.add_row("step efficiency", f"{metrics.step_efficiency:.3f}")
+        table.add_row("tool call validity", f"{metrics.tool_call_validity:.3f}")
+        table.add_row("redundant action rate", f"{metrics.redundant_action_rate:.3f}")
+        if metrics.recovery_rate is not None:
+            table.add_row("recovery rate", f"{metrics.recovery_rate:.3f}")
+        table.add_row("destructive attempts", str(metrics.destructive_attempts))
+    table.add_row("failure modes", ", ".join(hit.id.value for hit in run.failure_modes) or "none")
+    console.print(table)
+
+    if out is not None:
+        out.write_text(run.model_dump_json(indent=2), encoding="utf-8")
+        console.print(f"[green]wrote[/green] {out}")
 
 
 # -------------------------------------------------------------------------- run
