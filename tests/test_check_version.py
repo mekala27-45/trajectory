@@ -28,6 +28,28 @@ class TestTheRepositoryAsCommitted:
         assert "release-notes.md" in keys
         assert len(found) >= 9, found
 
+    def test_it_reads_the_pins_one_package_places_on_another(self) -> None:
+        """Both pins said 0.1.0 at v0.2.0, and uv never compared them, so nothing failed."""
+        found = gate.declared_versions()
+        assert "packages/runner/pyproject.toml (pins trajectory-core)" in found
+        assert "packages/api/pyproject.toml (pins trajectory-core)" in found
+
+    @pytest.mark.parametrize(
+        ("requirement", "version"),
+        [
+            ("trajectory-core==0.2.0", "0.2.0"),
+            ("trajectory-core == 0.2.0", "0.2.0"),
+            ("trajectory-core==0.2.0; python_version >= '3.12'", "0.2.0"),
+            ("trajectory-core>=0.2", None),
+            ("litellm==1.59.0", None),
+        ],
+    )
+    def test_only_an_exact_pin_on_a_workspace_package_counts(
+        self, requirement: str, version: str | None
+    ) -> None:
+        pin = gate.PIN_RE.match(requirement)
+        assert (pin.group(2) if pin else None) == version
+
     def test_the_stamped_constant_is_one_of_them(self) -> None:
         from trajectory_core.models import HARNESS_VERSION
 

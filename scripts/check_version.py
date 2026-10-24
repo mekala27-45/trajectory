@@ -17,6 +17,13 @@ the previous version under the new tag.
 
 None of that breaks a build. That is exactly why it needs a check rather than attention.
 
+The eighth place was found at v0.2.0. The harness and the API pin the core package they
+were built against, and both pins still said `trajectory-core==0.1.0` two releases later.
+uv resolves a workspace member by path and never compares the pin, so every build and
+every test passed, while `pip install` of the two packages side by side refused to resolve
+at all. An exact pin one workspace package places on another is now a declared version
+like the rest.
+
     uv run python scripts/check_version.py                 # internal consistency
     uv run python scripts/check_version.py --tag v0.1.1    # and that a tag agrees
 
@@ -60,6 +67,7 @@ REQUIRED_SOURCES = ("pyproject.toml", CORE_PYPROJECT, HARNESS_KEY)
 HARNESS_RE = re.compile(r'^HARNESS_VERSION\s*=\s*"([^"]+)"', re.MULTILINE)
 NOTES_RE = re.compile(r"^#+\s*trajectory\s+v([0-9][^\s]*)", re.MULTILINE | re.IGNORECASE)
 WORKSPACE_PACKAGES = ("trajectory-api", "trajectory-core", "trajectory-eval")
+PIN_RE = re.compile(r"^\s*(trajectory-(?:api|core|eval))\s*==\s*([^\s;,]+)")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -90,6 +98,9 @@ def declared_versions() -> dict[str, str]:
         project = data.get("project", {})
         if "version" in project:
             found[relative.as_posix()] = str(project["version"])
+        for requirement in project.get("dependencies", []):
+            if pin := PIN_RE.match(str(requirement)):
+                found[f"{relative.as_posix()} (pins {pin.group(1)})"] = pin.group(2)
 
     models = (ROOT / MODELS).read_text(encoding="utf-8")
     if match := HARNESS_RE.search(models):
