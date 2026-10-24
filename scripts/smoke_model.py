@@ -50,6 +50,13 @@ def main(argv: list[str]) -> int:
         "before it writes a word, so a small cap reads as an empty reply.",
     )
     parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument(
+        "--tool",
+        action="store_true",
+        help="Offer one tool and a prompt that needs it, to confirm the model can call "
+        "tools. The agent loop acts only through tools, so a model that cannot is useless "
+        "to the matrix however well it chats.",
+    )
     args = parser.parse_args(argv)
 
     global _TIMEOUT_SECONDS
@@ -60,20 +67,41 @@ def main(argv: list[str]) -> int:
     litellm.drop_params = True
     litellm.suppress_debug_info = True
 
-    messages = [{"role": "user", "content": "Reply with the single word: ready."}]
-    print(f"probing {args.model} (cap {args.timeout}s) ...", flush=True)
+    kwargs: dict[str, object] = {
+        "model": args.model,
+        "max_tokens": args.max_tokens,
+        "temperature": args.temperature,
+        "timeout": args.timeout,
+    }
+    if args.tool:
+        kwargs["messages"] = [
+            {"role": "user", "content": "What is 19 times 23? Use the multiply tool."}
+        ]
+        kwargs["tools"] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "multiply",
+                    "description": "Multiply two integers.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+                        "required": ["a", "b"],
+                    },
+                },
+            }
+        ]
+        kwargs["tool_choice"] = "auto"
+    else:
+        kwargs["messages"] = [{"role": "user", "content": "Reply with the single word: ready."}]
+
+    print(f"probing {args.model} (cap {args.timeout}s, tool={args.tool}) ...", flush=True)
 
     signal.signal(signal.SIGALRM, _hard_timeout)
     signal.alarm(args.timeout)
     started = time.monotonic()
     try:
-        response = litellm.completion(
-            model=args.model,
-            messages=messages,
-            max_tokens=args.max_tokens,
-            temperature=args.temperature,
-            timeout=args.timeout,
-        )
+        response = litellm.completion(**kwargs)
     except Exception as exc:  # noqa: BLE001  any provider error means the probe failed
         print(f"FAILED: {type(exc).__name__}: {str(exc)[:300]}", file=sys.stderr)
         return 1
@@ -94,6 +122,12 @@ def main(argv: list[str]) -> int:
         f"reasoning_chars={len(reasoning)} "
         f"content={content[:60]!r} tool_calls={len(tool_calls)}"
     )
+    if args.tool and not tool_calls:
+        print(
+            f"FAILED: the model did not call the tool {summary}. It cannot drive the agent loop.",
+            file=sys.stderr,
+        )
+        return 1
     if not content and not tool_calls:
         hint = (
             " It reasoned but never answered; raise --max-tokens."

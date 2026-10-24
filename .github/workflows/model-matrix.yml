@@ -25,7 +25,7 @@ on:
       model:
         description: "LiteLLM model identifier for the matrix."
         required: false
-        default: "nvidia_nim/deepseek-ai/deepseek-v4.1-flash"
+        default: "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b"
       seeds:
         description: "Seeds per task."
         required: false
@@ -92,8 +92,8 @@ jobs:
           NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         run: |
           set +e
-          model="${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4.1-flash' }}"
-          uv run python scripts/smoke_model.py --model "$model" 2>&1 | tee /tmp/smoke.txt
+          model="${{ github.event.inputs.model || 'nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b' }}"
+          uv run python scripts/smoke_model.py --model "$model" --tool 2>&1 | tee /tmp/smoke.txt
           rc=${PIPESTATUS[0]}
           {
             echo "### smoke result for $model (rc=$rc)"
@@ -130,7 +130,7 @@ jobs:
         run: |
           uv run python scripts/run_matrix.py \
             --label model \
-            --model "${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4.1-flash' }}" \
+            --model "${{ github.event.inputs.model || 'nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b' }}" \
             --seeds "${{ github.event.inputs.seeds || '2' }}" \
             --parallel 2 \
             --order seed \
