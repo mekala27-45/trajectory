@@ -16,7 +16,7 @@ tests, and scores the trajectory, not just the outcome.
 
 ## Where to start
 
-Four links, in the order that makes the rest of this readable. No install needed for any of
+Five links, in the order that makes the rest of this readable. No install needed for any of
 them.
 
 1. **[Replay a real run](https://mekala27-45.github.io/trajectory/)**, on the live
@@ -28,9 +28,11 @@ them.
 3. **[What gets measured](docs/metrics.md)**, if you want the formulas rather than the prose.
    Ten metrics, each a pure function of the run record, which is why a metric added later can
    be applied to results published earlier.
-4. **[Limitations](#limitations)**. Read before quoting anything above. The published matrix
-   comes from scripted offline policies rather than language models, which is stated in full
-   and is one command and an API key away from being fixed by anyone who clones this.
+4. **[Real model results](MODEL-RESULTS.md)**. A real model on the same twelve tasks, on the
+   Docker backend, for free, with every figure gated against its run records.
+5. **[Limitations](#limitations)**. Read before quoting anything above. The published matrix
+   comes from scripted offline policies rather than language models, which is stated in full.
+   The real model results are a separate, smaller measurement with their own limitations.
 
 ## Why
 
@@ -242,7 +244,9 @@ Not buried, because they decide whether the rest is worth reading.
   hard. Nothing here covers reading an unfamiliar large codebase, or API design, or
   anything a front-end engineer would recognise as their job.
 - **The published matrix is scripted policies, not models.** It validates the harness. It
-  says nothing about any language model.
+  says nothing about any language model. [MODEL-RESULTS.md](MODEL-RESULTS.md) is one real
+  model at two seeds, the second seed cut short by a free tier ceiling, which makes it a
+  first measurement, not a ranking.
 - **The published matrix ran on the unisolated sandbox until 16 September 2026**, because
   the authoring machine had no Docker daemon. It now runs in containers, and re-recording it
   produced a result worth reading: the backend changed no verdict and exactly one
@@ -250,9 +254,9 @@ Not buried, because they decide whether the rest is worth reading.
   exists, is still not an isolation boundary, and is still gated behind an environment
   variable, but that is now a caveat about a tool this repository ships rather than about
   these numbers.
-- **Judge self-agreement is unmeasured**, because no model key was available. Metric 8 is
-  null on all 180 runs and the three judged modes were never applied. Their zeros mean "not
-  measured".
+- **Judge self-agreement is unmeasured.** Metric 8 is null on all 180 runs and the three
+  judged modes were never applied. Their zeros mean "not measured". A free model key now
+  exists, so this is the next measurement rather than a blocked one.
 - **Step efficiency divides by a reference solution one person wrote**, which may not be
   optimal. Read it as a ratio against one competent route.
 - **Redundant action rate has a floor above zero**, 0.062 on this suite, because re-running

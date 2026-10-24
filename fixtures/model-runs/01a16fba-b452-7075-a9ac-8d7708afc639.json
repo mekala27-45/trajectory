@@ -1,0 +1,686 @@
+{
+  "id": "01a16fba-b452-7075-a9ac-8d7708afc639",
+  "schema_version": 1,
+  "task_id": "py-dep-conflict-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+    "temperature": 0.7,
+    "max_steps": 30,
+    "seed": 0,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 600,
+    "command_timeout_seconds": 180,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-24T21:04:29.257262Z",
+  "finished_at": "2026-10-24T21:05:41.609071Z",
+  "status": "max_steps",
+  "steps": [
+    {
+      "index": 0,
+      "timestamp": "2026-10-24T21:04:30.078114Z",
+      "thought": "Let me start by understanding the problem. I need to make `check.sh` pass. Let me first look at the repository structure and understand what's going on.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": "."
+      },
+      "tool_output": "README.md\napp.py\ncheck.sh\nrequirements.txt\nwheelhouse/",
+      "exit_code": null,
+      "duration_ms": 39,
+      "tokens_in": 1120,
+      "tokens_out": 57,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 1,
+      "timestamp": "2026-10-24T21:04:32.194239Z",
+      "thought": "Let me look at the files to understand the situation.",
+      "tool_name": "read_file",
+      "tool_args": {
+        "path": "check.sh"
+      },
+      "tool_output": "#!/bin/sh\n# Resolve the declared requirements offline, then run the application against them.\n# This is the same shape of check the task is graded on.\nset -e\ntarget=$(mktemp -d)\ntrap 'rm -rf \"$target\"' EXIT\n\necho \"resolving requirements offline...\"\npip install --quiet --no-index --find-links wheelhouse --target \"$target\" -r requirements.txt\n\necho \"running the application...\"\nPYTHONPATH=\"$target\" python app.py",
+      "exit_code": null,
+      "duration_ms": 39,
+      "tokens_in": 1175,
+      "tokens_out": 110,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 2,
+      "timestamp": "2026-10-24T21:04:32.232033Z",
+      "thought": null,
+      "tool_name": "read_file",
+      "tool_args": {
+        "path": "app.py"
+      },
+      "tool_output": "\"\"\"Report builder.\n\nUses the reporting plugin for titles and slugs, and the export plugin for normalised\noutput with stable identifiers.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport plugina\nimport pluginb\n\nROWS = [\n    \"  Quarterly   Revenue  \",\n    \"Customer Churn\",\n    \"  Net  Promoter Score\",\n]\n\n\ndef build() -> list[str]:\n    \"\"\"Return one report line per row.\"\"\"\n    lines = [f\"# {plugina.title('quarterly  report')}\"]\n    for text, identifier in pluginb.export_with_ids(ROWS):\n        lines.append(f\"{identifier}  {text}  ({plugina.slug(text)})\")\n    return lines\n\n\nif __name__ == \"__main__\":\n    for line in build():\n        print(line)",
+      "exit_code": null,
+      "duration_ms": 37,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 3,
+      "timestamp": "2026-10-24T21:04:32.269729Z",
+      "thought": null,
+      "tool_name": "read_file",
+      "tool_args": {
+        "path": "requirements.txt"
+      },
+      "tool_output": "# Pinned by hand during an incident and never revisited.\n# Install offline from the vendored wheelhouse:\n#   pip install --no-index --find-links wheelhouse -r requirements.txt\nplugina==2.0.0\npluginb==1.0.0\nlibcore==1.4.0",
+      "exit_code": null,
+      "duration_ms": 37,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 4,
+      "timestamp": "2026-10-24T21:04:32.307203Z",
+      "thought": null,
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": "wheelhouse"
+      },
+      "tool_output": "libcore-1.4.0-py3-none-any.whl\nlibcore-2.1.0-py3-none-any.whl\nplugina-1.0.0-py3-none-any.whl\nplugina-2.0.0-py3-none-any.whl\npluginb-1.0.0-py3-none-any.whl\npluginb-3.0.0-py3-none-any.whl",
+      "exit_code": null,
+      "duration_ms": 37,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 5,
+      "timestamp": "2026-10-24T21:04:36.395879Z",
+      "thought": "Let me understand the situation:\n\n1. `check.sh` resolves requirements offline and runs `app.py`\n2. `app.py` imports `plugina` and `pluginb`\n3. `requirements.txt` specifies `plugina==2.0.0`, `pluginb==1.0.0`, `libcore==1.4.0`\n4. The wheelhouse has:\n   - `libcore-1.4.0-py3-none-any.whl`\n   - `libcore-2.1.0-py3-none-any.whl`\n   - `plugina-1.0.0-py3-none-any.whl`\n   - `plugina-2.0.0-py3-none-any.whl`\n   - `pluginb-1.0.0-py3-none-any.whl`\n   - `pluginb-3.0.0-py3-none-any.whl`\n\nThe requirements specify `plugina==2.0.0` and `pluginb==1.0.0`, which match the wheels available.\n\nLet me try running `check.sh` to see what the actual error is.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "sh check.sh 2>&1"
+      },
+      "tool_output": "resolving requirements offline...\nERROR: Cannot install -r requirements.txt (line 4) and libcore==1.4.0 because these package versions have conflicting dependencies.\nERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts\n",
+      "exit_code": 1,
+      "duration_ms": 367,
+      "tokens_in": 1738,
+      "tokens_out": 279,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": true
+    },
+    {
+      "index": 6,
+      "timestamp": "2026-10-24T21:04:39.368174Z",
+      "thought": "The error is about conflicting dependencies. Let me understand what's happening:\n\n1. `requirements.txt` has: `plugina==2.0.0`, `pluginb==1.0.0`, `libcore==1.4.0`\n2. The wheelhouse has:\n   - `libcore-1.4.0-py3-none-any.whl`\n   - `libcore-2.1.0-py3-none-any.whl`\n   - `plugina-1.0.0-py3-none-any.whl`\n   - `plugina-2.0.0-py3-none-any.whl`\n   - `pluginb-1.0.0-py3-none-any.whl`\n   - `pluginb-3.0.0-py3-none-any.whl`\n\nThe error says \"Cannot install -r requirements.txt (line 4) and libcore==1.4.0 because these package versions have conflicting dependencies.\"\n\nThis suggests that the packages have dependencies that conflict. Let me investigate what each package depends on. Since I can't install and check PyPI, let me look at the wheel files or any metadata.\n\nLet me try to inspect the wheels to understand their dependencies.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "ls -la wheelhouse/"
+      },
+      "tool_output": "total 36\ndrwxr-xr-x 1 agent agent 4096 Oct 24 20:56 .\ndrwxr-xr-x 1 agent agent 4096 Oct 24 20:57 ..\n-rw-r--r-- 1 agent agent 1303 Oct 24 20:56 libcore-1.4.0-py3-none-any.whl\n-rw-r--r-- 1 agent agent 1544 Oct 24 20:56 libcore-2.1.0-py3-none-any.whl\n-rw-r--r-- 1 agent agent 1312 Oct 24 20:56 plugina-1.0.0-py3-none-any.whl\n-rw-r--r-- 1 agent agent 1472 Oct 24 20:56 plugina-2.0.0-py3-none-any.whl\n-rw-r--r-- 1 agent agent 1331 Oct 24 20:56 pluginb-1.0.0-py3-none-any.whl\n-rw-r--r-- 1 agent agent 1503 Oct 24 20:56 pluginb-3.0.0-py3-none-any.whl\n",
+      "exit_code": 0,
+      "duration_ms": 39,
+      "tokens_in": 1859,
+      "tokens_out": 293,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 7,
+      "timestamp": "2026-10-24T21:04:42.434544Z",
+      "thought": "Let me understand the problem:\n\n1. `requirements.txt` has: `plugina==2.0.0`, `pluginb==1.0.0`, `libcore==1.4.0`\n2. The wheelhouse has:\n   - plugina-1.0.0 and plugina-2.0.0\n   - pluginb-1.0.0 and pluginb-3.0.0\n   - libcore-1.4.0 and libcore-2.1.0\n\n3. The error is: \"Cannot install -r requirements.txt (line 4) and libcore==1.4.0 because these package versions have conflicting dependencies.\"\n\nThis suggests that `libcore==1.4.0` has dependencies that conflict with what `plugina==2.0.0` and `pluginb==1.0.0` require.\n\nLet me examine the wheels to understand their dependencies.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "pip install --no-index --find-links wheelhouse wheel libcore plugina pluginb 2>&1 || true"
+      },
+      "tool_output": "Defaulting to user installation because normal site-packages is not writeable\nLooking in links: wheelhouse\nERROR: Could not find a version that satisfies the requirement wheel (from versions: none)\nERROR: No matching distribution found for wheel\n",
+      "exit_code": 0,
+      "duration_ms": 350,
+      "tokens_in": 2218,
+      "tokens_out": 246,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 8,
+      "timestamp": "2026-10-24T21:04:43.788385Z",
+      "thought": "Let me look at what the packages depend on. Let me inspect the wheel files to understand their dependencies.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "pip install --no-index --find-links wheelhouse --dry-run plugina pluginb libcore 2>&1 || true"
+      },
+      "tool_output": "Defaulting to user installation because normal site-packages is not writeable\nLooking in links: wheelhouse\nProcessing ./wheelhouse/plugina-2.0.0-py3-none-any.whl\nProcessing ./wheelhouse/pluginb-3.0.0-py3-none-any.whl\nProcessing ./wheelhouse/libcore-2.1.0-py3-none-any.whl\nWould install libcore-2.1.0 plugina-2.0.0 pluginb-3.0.0\n",
+      "exit_code": 0,
+      "duration_ms": 360,
+      "tokens_in": 2334,
+      "tokens_out": 71,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 9,
+      "timestamp": "2026-10-24T21:04:46.134192Z",
+      "thought": "Let me understand the dependencies. The requirements.txt says:\n- plugina==2.0.0\n- pluginb==1.0.0\n- libcore==1.4.0\n\nBut the wheelhouse has:\n- plugina-1.0.0 and plugina-2.0.0\n- pluginb-1.0.0 and pluginb-3.0.0\n- libcore-1.4.0 and libcore-2.1.0\n\nThe error was: \"Cannot install -r requirements.txt (line 4) and libcore==1.4.0 because these package versions have conflicting dependencies.\"\n\nLet me check what dependencies each package has.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "pip install --no-index --find-links wheelhouse --dry-run plugina==2.0.0 2>&1"
+      },
+      "tool_output": "Defaulting to user installation because normal site-packages is not writeable\nLooking in links: wheelhouse\nProcessing ./wheelhouse/plugina-2.0.0-py3-none-any.whl\nProcessing ./wheelhouse/libcore-2.1.0-py3-none-any.whl (from plugina==2.0.0)\nWould install libcore-2.1.0 plugina-2.0.0\n",
+      "exit_code": 0,
+      "duration_ms": 356,
+      "tokens_in": 2517,
+      "tokens_out": 196,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 10,
+      "timestamp": "2026-10-24T21:04:47.068995Z",
+      "thought": "Let me check what dependencies each package has.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "pip install --no-index --find-links wheelhouse --dry-run pluginb==1.0.0 2>&1"
+      },
+      "tool_output": "Defaulting to user installation because normal site-packages is not writeable\nLooking in links: wheelhouse\nProcessing ./wheelhouse/pluginb-1.0.0-py3-none-any.whl\nProcessing ./wheelhouse/libcore-1.4.0-py3-none-any.whl (from pluginb==1.0.0)\nWould install libcore-1.4.0 pluginb-1.0.0\n",
+      "exit_code": 0,
+      "duration_ms": 352,
+      "tokens_in": 2681,
+      "tokens_out": 59,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 11,
+      "timestamp": "2026-10-24T21:04:51.639246Z",
+      "thought": "Now I understand the dependency situation:\n\n- `plugina==2.0.0` requires `libcore>=2.1.0` (it pulls in libcore-2.1.0)\n- `pluginb==1.0.0` requires `libcore==1.4.0` (it pulls in libcore-1.4.0)\n- `libcore==1.4.0` and `libcore==2.1.0` are conflicting\n\nThe requirements.txt says:\n```\nplugina==2.0.0\npluginb==1.0.0\nlibcore==1.4.0\n```\n\nBut plugina 2.0.0 needs libcore 2.1.0, while libcore 1.4.0 is required by pluginb 1.0.0.\n\nSince I can't change `app.py` or anything in `wheelhouse/`, and I can't change `requirements.txt` either... wait, let me re-read the constraints.\n\n\"Do not change `app.py` and do not change anything in `wheelhouse/`.\"\n\nIt doesn't say I can't change `requirements.txt` or `check.sh`. Let me re-read the task.\n\n\"Make it pass.\" - make `sh check.sh` pass.\n\nThe issue is that plugina 2.0.0 and pluginb 1.0.0 have conflicting libcore dependencies. Looking at the available wheels:\n\n- plugina-1.0.0 and plugina-2.0.0\n- pluginb-1.0.0 and pluginb-3.0.0\n- libcore-1.4.0 and libcore-2.1.0\n\nLet me check what dependencies each package has.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "pip install --no-index --find-links wheelhouse --dry-run plugina==1.0.0 2>&1"
+      },
+      "tool_output": "Defaulting to user installation because normal site-packages is not writeable\nLooking in links: wheelhouse\nProcessing ./wheelhouse/plugina-1.0.0-py3-none-any.whl\nProcessing ./wheelhouse/libcore-1.4.0-py3-none-any.whl (from plugina==1.0.0)\nWould install libcore-1.4.0 plugina-1.0.0\n",
+      "exit_code": 0,
+      "duration_ms": 371,
+      "tokens_in": 2844,
+      "tokens_out": 420,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 12,
+      "timestamp": "2026-10-24T21:04:57.313863Z",
+      "thought": "Let me understand the dependency situation:\n\n- `plugina==2.0.0` requires `libcore==2.1.0`\n- `pluginb==1.0.0` requires `libcore==1.4.0`\n- `plugina==1.0.0` requires `libcore==1.4.0`\n\nThe requirements.txt says:\n- plugina==2.0.0\n- pluginb==1.0.0\n- libcore==1.4.0\n\nThe conflict is: pluginb==1.0.0 needs libcore==1.4.0, but plugina==2.0.0 needs libcore==2.1.0.\n\nSince we can't change requirements.txt or wheelhouse/, and the app.py is correct, I need to figure out what the right combination is.\n\nLooking at the available wheels:\n- plugina-1.0.0, plugina-2.0.0\n- pluginb-1.0.0, pluginb-3.0.0\n- libcore-1.4.0, libcore-2.1.0\n\nThe requirements.txt pins plugina==2.0.0 and pluginb==1.0.0 and libcore==1.4.0.\n\nBut plugina==2.0.0 requires libcore==2.1.0, while pluginb==1.0.0 requires libcore==1.4.0.\n\nSince I can't change requirements.txt or wheelhouse/, and the application code is correct, maybe I need to adjust requirements.txt? Wait, the task says \"Do not change `app.py` and do not change anything in `wheelhouse/`.\" It doesn't say I can't change requirements.txt.\n\nActually wait, let me re-read: \"The application code is correct, and the versions available to you are fixed.\" and \"Do not change `app.py` and do not change anything in `wheelhouse/`.\"\n\nSo I can change requirements.txt. Let me think about what combination works.\n\nOptions:\n1. plugina==2.0.0 + pluginb==1.0.0 + libcore==2.1.0 (but pluginb==1.0.0 needs libcore==1.4.0)\n2. plugina==1.0.0 + pluginb==1.0.0 + libcore==1.4.0 (plugina==1.0.0 needs libcore==1.4.0)\n\n\n3. plugina==1.0.0 + pluginb==3.0.0 + libcore==2.1.0 (need to check if pluginb==3.0.0 needs libcore==2.1.0)\n\nI should verify the dependency requirements for pluginb==3.0.0 to see if it aligns with libcore==2.1.0.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "pip install --no-index --find-links wheelhouse --dry-run pluginb==3.0.0 2>&1"
+      },
+      "tool_output": "Defaulting to user installation because normal site-packages is not writeable\nLooking in links: wheelhouse\nProcessing ./wheelhouse/pluginb-3.0.0-py3-none-any.whl\nProcessing ./wheelhouse/libcore-2.1.0-py3-none-any.whl (from pluginb==3.0.0)\nWould install libcore-2.1.0 pluginb-3.0.0\n",
+      "exit_code": 0,
+      "duration_ms": 358,
+      "tokens_in": 3008,
+      "tokens_out": 659,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 13,
+      "timestamp": "2026-10-24T21:05:11.007482Z",
+      "thought": "Now I understand the dependency situation:\n\n- `plugina==2.0.0` requires `libcore==2.1.0`\n- `plugina==1.0.0` requires `libcore==1.4.0`\n- `pluginb==1.0.0` requires `libcore==1.4.0`\n- `pluginb==3.0.0` requires `libcore==2.1.0`\n\nThe requirements.txt says:\n```\nplugina==2.0.0\npluginb==1.0.0\nlibcore==1.4.0\n```\n\nBut `plugina==2.0.0` requires `libcore==2.1.0`, and `pluginb==1.0.0` requires `libcore==1.4.0`. These are conflicting.\n\nThe task says: \"Do not change `app.py` and do not change anything in `wheelhouse/`.\" So I can't change requirements.txt or the wheelhouse contents.\n\nWait, let me re-read: \"Do not change `app.py` and do not change anything in `wheelhouse/`.\"\n\nBut the requirements.txt says the versions are pinned \"by hand during an incident and never revisited.\" Maybe I need to fix the requirements.txt to resolve the conflict?\n\nActually wait - the task says \"Do not change `app.py` and do not change anything in `wheelhouse/`.\" It doesn't say I can't change requirements.txt. Let me re-read the task.\n\n\"There is no network access. Every package version you might need is already in `wheelhouse/`, and pip is configured to install from there with `--no-index --find-links wheelhouse`.\"\n\n\"Do not change `app.py` and do not change anything in `wheelhouse/`. The application code is correct, and the versions available to you are fixed.\"\n\nSo I can change requirements.txt? Or maybe not - the requirements.txt has the pinned versions. But those versions are conflicting.\n\nLet me think about what the actual problem is. The check.sh script runs `pip install --no-index --find-links wheelhouse --target \"$target\" -r requirements.txt`. The requirements.txt has `plugina==2.0.0`, `pluginb==1.0.0`, and `libcore==1.4.0`.\n\nThe conflict is: `plugina==2.0.0` needs `libcore==2.1.0`, but `libcore==1.4.0` is installed. And `pluginb==1.0.0` needs `libcore==1.4.0`, which conflicts with `plugina==2.0.0`'s requirement.\n\nSince I can't change wheelhouse or app.py, but the task says to make check.sh pass, I probably need to fix requirements.txt. The \"versions available to you are fixed\" means I can only choose from what's in wheelhouse.\n\nLooking at the combinations:\n- `plugina==2.0.0` + `pluginb==1.0.0` + `libcore==1.4.0` - CONFLICT (plugina wants libcore 2.1.0)\n- `plugina==1.0.0` + `pluginb==1.0.0` + `libcore==1.4.0` - should work (both want libcore 1.4.0)\n- `plugina==2.0.0` + `pluginb==3.0.0` + `libcore==2.1.0` - should work (both want libcore 2.1.0)\n- `plugina==1.0.0` + `pluginb==3.0.0` + `libcore==2.1.0` - CONFLICT\n\nThe app.py uses `plugina.title()`, `plugina.slug()`, and `pluginb.export_with_ids()`. The app code is correct.\n\nI think the fix is to update requirements.txt to use compatible versions. Since the comment says \"Pinned by hand during an incident and never revisited\", it seems like the requirements.txt needs to be updated to fix the dependency conflict.\n\nLet me check what combinations would work:\n\nOption 1: `plugina==1.0.0`, `pluginb==1.0.0`, `libcore==1.4.0` - both plugina and pluginb want libcore 1.4.0\nOption 2: `plugina==2.0.0`, `pluginb==3.0.0`, `libcore==2.1.0` - both plugina and pluginb want libcore 2.1.0\n\nBut wait, I need to make sure the app works. Let me test both combinations.\n\nActually, let me first try to understand what the app needs. It imports `plugina` and `pluginb`. Let me check if there's any difference in the API between versions.\n\nLet me just try fixing the requirements.txt. The most logical fix would be to either:\n1. Downgrade plugina to 1.0.0 (to match libcore 1.4.0 and pluginb 1.0.0)\n2. Upgrade pluginb to 3.0.0 and libcore to 2.1.0 (to match plugina 2.0.0)\n3. Some other combination\n\nLet me try option 1 first - change requirements.txt to use plugina==1.0.0 instead of 2.0.0.\n\nActually wait, let me re-read the constraints again. \"Do not change `app.py` and do not change anything in `wheelhouse/`.\" It doesn't mention requirements.txt. So I can modify requirements.txt.\n\nLet me test option 1 first.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "pip install --no-index --find-links wheelhouse --target /tmp/test_target plugina==1.0.0 pluginb==1.0.0 libcore==1.4.0 2>&1"
+      },
+      "tool_output": "Looking in links: wheelhouse\nProcessing ./wheelhouse/plugina-1.0.0-py3-none-any.whl\nProcessing ./wheelhouse/pluginb-1.0.0-py3-none-any.whl\nProcessing ./wheelhouse/libcore-1.4.0-py3-none-any.whl\nInstalling collected packages: libcore, pluginb, plugina\nSuccessfully installed libcore-1.4.0 plugina-1.0.0 pluginb-1.0.0\n",
+      "exit_code": 0,
+      "duration_ms": 367,
+      "tokens_in": 3171,
+      "tokens_out": 1288,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 14,
+      "timestamp": "2026-10-24T21:05:11.836142Z",
+      "thought": "Let me check what happens when I run app.py with these packages.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "PYTHONPATH=/tmp/test_target python app.py 2>&1"
+      },
+      "tool_output": "Traceback (most recent call last):\n  File \"/workspace/app.py\", line 28, in <module>\n    for line in build():\n                ^^^^^^^\n  File \"/workspace/app.py\", line 22, in build\n    for text, identifier in pluginb.export_with_ids(ROWS):\n                            ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: module 'pluginb' has no attribute 'export_with_ids'\n",
+      "exit_code": 1,
+      "duration_ms": 49,
+      "tokens_in": 3372,
+      "tokens_out": 53,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": true
+    },
+    {
+      "index": 15,
+      "timestamp": "2026-10-24T21:05:13.958464Z",
+      "thought": "Let me check what's in the pluginb and plugina modules to understand what functions they provide.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "pip install --no-index --find-links wheelhouse --target /tmp/test_target2 plugina==2.0.0 pluginb==3.0.0 libcore==2.1.0 2>&1"
+      },
+      "tool_output": "Looking in links: wheelhouse\nProcessing ./wheelhouse/plugina-2.0.0-py3-none-any.whl\nProcessing ./wheelhouse/pluginb-3.0.0-py3-none-any.whl\nProcessing ./wheelhouse/libcore-2.1.0-py3-none-any.whl\nInstalling collected packages: libcore, pluginb, plugina\nSuccessfully installed libcore-2.1.0 plugina-2.0.0 pluginb-3.0.0\n",
+      "exit_code": 0,
+      "duration_ms": 363,
+      "tokens_in": 3529,
+      "tokens_out": 89,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 16,
+      "timestamp": "2026-10-24T21:05:14.602325Z",
+      "thought": "Let me test with these versions.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "PYTHONPATH=/tmp/test_target2 python app.py 2>&1"
+      },
+      "tool_output": "# Quarterly Report\nb63c3f9a2d9f  quarterly revenue  (quarterly-revenue-b63c3f9a2d9f)\n6009ff0dd2ef  customer churn  (customer-churn-6009ff0dd2ef)\na419f8580cee  net promoter score  (net-promoter-score-a419f8580cee)\n",
+      "exit_code": 0,
+      "duration_ms": 51,
+      "tokens_in": 3731,
+      "tokens_out": 47,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 17,
+      "timestamp": "2026-10-24T21:05:21.301392Z",
+      "thought": "Now I understand the issue. The `requirements.txt` pins `plugina==2.0.0` and `pluginb==1.0.0`, but these are incompatible:\n- `plugina==2.0.0` requires `libcore==2.1.0`\n- `pluginb==1.0.0` requires `libcore==1.4.0`\n\nThe app works with either `plugina==2.0.0 + pluginb==3.0.0 + libcore==2.1.0` or `plugina==1.0.0 + pluginb==1.0.0 + libcore==1.4.0`. I need to fix `requirements.txt` to have compatible versions.\n",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "PYTHONPATH=/tmp/test_target2 python app.py 2>&1"
+      },
+      "tool_output": "# Quarterly Report\nb63c3f9a2d9f  quarterly revenue  (quarterly-revenue-b63c3f9a2d9f)\n6009ff0dd2ef  customer churn  (customer-churn-6009ff0dd2ef)\na419f8580cee  net promoter score  (net-promoter-score-a419f8580cee)\n",
+      "exit_code": 0,
+      "duration_ms": 52,
+      "tokens_in": 3892,
+      "tokens_out": 769,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 18,
+      "timestamp": "2026-10-24T21:05:24.230847Z",
+      "thought": "The issue is clear: `requirements.txt` has incompatible versions. `plugina==2.0.0` requires `libcore==2.1.0`, but `pluginb==1.0.0` requires `libcore==1.4.0`. I need to fix `requirements.txt` to use compatible versions.\n",
+      "tool_name": "write_file",
+      "tool_args": {
+        "content": "plugina==1.0.0\npluginb==1.0.0\nlibcore==1.4.0",
+        "path": "requirements.txt"
+      },
+      "tool_output": "Wrote 44 bytes (3 lines) to requirements.txt.",
+      "exit_code": null,
+      "duration_ms": 2,
+      "tokens_in": 4211,
+      "tokens_out": 371,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 19,
+      "timestamp": "2026-10-24T21:05:25.145833Z",
+      "thought": "Now let me run `sh check.sh` to verify it works.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "sh check.sh 2>&1"
+      },
+      "tool_output": "resolving requirements offline...\nrunning the application...\nTraceback (most recent call last):\n  File \"/workspace/app.py\", line 28, in <module>\n    for line in build():\n                ^^^^^^^\n  File \"/workspace/app.py\", line 22, in build\n    for text, identifier in pluginb.export_with_ids(ROWS):\n                            ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: module 'pluginb' has no attribute 'export_with_ids'\n",
+      "exit_code": 1,
+      "duration_ms": 377,
+      "tokens_in": 4373,
+      "tokens_out": 45,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": true
+    },
+    {
+      "index": 20,
+      "timestamp": "2026-10-24T21:05:26.545128Z",
+      "thought": "The requirements.txt change didn't work because the check.sh script resolves packages into a temp directory. Let me check what's happening - maybe the wheel files have different module structures.\n\nLet me look at what's inside the wheels.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "ls -la /tmp/test_target/ 2>&1"
+      },
+      "tool_output": "total 0\ndrwxr-xr-x 8 agent agent 160 Oct 24 21:05 .\ndrwxrwxrwt 4 root  root  120 Oct 24 21:05 ..\ndrwxr-xr-x 3 agent agent  80 Oct 24 21:05 libcore\ndrwxr-xr-x 2 agent agent 140 Oct 24 21:05 libcore-1.4.0.dist-info\ndrwxr-xr-x 3 agent agent  80 Oct 24 21:05 plugina\ndrwxr-xr-x 2 agent agent 140 Oct 24 21:05 plugina-1.0.0.dist-info\ndrwxr-xr-x 3 agent agent  80 Oct 24 21:05 pluginb\ndrwxr-xr-x 2 agent agent 140 Oct 24 21:05 pluginb-1.0.0.dist-info\n",
+      "exit_code": 0,
+      "duration_ms": 41,
+      "tokens_in": 4532,
+      "tokens_out": 81,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 21,
+      "timestamp": "2026-10-24T21:05:28.204261Z",
+      "thought": "The issue is that `pluginb==1.0.0` doesn't have the `export_with_ids` function. Let me check what's in the pluginb wheel and what version has that function.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "python3 -c \"import pluginb; print(dir(pluginb))\" 2>&1"
+      },
+      "tool_output": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'pluginb'\n",
+      "exit_code": 1,
+      "duration_ms": 48,
+      "tokens_in": 4831,
+      "tokens_out": 86,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": true
+    },
+    {
+      "index": 22,
+      "timestamp": "2026-10-24T21:05:29.837181Z",
+      "thought": "I need to check what's in the pluginb wheel.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "python3 -c \"import wheel; print(wheel.__version__)\" 2>&1"
+      },
+      "tool_output": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'wheel'\n",
+      "exit_code": 1,
+      "duration_ms": 48,
+      "tokens_in": 4929,
+      "tokens_out": 55,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": true
+    },
+    {
+      "index": 23,
+      "timestamp": "2026-10-24T21:05:31.107842Z",
+      "thought": "Let me check what's in the pluginb wheel to understand what attributes it exports.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "python3 -c \"import zipfile; z = zipfile.ZipFile('/tmp/test_target/pluginb-1.0.0.dist-info/'); print(z.namelist())\" 2>&1 || true"
+      },
+      "tool_output": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"/usr/local/lib/python3.12/zipfile/__init__.py\", line 1331, in __init__\n    self.fp = io.open(file, filemode)\n              ^^^^^^^^^^^^^^^^^^^^^^^\nIsADirectoryError: [Errno 21] Is a directory: '/tmp/test_target/pluginb-1.0.0.dist-info/'\n",
+      "exit_code": 0,
+      "duration_ms": 65,
+      "tokens_in": 5025,
+      "tokens_out": 86,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 24,
+      "timestamp": "2026-10-24T21:05:32.422484Z",
+      "thought": "Let me look at what's in the pluginb-1.0.0.dist-info directory.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "ls -la /tmp/test_target/pluginb-1.0.0.dist-info/ 2>&1"
+      },
+      "tool_output": "total 16\ndrwxr-xr-x 2 agent agent 140 Oct 24 21:05 .\ndrwxr-xr-x 8 agent agent 160 Oct 24 21:05 ..\n-rw-r--r-- 1 agent agent   4 Oct 24 21:05 INSTALLER\n-rw-r--r-- 1 agent agent 196 Oct 24 21:05 METADATA\n-rw-r--r-- 1 agent agent 508 Oct 24 21:05 RECORD\n-rw-r--r-- 1 agent agent   0 Oct 24 21:05 REQUESTED\n-rw-r--r-- 1 agent agent  89 Oct 24 21:05 WHEEL\n",
+      "exit_code": 0,
+      "duration_ms": 39,
+      "tokens_in": 5224,
+      "tokens_out": 66,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 25,
+      "timestamp": "2026-10-24T21:05:33.990527Z",
+      "thought": "Let me look at the METADATA of pluginb-1.0.0 to see what it provides.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "cat /tmp/test_target/pluginb-1.0.0.dist-info/METADATA 2>&1"
+      },
+      "tool_output": "Metadata-Version: 2.1\nName: pluginb\nVersion: 1.0.0\nSummary: Fixture package for the trajectory py-dep-conflict-01 task.\nLicense: Apache-2.0\nRequires-Python: >=3.9\nRequires-Dist: libcore>=1.0,<2.0\n",
+      "exit_code": 0,
+      "duration_ms": 40,
+      "tokens_in": 5483,
+      "tokens_out": 70,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 26,
+      "timestamp": "2026-10-24T21:05:36.144736Z",
+      "thought": "Now I see - `pluginb==1.0.0` requires `libcore>=1.0,<2.0`. And `plugina==1.0.0` also requires `libcore`. Let me check plugina's metadata.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "cat /tmp/test_target/plugina-1.0.0.dist-info/METADATA 2>&1"
+      },
+      "tool_output": "Metadata-Version: 2.1\nName: plugina\nVersion: 1.0.0\nSummary: Fixture package for the trajectory py-dep-conflict-01 task.\nLicense: Apache-2.0\nRequires-Python: >=3.9\nRequires-Dist: libcore>=1.0,<2.0\n",
+      "exit_code": 0,
+      "duration_ms": 39,
+      "tokens_in": 5626,
+      "tokens_out": 101,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 27,
+      "timestamp": "2026-10-24T21:05:36.983221Z",
+      "thought": "Let me check the metadata for the 2.0.0 versions too.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "cat /tmp/test_target/plugina-2.0.0.dist-info/METADATA 2>&1"
+      },
+      "tool_output": "cat: /tmp/test_target/plugina-2.0.0.dist-info/METADATA: No such file or directory\n",
+      "exit_code": 1,
+      "duration_ms": 39,
+      "tokens_in": 5770,
+      "tokens_out": 64,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": true
+    },
+    {
+      "index": 28,
+      "timestamp": "2026-10-24T21:05:39.988648Z",
+      "thought": "Let me check what's in the plugina-2.0.0 wheel. The issue is that `pluginb-1.0.0` has `Requires-Dist: libcore>=1.0,<2.0`, which is compatible with `libcore==1.4.0`. And `plugina-1.0.0` also has `Requires-Dist: libcore>=1.0,<2.0`. So `plugina==1.0.0 + pluginb==1.0.0 + libcore==1.4.0` should work.\n\nBut the error says `module 'pluginb' has no attribute 'export_with_ids'`. Let me check what's in the pluginb-1.0.0 wheel.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "python3 -c \"import importlib.util; spec = importlib.util.spec_from_file_location('pluginb', '/tmp/test_target/pluginb-1.0.0-py3-none-any.whl'); print(spec)\" 2>&1 || true"
+      },
+      "tool_output": "None\n",
+      "exit_code": 0,
+      "duration_ms": 49,
+      "tokens_in": 5867,
+      "tokens_out": 241,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 29,
+      "timestamp": "2026-10-24T21:05:40.856504Z",
+      "thought": "Let me look at the actual wheel file contents to understand what's in pluginb.",
+      "tool_name": "bash",
+      "tool_args": {
+        "command": "python3 -c \"\nimport zipfile\nz = zipfile.ZipFile('/tmp/test_target/pluginb-1.0.0-py3-none-any.whl')\nprint(z.namelist())\n\" 2>&1"
+      },
+      "tool_output": "Traceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n  File \"/usr/local/lib/python3.12/zipfile/__init__.py\", line 1331, in __init__\n    self.fp = io.open(file, filemode)\n              ^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/tmp/test_target/pluginb-1.0.0-py3-none-any.whl'\n",
+      "exit_code": 1,
+      "duration_ms": 65,
+      "tokens_in": 5968,
+      "tokens_out": 89,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": true
+    }
+  ],
+  "verification": {
+    "passed": false,
+    "tests_passed": 3,
+    "tests_total": 6,
+    "stderr_tail": ": AssertionError\n____________ test_plugins_are_the_versions_that_target_the_2x_core _____________\n\ninstalled = PosixPath('/tmp/tmp629zerl6')\n\n    def test_plugins_are_the_versions_that_target_the_2x_core(installed: Path) -> None:\n        out = _run_module(\n            installed,\n            \"import json, plugina, pluginb; \"\n            \"print(json.dumps({'a': plugina.__version__, 'b': pluginb.__version__}))\",\n        )\n        payload = json.loads(out.strip().splitlines()[-1])\n>       assert payload[\"a\"] == \"2.0.0\", payload\nE       AssertionError: {'a': '1.0.0', 'b': '1.0.0'}\nE       assert '1.0.0' == '2.0.0'\nE         \nE         - 2.0.0\nE         ? ^\nE         + 1.0.0\nE         ? ^\n\n/verify/test_resolution.py:99: AssertionError\n________________ test_application_produces_the_expected_report _________________\n\ninstalled = PosixPath('/tmp/tmp629zerl6')\n\n    def test_application_produces_the_expected_report(installed: Path) -> None:\n>       out = _run_module(installed, \"import app; print('\\\\n'.join(app.build()))\")\n\n/verify/test_resolution.py:104: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ntarget = PosixPath('/tmp/tmp629zerl6')\ncode = \"import app; print('\\\\n'.join(app.build()))\"\n\n    def _run_module(target: Path, code: str) -> str:\n        result = subprocess.run(\n            [sys.executable, \"-c\", code],\n            capture_output=True,\n            text=True,\n            check=False,\n            cwd=WORKSPACE,\n            env={\"PYTHONPATH\": str(target), \"PATH\": \"/usr/local/bin:/usr/bin:/bin\"},\n            timeout=120,\n        )\n>       assert result.returncode == 0, f\"{result.stdout}\\n{result.stderr}\"\nE       AssertionError: \nE         Traceback (most recent call last):\nE           File \"<string>\", line 1, in <module>\nE           File \"/workspace/app.py\", line 22, in build\nE             for text, identifier in pluginb.export_with_ids(ROWS):\nE                                     ^^^^^^^^^^^^^^^^^^^^^^^\nE         AttributeError: module 'pluginb' has no attribute 'export_with_ids'\nE         \nE       assert 1 == 0\nE        +  where 1 = CompletedProcess(args=['/usr/local/bin/python', '-c', \"import app; print('\\\\n'.join(app.build()))\"], returncode=1, std...                   ^^^^^^^^^^^^^^^^^^^^^^^\\nAttributeError: module \\'pluginb\\' has no attribute \\'export_with_ids\\'\\n').returncode\n\n/verify/test_resolution.py:72: AssertionError\n=============================== warnings summary ===============================\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/verify/pytest-cache-files-xyg95isa'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/lastfailed: [Errno 13] Permission denied: '/verify/pytest-cache-files-whvvie6i'\n    config.cache.set(\"cache/lastfailed\", self.lastfailed)\n\n../usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51\n  /usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/stepwise: [Errno 13] Permission denied: '/verify/pytest-cache-files-xs03utba'\n    session.config.cache.set(STEPWISE_CACHE_DIR, [])\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED ../verify/test_resolution.py::test_resolved_core_is_on_the_2x_api - As...\nFAILED ../verify/test_resolution.py::test_plugins_are_the_versions_that_target_the_2x_core\nFAILED ../verify/test_resolution.py::test_application_produces_the_expected_report\n3 failed, 3 passed, 3 warnings in 0.40s\n",
+    "duration_ms": 639,
+    "exit_code": 1,
+    "parse_ok": true,
+    "partial_credit": 0.5
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.5,
+    "step_efficiency": null,
+    "tool_call_validity": 1.0,
+    "redundant_action_rate": 0.083333,
+    "recovery_rate": 0.857143,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 72.352,
+    "destructive_attempts": 0,
+    "total_steps": 30,
+    "total_commands": 24,
+    "schema_violations": 0,
+    "failed_commands": 7
+  },
+  "failure_modes": [
+    {
+      "id": "F02",
+      "name": "path hallucination",
+      "confidence": 0.6,
+      "detector": "rule",
+      "evidence": "1 reference(s) to paths that were not in the workspace at the start and were not created during the run, named in the stderr of a failing command: step 27: tmp/test_target/plugina-2.0.0.dist-info/METADATA",
+      "step_indices": [
+        27
+      ]
+    }
+  ],
+  "image_id": "sha256:89a33bc7db4232de216bc0d04efa1f76d90968101ccf60e327eb3a7becc3a560",
+  "harness_version": "0.1.1",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "7e24d73a0d1b0394",
+      "app.py": "5275c416700ae39a",
+      "check.sh": "65f642feb1069881",
+      "requirements.txt": "3f0e742d8a3f8030",
+      "wheelhouse/libcore-1.4.0-py3-none-any.whl": "0c1a9cd03298bbe2",
+      "wheelhouse/libcore-2.1.0-py3-none-any.whl": "99ac7ff59f35a472",
+      "wheelhouse/plugina-1.0.0-py3-none-any.whl": "b8574cc8ddd60a2a",
+      "wheelhouse/plugina-2.0.0-py3-none-any.whl": "f4e2c52c36d0dc28",
+      "wheelhouse/pluginb-1.0.0-py3-none-any.whl": "6433e33b1d97ba58",
+      "wheelhouse/pluginb-3.0.0-py3-none-any.whl": "77be79851010566b"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "7e24d73a0d1b0394",
+      "app.py": "5275c416700ae39a",
+      "check.sh": "65f642feb1069881",
+      "requirements.txt": "5dda4a74b2708d1d",
+      "wheelhouse/libcore-1.4.0-py3-none-any.whl": "0c1a9cd03298bbe2",
+      "wheelhouse/libcore-2.1.0-py3-none-any.whl": "99ac7ff59f35a472",
+      "wheelhouse/plugina-1.0.0-py3-none-any.whl": "b8574cc8ddd60a2a",
+      "wheelhouse/plugina-2.0.0-py3-none-any.whl": "f4e2c52c36d0dc28",
+      "wheelhouse/pluginb-1.0.0-py3-none-any.whl": "6433e33b1d97ba58",
+      "wheelhouse/pluginb-3.0.0-py3-none-any.whl": "77be79851010566b"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": null,
+  "wall_clock_s": 72.352,
+  "solved": false,
+  "total_cost_usd": 0.0
+}

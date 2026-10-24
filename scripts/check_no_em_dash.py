@@ -41,6 +41,12 @@ SKIP_DIRS = {
     "out",
 }
 
+# Recorded output of a real model, kept verbatim. The house style governs what the author
+# writes, not what a measured model said: a model's thoughts and commands are evidence, and
+# editing a record to satisfy a style rule would falsify exactly the data the gates exist
+# to protect. The scripted policies' records are authored, so they stay checked.
+VERBATIM_DATA = (Path("fixtures") / "model-runs",)
+
 SKIP_SUFFIXES = {
     ".gif",
     ".ico",
@@ -80,6 +86,8 @@ def should_check(path: Path) -> bool:
     if not path.is_file():
         return False
     if any(part in SKIP_DIRS for part in path.parts):
+        return False
+    if any(path.is_relative_to(root) for root in VERBATIM_DATA):
         return False
     return path.suffix.lower() not in SKIP_SUFFIXES
 

@@ -89,35 +89,43 @@ def signal_lines(runs: list[Run]) -> list[str]:
         by_task[run.task_id].append(run)
 
     rows: list[str] = []
-    binary_signal = partial_signal = 0
+    binary_signal = partial_signal = compared = 0
     for task_id in sorted(by_task):
         group = by_task[task_id]
         solved = sum(1 for run in group if run.solved)
         partial = [run.score.partial_credit if run.score else 0.0 for run in group]
+        mean = f"{sum(partial) / len(partial):.3f}"
+        if len(group) < 2:
+            # One sample cannot disagree with itself, so its signal is unknown, not absent.
+            rows.append(f"| {task_id} | 1 | {solved} | {mean} | n/a | n/a |")
+            continue
+        compared += 1
         binary = solved not in (0, len(group))
-        graded = len(group) > 1 and _variance(partial) > 0
+        graded = _variance(partial) > 0
         binary_signal += binary
         partial_signal += graded
         rows.append(
-            f"| {task_id} | {len(group)} | {solved} | {sum(partial) / len(partial):.3f} "
+            f"| {task_id} | {len(group)} | {solved} | {mean} "
             f"| {'yes' if binary else 'no'} | {'yes' if graded else 'no'} |"
         )
 
-    seeds = sorted({run.config.seed for run in runs})
     return [
         "### Per task, read as an RL reward signal",
         "",
-        f"Each task was sampled {len(seeds)} time(s). A task whose samples all pass or all "
-        "fail gives a group relative method no gradient; only mixed outcomes teach. This "
-        "describes the reward signal these tasks offer this model. It is not a training run.",
+        "A task whose samples all pass or all fail gives a group relative method no "
+        "gradient; only mixed outcomes teach. A task sampled once cannot show either, so it "
+        "reads n/a. This describes the reward signal these tasks offer this model. It is "
+        "not a training run.",
         "",
         "| task | samples | solved | mean partial credit "
         "| signal, binary reward | signal, partial credit |",
         "| --- | --- | --- | --- | --- | --- |",
         *rows,
         "",
-        f"- Tasks with a learning signal under a binary reward: {binary_signal} of {len(by_task)}",
-        f"- Tasks with a learning signal under partial credit: {partial_signal} of {len(by_task)}",
+        f"- Tasks with a learning signal under a binary reward: {binary_signal} of {compared} "
+        "sampled at least twice",
+        f"- Tasks with a learning signal under partial credit: {partial_signal} of {compared} "
+        "sampled at least twice",
     ]
 
 
