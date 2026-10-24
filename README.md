@@ -49,9 +49,10 @@ Three things this harness does that a pass-rate benchmark does not, each one com
 document away:
 
 - **It runs in your stack, not only this one.** Every task exports to the Harbor task
-  format with `trajectory export harbor`, instruction, environment, hidden tests, a
-  verifier that writes a reward on every path, and the reference solution as an oracle. CI
-  proves each export grades the same as the native harness.
+  format with `trajectory export harbor`, and CI proves each export grades the same as the
+  native harness. Runs export to ATIF, and `trajectory import atif` scores a trajectory from
+  Claude Code, Codex, mini-swe-agent or OpenHands with the same metrics and failure modes.
+  [docs/interop.md](docs/interop.md).
 - **It resists reward hacking, and names the attempt.** The verifier is hardened so a file
   the agent drops in its workspace cannot shadow what the hidden tests import, and failure
   mode **F11 grader tampering** flags any attempt to plant one. A run that games its grader

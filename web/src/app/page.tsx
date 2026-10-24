@@ -95,9 +95,9 @@ export default async function LeaderboardPage() {
           {[
             {
               title: "Runs in your stack",
-              body: "Every task exports to the Harbor task format, verifier and oracle included, and CI proves each export grades the same as the native harness.",
-              href: "https://github.com/mekala27-45/trajectory#beyond-the-leaderboard",
-              link: "trajectory export harbor",
+              body: "Every task exports to the Harbor task format, and CI proves each export grades the same as the native harness. ATIF trajectories from Claude Code, Codex and others import and score here.",
+              href: "https://github.com/mekala27-45/trajectory/blob/main/docs/interop.md",
+              link: "Harbor and ATIF",
             },
             {
               title: "Resists reward hacking",
