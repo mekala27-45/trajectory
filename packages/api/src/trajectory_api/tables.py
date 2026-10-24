@@ -23,6 +23,8 @@ from typing import Any
 
 from sqlalchemy import DateTime, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.engine import Dialect
+from sqlalchemy.types import TypeDecorator
 from sqlmodel import Column, Field, SQLModel, Text
 
 
@@ -31,15 +33,36 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _timestamp(**kwargs: object) -> Column[DateTime]:
-    """A timezone aware timestamp column.
+class UtcDateTime(TypeDecorator[datetime]):
+    """`timestamp with time zone` that always comes back in UTC.
+
+    Postgres hands an aware timestamp back in the session time zone. On a server whose
+    default zone is UTC that is invisible; on one set to America/New_York the API served
+    `07:00:00-05:00` for an instant stored as `12:00:00Z`. Same instant, different string,
+    and every client comparing timestamps as text breaks. Normalising here holds whatever
+    the server, the pooler or the session is configured as, which a connection option
+    cannot promise behind a transaction pooler that refuses startup parameters.
+    """
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        """Convert an aware value to UTC on the way out."""
+        if value is None or value.tzinfo is None:
+            return value
+        return value.astimezone(UTC)
+
+
+def _timestamp(**kwargs: object) -> Column[datetime]:
+    """A timezone aware timestamp column, returned in UTC.
 
     SQLAlchemy's default DateTime maps to `timestamp without time zone`, which silently
     drops the offset on the way in and hands back a naive value on the way out. Every
     timestamp in a run record is UTC aware by construction, and a store that quietly
     strips that turns a reproducible record into an ambiguous one.
     """
-    return Column(DateTime(timezone=True), **kwargs)  # type: ignore[arg-type]
+    return Column(UtcDateTime(), **kwargs)  # type: ignore[arg-type]
 
 
 class TaskRow(SQLModel, table=True):
