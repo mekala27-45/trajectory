@@ -24,9 +24,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 from trajectory_core.aggregate import failure_mode_counts, leaderboard
+from trajectory_core.models import Run
 from trajectory_runner.cli import _markdown_report
 from trajectory_runner.store import read_runs
 
@@ -38,6 +40,7 @@ BEGIN = "<!-- measured: rendered from fixtures/model-runs by scripts/check_model
 END = "<!-- end measured -->"
 
 SUMMARY_PREFIXES = (
+    "- Tasks with a learning signal",
     "- Harness version:",
     "- Runs:",
     "- Models:",
@@ -64,7 +67,58 @@ def render(fixtures: Path) -> str:
     if lines and lines[0].startswith("# "):
         lines = lines[1:]
     lines = ["#" + line if line.startswith("## ") else line for line in lines]
-    return "\n".join(lines).strip("\n")
+    return "\n".join([*lines, "", *signal_lines(runs)]).strip("\n")
+
+
+def _variance(values: list[float]) -> float:
+    mean = sum(values) / len(values)
+    return sum((value - mean) ** 2 for value in values) / len(values)
+
+
+def signal_lines(runs: list[Run]) -> list[str]:
+    """Per task outcomes across seeds, read as a reinforcement learning reward signal.
+
+    A group of samples on one task that all pass, or all fail, has zero reward variance, so
+    a group relative method such as GRPO gets no gradient from it. Only a task with mixed
+    outcomes teaches anything at this model's level. Under a partial credit reward a task
+    can still carry signal when every sample fails, which is the case for partial credit,
+    and the case against it is the shortcut a partial reward pays for.
+    """
+    by_task: dict[str, list[Run]] = defaultdict(list)
+    for run in runs:
+        by_task[run.task_id].append(run)
+
+    rows: list[str] = []
+    binary_signal = partial_signal = 0
+    for task_id in sorted(by_task):
+        group = by_task[task_id]
+        solved = sum(1 for run in group if run.solved)
+        partial = [run.score.partial_credit if run.score else 0.0 for run in group]
+        binary = solved not in (0, len(group))
+        graded = len(group) > 1 and _variance(partial) > 0
+        binary_signal += binary
+        partial_signal += graded
+        rows.append(
+            f"| {task_id} | {len(group)} | {solved} | {sum(partial) / len(partial):.3f} "
+            f"| {'yes' if binary else 'no'} | {'yes' if graded else 'no'} |"
+        )
+
+    seeds = sorted({run.config.seed for run in runs})
+    return [
+        "### Per task, read as an RL reward signal",
+        "",
+        f"Each task was sampled {len(seeds)} time(s). A task whose samples all pass or all "
+        "fail gives a group relative method no gradient; only mixed outcomes teach. This "
+        "describes the reward signal these tasks offer this model. It is not a training run.",
+        "",
+        "| task | samples | solved | mean partial credit "
+        "| signal, binary reward | signal, partial credit |",
+        "| --- | --- | --- | --- | --- | --- |",
+        *rows,
+        "",
+        f"- Tasks with a learning signal under a binary reward: {binary_signal} of {len(by_task)}",
+        f"- Tasks with a learning signal under partial credit: {partial_signal} of {len(by_task)}",
+    ]
 
 
 def required(rendered: str) -> list[str]:

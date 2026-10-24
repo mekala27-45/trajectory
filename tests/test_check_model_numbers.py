@@ -72,3 +72,16 @@ def test_the_version_line_is_the_recorded_one(workspace: tuple[Path, Path]):
     recorded = {run.harness_version for run in read_runs(fixtures)}
     rendered = gate.render(fixtures)
     assert f"- Harness version: `{', '.join(sorted(recorded))}`" in rendered
+
+
+def test_a_task_carries_binary_signal_only_when_its_samples_disagree():
+    from trajectory_runner.store import read_runs
+
+    runs = [run for run in read_runs(RECORDED) if run.config.model == "stub:hasty"]
+    rows = [line for line in gate.signal_lines(runs) if line.startswith("| ") and "---" not in line]
+    body = rows[1:]  # the first row is the header
+    assert len(body) == 12
+    for row in body:
+        cells = [cell.strip() for cell in row.strip("|").split("|")]
+        samples, solved, binary = int(cells[1]), int(cells[2]), cells[4]
+        assert binary == ("yes" if 0 < solved < samples else "no"), row
