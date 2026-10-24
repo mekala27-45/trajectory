@@ -9,7 +9,9 @@ from trajectory_runner.agent import (
     MAX_CONSECUTIVE_NO_TOOL,
     AgentOutcome,
     Budget,
+    CallBudget,
     ChatMessage,
+    RateLimiter,
     compress,
     run_agent,
 )
@@ -86,6 +88,77 @@ class TestTermination:
             sample_task, sandbox, [PlannedCall(name="finish", arguments={"summary": "x"})]
         )
         assert outcome.status is RunStatus.COMPLETED
+
+    def test_the_call_ceiling_stops_the_run_and_reports_budget_exceeded(
+        self, sample_task, sandbox
+    ):
+        """A request priced free tier caps calls, not dollars, and reports the same stop."""
+        script = [PlannedCall(name="bash", arguments={"command": "true"})] * 20
+        outcome = drive(sample_task, sandbox, script, call_budget=CallBudget(2))
+        assert outcome.status is RunStatus.BUDGET_EXCEEDED
+        assert len(outcome.steps) == 2
+        assert outcome.error is not None
+        assert "call ceiling" in outcome.error
+
+    def test_the_call_ceiling_is_reserved_before_the_call(self, sample_task, sandbox):
+        """The ledger counts the attempt that was blocked as not taken, so it is exact."""
+        budget = CallBudget(2)
+        drive(
+            sample_task,
+            sandbox,
+            [PlannedCall(name="bash", arguments={"command": "true"})] * 20,
+            call_budget=budget,
+        )
+        assert budget.used == 2
+        assert budget.remaining() == 0
+        assert budget.exhausted()
+
+
+class TestCallBudget:
+    def test_unlimited_never_blocks(self):
+        budget = CallBudget(None)
+        assert all(budget.take() for _ in range(1000))
+        assert not budget.exhausted()
+
+    def test_take_is_exact_under_contention(self):
+        """Reserve under the lock, so parallel workers cannot overshoot the ceiling."""
+        import threading
+
+        budget = CallBudget(100)
+        granted = []
+        lock = threading.Lock()
+
+        def worker():
+            local = sum(1 for _ in range(50) if budget.take())
+            with lock:
+                granted.append(local)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        assert sum(granted) == 100
+        assert budget.used == 100
+
+
+class TestRateLimiter:
+    def test_inert_limiter_does_not_wait(self):
+        limiter = RateLimiter(None)
+        started = __import__("time").monotonic()
+        for _ in range(50):
+            limiter.acquire()
+        assert __import__("time").monotonic() - started < 0.05
+
+    def test_calls_are_spaced_to_the_rate(self):
+        import time
+
+        limiter = RateLimiter(rpm=1200)  # one every 0.05s
+        started = time.monotonic()
+        for _ in range(4):
+            limiter.acquire()
+        # The first slot is free, the next three each wait ~0.05s.
+        assert time.monotonic() - started >= 0.1
 
 
 class _NoToolProvider:

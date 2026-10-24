@@ -24,8 +24,9 @@ from pathlib import Path
 
 import structlog
 
+from trajectory_core.judge import LiteLLMJudge
 from trajectory_core.models import SandboxBackend
-from trajectory_runner.agent import Budget
+from trajectory_runner.agent import Budget, CallBudget, RateLimiter
 from trajectory_runner.execute import ExecutionOptions, plan, prebuild_images, run_suite
 from trajectory_runner.loader import discover
 from trajectory_runner.sandbox import ALLOW_LOCAL_ENV, docker_available
@@ -47,6 +48,29 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--seeds", type=int, default=DEFAULT_SEEDS)
     parser.add_argument("--parallel", type=int, default=2)
     parser.add_argument("--budget-usd", type=float, default=None)
+    parser.add_argument(
+        "--max-calls",
+        type=int,
+        default=None,
+        help="Ceiling on total model calls across the whole matrix, for request priced "
+        "free tiers. The suite stops cleanly when it is reached.",
+    )
+    parser.add_argument(
+        "--rpm",
+        type=float,
+        default=None,
+        help="Requests per minute, shared across all workers. Keeps a free tier from "
+        "rejecting bursts.",
+    )
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument(
+        "--order",
+        choices=("task", "seed", "auto"),
+        default="auto",
+        help="Job order. seed major leaves whole seeds finished when a cap stops the run, "
+        "which is what you want for a real model matrix. auto picks seed for real models "
+        "and task for the offline policies.",
+    )
     parser.add_argument("--judge-model", default=None)
     parser.add_argument("--label", default="matrix")
     parser.add_argument("--out", type=Path, default=Path("runs"))
@@ -79,15 +103,27 @@ def main(argv: list[str]) -> int:
     tasks = discover(args.tasks_root, suite=args.suite)
     models = args.model or [f"stub:{name}" for name in POLICIES]
     seeds = list(range(args.seeds))
+    real_models = bool(args.model)
+    order = args.order if args.order != "auto" else ("seed" if real_models else "task")
 
     run_dir = new_run_directory(args.out, args.suite, label=args.label)
     budget = Budget(args.budget_usd)
+    call_budget = CallBudget(args.max_calls)
+    limiter = RateLimiter(args.rpm)
     options = ExecutionOptions(
         run_dir=run_dir,
         allow_local_override=backend is SandboxBackend.LOCAL,
         budget=budget,
+        call_budget=call_budget,
+        limiter=limiter,
+        judge=LiteLLMJudge(args.judge_model) if args.judge_model else None,
         ci=bool(os.environ.get("CI")),
     )
+    if args.max_calls is not None or args.rpm is not None:
+        print(
+            f"caps: {args.max_calls if args.max_calls is not None else 'no'} call ceiling, "
+            f"{args.rpm if args.rpm is not None else 'no'} rpm, order {order}"
+        )
 
     total = len(tasks) * len(models) * len(seeds)
     print(
@@ -101,7 +137,14 @@ def main(argv: list[str]) -> int:
     completed = 0
 
     for model in models:
-        jobs = plan(tasks, model=model, seeds=seeds, backend=backend)
+        jobs = plan(
+            tasks,
+            model=model,
+            seeds=seeds,
+            backend=backend,
+            temperature=args.temperature,
+            order=order,
+        )
         image_tags = prebuild_images(jobs) if backend is SandboxBackend.DOCKER else {}
 
         def progress(job: object, run: object, state: str) -> None:

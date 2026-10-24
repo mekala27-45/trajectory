@@ -120,6 +120,92 @@ class Budget:
         return remaining is not None and remaining <= 0.0
 
 
+class CallBudget:
+    """A hard ceiling on model calls, shared across a suite and reserved before each call.
+
+    A dollar ceiling is the right cap when a model is priced. A free tier is not priced by
+    the dollar, it is priced by the request: NVIDIA's build tier gives a fixed number of
+    credits a month, and the thing that overruns it is call count, not spend. So this is
+    the same idea as `Budget` for a different unit, and it stops a run for the same reason,
+    which is why both report `budget_exceeded` rather than inventing a second word for one
+    finding.
+
+    A call is reserved with `take` rather than counted after the fact. Four parallel
+    workers counting afterwards would each make their call and then discover the ceiling,
+    overshooting by up to `parallel` requests every time, and on a tier that bills by the
+    request that overshoot is the whole cost. Reserving under the lock makes the ceiling
+    exact.
+    """
+
+    def __init__(self, limit: int | None = None) -> None:
+        """Create a ledger, unlimited when the limit is None."""
+        self._limit = limit
+        self._used = 0
+        self._lock = threading.Lock()
+
+    @property
+    def limit(self) -> int | None:
+        """The ceiling, or None when there is none."""
+        return self._limit
+
+    @property
+    def used(self) -> int:
+        """Calls reserved so far."""
+        with self._lock:
+            return self._used
+
+    def remaining(self) -> int | None:
+        """Calls left, or None when unlimited."""
+        if self._limit is None:
+            return None
+        with self._lock:
+            return max(0, self._limit - self._used)
+
+    def take(self) -> bool:
+        """Reserve one call. True when it was granted, False when the ceiling is reached."""
+        with self._lock:
+            if self._limit is not None and self._used >= self._limit:
+                return False
+            self._used += 1
+            return True
+
+    def exhausted(self) -> bool:
+        """Whether every reserved call is spent."""
+        if self._limit is None:
+            return False
+        with self._lock:
+            return self._used >= self._limit
+
+
+class RateLimiter:
+    """Spaces model calls across every worker to stay under a requests-per-minute ceiling.
+
+    Free tiers reject bursts, and a thread pool is a burst by construction. This holds the
+    next-allowed instant under a lock, so the limit is the sum across all threads rather
+    than per thread. A limiter set to zero or None does nothing, which is the default for
+    priced models that enforce their own limits server side.
+    """
+
+    def __init__(self, rpm: float | None = None) -> None:
+        """Create a limiter, inert when `rpm` is None or not positive."""
+        self._interval = 60.0 / rpm if rpm and rpm > 0 else 0.0
+        self._lock = threading.Lock()
+        self._next = 0.0
+
+    def acquire(self) -> None:
+        """Block until a call may be made, then claim this slot."""
+        if self._interval <= 0:
+            return
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                if now >= self._next:
+                    self._next = now + self._interval
+                    return
+                wait = self._next - now
+            time.sleep(wait)
+
+
 @dataclass(slots=True)
 class AgentOutcome:
     """What the loop produced."""
@@ -219,6 +305,8 @@ def run_agent(
     cap_bytes: int,
     tools_enabled: list[ToolName],
     budget: Budget | None = None,
+    call_budget: CallBudget | None = None,
+    limiter: RateLimiter | None = None,
     on_step: StepSink | None = None,
 ) -> AgentOutcome:
     """Run the agent against the task until something stops it.
@@ -233,6 +321,10 @@ def run_agent(
         cap_bytes: Output cap per command.
         tools_enabled: Tools offered to the model.
         budget: Shared spend ledger, checked before every model call. None means no cap.
+        call_budget: Shared ceiling on model calls, reserved before every call. None means
+            no cap. Used for request priced free tiers where spend is always zero.
+        limiter: Shared requests-per-minute limiter, waited on before every call. None
+            means no throttle.
         on_step: Called with each completed step, for incremental flushing.
 
     Returns:
@@ -273,6 +365,17 @@ def run_agent(
                     f"(ceiling {budget.limit:.4f} USD, spent {budget.spent:.4f} USD)"
                 )
                 break
+
+        if call_budget is not None and not call_budget.take():
+            outcome.status = RunStatus.BUDGET_EXCEEDED
+            outcome.error = (
+                f"the shared call ceiling of {call_budget.limit} model call(s) was reached "
+                "before this call could be made"
+            )
+            break
+
+        if limiter is not None:
+            limiter.acquire()
 
         try:
             reply = provider.reply(messages, specs)

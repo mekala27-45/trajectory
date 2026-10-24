@@ -38,7 +38,7 @@ from trajectory_core.models import (
     ToolName,
 )
 from trajectory_core.scoring import rank_failure_modes, score
-from trajectory_runner.agent import Budget, run_agent
+from trajectory_runner.agent import Budget, CallBudget, RateLimiter, run_agent
 from trajectory_runner.loader import LoadedTask
 from trajectory_runner.policies import build_script
 from trajectory_runner.providers import LiteLLMProvider, Provider, StubProvider
@@ -62,16 +62,32 @@ def build_provider(config: RunConfig, loaded: LoadedTask) -> Provider:
     `stub:<policy>` selects an offline scripted policy built from the task's reference
     playbook. Anything else goes to LiteLLM, which is how the harness stays vendor
     agnostic without a single branch anywhere else in the codebase.
+
+    The only vendor specific detail is the base URL, and it stays here in the factory
+    rather than leaking into the loop. An `ollama/` or `ollama_chat/` model reads
+    `OLLAMA_API_BASE`, which is how the local model in CI is reached. An `nvidia_nim/`
+    model may set `NVIDIA_NIM_API_BASE`, but does not need to: LiteLLM already defaults it
+    to the NVIDIA build endpoint and reads the key from `NVIDIA_NIM_API_KEY`, so a bare
+    identifier such as `nvidia_nim/deepseek-ai/deepseek-v4-flash` works with only the key
+    set. Both are free, request priced tiers, which is why the matrix pairs them with a
+    call ceiling and a rate limit rather than a dollar budget.
     """
     if config.model.startswith(STUB_PREFIX):
         policy = config.model[len(STUB_PREFIX) :]
         script = build_script(policy, loaded.playbook, config.seed)
         return StubProvider(config.model, script)
+
+    api_base: str | None = None
+    if config.model.startswith(("ollama/", "ollama_chat/")):
+        api_base = os.environ.get("OLLAMA_API_BASE")
+    elif config.model.startswith("nvidia_nim/"):
+        api_base = os.environ.get("NVIDIA_NIM_API_BASE")
+
     return LiteLLMProvider(
         config.model,
         temperature=config.temperature,
         seed=config.seed,
-        api_base=os.environ.get("OLLAMA_API_BASE") if config.model.startswith("ollama/") else None,
+        api_base=api_base,
     )
 
 
@@ -106,6 +122,8 @@ class ExecutionOptions:
     image_tag: str | None = None
     allow_local_override: bool = False
     budget: Budget | None = None
+    call_budget: CallBudget | None = None
+    limiter: RateLimiter | None = None
     judge: JudgeClient | None = None
     judge_temperature: float = 0.0
     ci: bool = False
@@ -168,6 +186,8 @@ def execute(loaded: LoadedTask, config: RunConfig, options: ExecutionOptions) ->
                 cap_bytes=config.max_output_bytes,
                 tools_enabled=config.tools_enabled,
                 budget=options.budget,
+                call_budget=options.call_budget,
+                limiter=options.limiter,
                 on_step=writer.append,
             )
             run.steps = outcome.steps
@@ -280,8 +300,28 @@ def plan(
     seeds: Sequence[int],
     backend: SandboxBackend,
     temperature: float = 0.0,
+    order: str = "task",
 ) -> list[Job]:
-    """Build the job list for a suite run, task major so progress reads naturally."""
+    """Build the job list for a suite run.
+
+    Order decides what a partial run leaves behind when a cap stops the suite early.
+
+    `task` (the default) groups every seed of a task together, so progress reads as one
+    task at a time, which is what a human watching a short offline run wants.
+
+    `seed` groups every task at a seed together, so a run that is cut off by a dollar or
+    call ceiling leaves whole seeds finished rather than most tasks at seed 0 and a
+    scattering at seed 1. pass@1 averaged over complete seeds is a figure you can report;
+    an average over a ragged edge is not. This is the order the real model matrix uses,
+    where the cap is reached often and on purpose.
+    """
+    if order not in ("task", "seed"):
+        raise ValueError(f"order must be 'task' or 'seed', got {order!r}")
+    pairs = (
+        [(loaded, seed) for loaded in tasks for seed in seeds]
+        if order == "task"
+        else [(loaded, seed) for seed in seeds for loaded in tasks]
+    )
     return [
         Job(
             loaded,
@@ -289,8 +329,7 @@ def plan(
                 loaded.task, model=model, seed=seed, backend=backend, temperature=temperature
             ),
         )
-        for loaded in tasks
-        for seed in seeds
+        for loaded, seed in pairs
     ]
 
 
@@ -338,6 +377,14 @@ def run_suite(
     result = SuiteResult()
     tags = image_tags or {}
 
+    def caps_spent() -> str | None:
+        """The reason no further job should start, or None while there is headroom."""
+        if options.budget is not None and options.budget.exhausted():
+            return "budget exhausted"
+        if options.call_budget is not None and options.call_budget.exhausted():
+            return "call ceiling reached"
+        return None
+
     def execute_one(job: Job) -> Run:
         if on_progress:
             on_progress(job, None, "running")
@@ -346,6 +393,8 @@ def run_suite(
             image_tag=tags.get(job.loaded.id),
             allow_local_override=options.allow_local_override,
             budget=options.budget,
+            call_budget=options.call_budget,
+            limiter=options.limiter,
             judge=options.judge,
             judge_temperature=options.judge_temperature,
             ci=options.ci,
@@ -356,8 +405,9 @@ def run_suite(
 
     if parallel <= 1:
         for job in pending:
-            if options.budget is not None and options.budget.exhausted():
-                result.skipped.append((job, "budget exhausted"))
+            spent = caps_spent()
+            if spent is not None:
+                result.skipped.append((job, spent))
                 if on_progress:
                     on_progress(job, None, "skipped")
                 continue
@@ -369,8 +419,9 @@ def run_suite(
         with ThreadPoolExecutor(max_workers=parallel, thread_name_prefix="trajectory") as pool:
             futures = {}
             for job in pending:
-                if options.budget is not None and options.budget.exhausted():
-                    result.skipped.append((job, "budget exhausted"))
+                spent = caps_spent()
+                if spent is not None:
+                    result.skipped.append((job, spent))
                     if on_progress:
                         on_progress(job, None, "skipped")
                     continue
