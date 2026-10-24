@@ -143,8 +143,8 @@ The trajectory metrics separate them on the first glance:
   the workspace on every single run, and shipped a shell command with an unbalanced quote
   on every single run. Step efficiency 0.766.
 - `thrasher` has a redundant action rate of **0.493**: about half of every command it
-  issued was a byte-identical repeat of an earlier one. Its recovery rate is **0.833 +/-
-  0.136**, the only non-zero seed variance in that column, and its step efficiency is
+  issued was a byte-identical repeat of an earlier one. Its recovery rate is **0.847 +/-
+  0.137**, the only non-zero seed variance in that column, and its step efficiency is
   **0.664**, the worst of any policy that solved anything.
 - `methodical` sits at the ceiling on all three.
 
@@ -283,8 +283,9 @@ the local backend. Per model the counts are identical too, `stub:reckless` solvi
 36 both times.
 
 Across the whole leaderboard exactly one behavioural cell moved: `stub:thrasher` recovery
-after failure, from 0.833 +/- 0.136 to 0.847 +/- 0.137, which is a tenth of that cell's own
-seed variance. Solve rate, partial credit, step efficiency, tool call validity, redundancy
+after failure, from 0.833 +/- 0.136 to 0.847 +/- 0.137, a move of about a tenth of that
+cell's own seed standard deviation. Solve rate, partial credit, step efficiency, tool call
+validity, redundancy
 and premature termination are identical for all five policies, as are both failure mode
 tables and the per seed breakdown.
 

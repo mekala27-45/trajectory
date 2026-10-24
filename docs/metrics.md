@@ -213,7 +213,7 @@ demo with nothing in it. Labelling is the honest third option.
 
 ## Failure modes
 
-Ten named modes, applied to every run. Seven are decided by deterministic rules over the
+Eleven named modes, applied to every run. Eight are decided by deterministic rules over the
 trajectory and the two workspace manifests; three need judgement about intent and go to
 the rubric judge. Definitions, detection methods and examples are in
 [`failure_modes.py`](../packages/core/src/trajectory_core/failure_modes.py) and on the

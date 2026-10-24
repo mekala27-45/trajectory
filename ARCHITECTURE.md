@@ -77,7 +77,7 @@ flowchart TB
         A["agent loop<br/>LiteLLM tool calling"]
         V["verifier<br/>hidden tests, post hoc"]
         SC["scorer<br/>ten trajectory metrics"]
-        FC["failure classifier<br/>7 rules + 3 judged"]
+        FC["failure classifier<br/>8 rules + 3 judged"]
         B["results bundle<br/>manifest + content hash"]
         L --> S --> A --> V --> SC --> FC --> B
     end
@@ -136,7 +136,7 @@ An agent that can read the verification tests will read them, and the benchmark 
 worthless from the first time that happens quietly. Every other design choice here is
 negotiable; this one is not.
 
-## The second property: the grader runs nothing the agent left in its path
+## The second property: the grader does not run a file the agent planted in its path
 
 Keeping the tests out of reach stops an agent learning what they check. It does not stop
 an agent changing what they see. The verifier runs in the container the agent just used,
@@ -145,10 +145,14 @@ at the front of its import path. A file the agent left there, named after a modu
 tests import, would be loaded in its place.
 
 So verification runs with `PYTHONSAFEPATH` and `PYTHONNOUSERSITE`, which remove the implicit
-directory and the user site from the path, and failure mode F11 names any run that left an
-interpreter or test runner hook behind. The first is the defence; the second is what makes
-the attempt visible, because a defence that silently works teaches nobody anything.
-[docs/grader-audit.md](docs/grader-audit.md) has the detail.
+directory and the user site from the path, and output the parser cannot read scores zero
+rather than falling back to the exit code, which stops a solution ending the test process
+early. Failure mode F11 flags a run that left a file by one of a few known hook names
+behind. The flags are the tripwire, the hardening and the counting are the defence, and
+one route is left open on purpose rather than claimed shut: where a hidden test imports the
+solution, the solution runs inside the grader's process. Closing that needs the verifier to
+run against a copy of the workspace with the solution behind a process boundary, which this
+harness does not do yet. [docs/grader-audit.md](docs/grader-audit.md) has the detail.
 
 ## Why these dependencies
 

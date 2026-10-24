@@ -13,7 +13,7 @@ the same twelve tasks, end to end, on the Docker backend.
 | Backend | Docker, the only backend whose numbers belong on a leaderboard |
 | Tasks | all twelve in `core-12` |
 | Seeds | two, 0 and 1, seed-major, temperature 0.7; seed 1 reached 8 of 12 tasks, see below |
-| Caps | a shared call ceiling and a 40 per minute rate limit |
+| Caps | a shared ceiling of 500 model calls, and a shared rate limit |
 | Workflow | [`model-matrix.yml`](.github/workflows/model-matrix.yml), one-call smoke first |
 
 Every figure in the measured block below is rendered from the run records committed under
@@ -21,13 +21,17 @@ Every figure in the measured block below is rendered from the run records commit
 [`scripts/check_model_numbers.py`](scripts/check_model_numbers.py). A number here that
 drifts from its records fails the build, the same guarantee the published matrix has.
 
-Reproduce it with the workflow, or locally with a free key:
+Reproduce this run locally with a free key and the ceiling it used:
 
 ```
 NVIDIA_NIM_API_KEY=... uv run python scripts/run_matrix.py \
   --model nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b \
-  --seeds 2 --max-calls 500 --rpm 40 --temperature 0.7 --label model
+  --seeds 2 --max-calls 500 --rpm 36 --temperature 0.7 --label model
 ```
+
+The workflow runs the same model, but its own default ceiling is higher, so it explores
+further before cutting off. The records store neither cap, so read the reproduction as the
+settings above rather than a guarantee of the same seed-1 cutoff.
 
 ## Measured
 
@@ -102,8 +106,12 @@ A task whose samples all pass or all fail gives a group relative method no gradi
 Five readings a pass rate alone would not give.
 
 **It gets most of the way, then stops.** Just over a third of runs pass every hidden test,
-but the average run passes nearly three quarters of them. go-race-01 is the sharpest case:
-0.8 of its tests on average and never all of them.
+and the partial-credit mean across seeds is 0.725. That number is worth reading against the
+starting line, not from zero: the untouched workspaces already pass about 0.38 of their
+tests on average, so the model's gain over doing nothing is closer to a third of the tests
+than to three quarters. go-race-01 is the sharpest case: it averages 0.8 of its tests and
+never all of them, but the untouched workspace already scores 0.6, so the real gain there is
+small.
 
 **Passing runs carry process problems.** Two of the seven solved runs made a malformed tool
 call, and one hit a shell quoting error. A pass rate counts all seven as clean.
@@ -121,6 +129,14 @@ is a measured zero, not an unmeasured one: the detector ran on every run.
 eight tasks sampled twice, two always pass, four never do, and only two give the mixed
 outcomes a group relative method learns from. Partial credit raises that to six of eight,
 with the git-surgery caveat above.
+
+Two of those eight have a seed that the harness or the provider ended, not the policy:
+py-flaky-test-01 seed 1 hit the call ceiling at ten steps and scored exactly the untouched
+0.667, and cli-implement-01 seed 1 died on a provider timeout after two steps at 0. A run
+cut off from outside is not the policy choosing to stop, so its mixed outcome is partly an
+artifact of the cap. Counting only the seeds the policy itself ran to a close, the binary
+signal is one task of six and the partial-credit signal four of six. The table keeps every
+seed and marks the status, so both readings are visible.
 
 ## The run found two bugs in the harness, both fixed
 

@@ -5,8 +5,7 @@ tests, and scores the trajectory, not just the outcome.
 
 [![ci](https://github.com/mekala27-45/trajectory/actions/workflows/ci.yml/badge.svg)](https://github.com/mekala27-45/trajectory/actions/workflows/ci.yml)
 [![pages](https://github.com/mekala27-45/trajectory/actions/workflows/pages.yml/badge.svg)](https://github.com/mekala27-45/trajectory/actions/workflows/pages.yml)
-[![pypi](https://img.shields.io/pypi/v/trajectory-eval)](https://pypi.org/project/trajectory-eval/)
-[![python](https://img.shields.io/pypi/pyversions/trajectory-eval)](https://pypi.org/project/trajectory-eval/)
+[![python](https://img.shields.io/badge/python-3.12-blue)](pyproject.toml)
 [![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
 
 ![trajectory replay](docs/demo.gif)
@@ -26,10 +25,10 @@ them.
    what separated them, a pass rate that could have been published as anything from 0 to 50,
    and a failure whose cause sits eight steps earlier in the trajectory.
 3. **[What gets measured](docs/metrics.md)**, if you want the formulas rather than the prose.
-   Ten metrics, each a pure function of the run record, which is why a metric added later can
-   be applied to results published earlier.
+   Ten metrics computed from the run record and the task, which is why a metric added later
+   can be applied to results published earlier.
 4. **[Real model results](MODEL-RESULTS.md)**. A real model on the same twelve tasks, on the
-   Docker backend, for free, with every figure gated against its run records.
+   Docker backend, for free, with the table figures gated against its run records.
 5. **[Limitations](#limitations)**. Read before quoting anything above. The published matrix
    comes from scripted offline policies rather than language models, which is stated in full.
    The real model results are a separate, smaller measurement with their own limitations.
@@ -51,18 +50,18 @@ Three things this harness does that a pass-rate benchmark does not, each one com
 document away:
 
 - **It runs in your stack, not only this one.** Every task exports to the Harbor task
-  format with `trajectory export harbor`, and CI proves each export grades the same as the
-  native harness. Runs export to ATIF, and `trajectory import atif` scores a trajectory from
-  Claude Code, Codex, mini-swe-agent or OpenHands with the same metrics and failure modes.
-  [docs/interop.md](docs/interop.md).
-- **It resists reward hacking, and names the attempt.** The verifier is hardened so a file
-  the agent drops in its workspace cannot shadow what the hidden tests import, and failure
-  mode **F11 grader tampering** flags any attempt to plant one. A run that games its grader
-  is the one thing a pass rate cannot show and a reward model must never reward.
-  [docs/grader-audit.md](docs/grader-audit.md).
+  format with `trajectory export harbor`, and every export is validated in CI against
+  Harbor's own models, with a sample graded three ways. Runs export to ATIF, and
+  `trajectory import atif` scores a trajectory from Claude Code, Codex, mini-swe-agent or
+  OpenHands with the metrics its record can support. [docs/interop.md](docs/interop.md).
+- **It resists reward hacking, and names the attempt.** The verifier does not read the
+  implicit import paths a file the agent dropped in its workspace would use, which closes
+  the cheapest way to shadow what the hidden tests import, and failure mode **F11 grader
+  tampering** flags a startup hook left behind. A run that games its grader is the one thing
+  a pass rate cannot show. [docs/grader-audit.md](docs/grader-audit.md).
 - **It runs real models for free.** The same suite drives a real language model through a
   no-card tier, under a shared call ceiling and rate limit rather than a dollar budget, with
-  a one-call smoke that fails before the credits do. [docs/real-models.md](docs/real-models.md).
+  a one-call smoke that fails before a full matrix starts. [docs/real-models.md](docs/real-models.md).
 
 The published matrix shows the problem directly. Three of the five agents scored **100.0%
 +/- 0.0%**, identical rows on any conventional leaderboard. One of them made a malformed
@@ -76,7 +75,7 @@ solved runs, and a failure table scoped to failures shows none of them.
 | --- | --- | --- | --- | --- | --- |
 | `stub:methodical` | 100.0% +/- 0.0% | 1.000 | 1.000 | 0.062 | 1.000 |
 | `stub:sloppy` | 100.0% +/- 0.0% | 0.766 | **0.922** | 0.052 | 1.000 |
-| `stub:thrasher` | 100.0% +/- 0.0% | **0.664** | 1.000 | **0.493** | **0.833 +/- 0.136** |
+| `stub:thrasher` | 100.0% +/- 0.0% | **0.664** | 1.000 | **0.493** | **0.847 +/- 0.137** |
 | `stub:reckless` | 97.2% +/- 3.9% | 0.766 | 1.000 | 0.045 | 1.000 |
 | `stub:hasty` | **33.3% +/- 23.6%** | 1.000 | 1.000 | 0.014 | 1.000 |
 
@@ -94,22 +93,26 @@ worth more than the table. Read that before quoting any of this.
 ## Quickstart
 
 ```bash
-pip install trajectory-eval
+# from a clone, which is also where the twelve tasks live
+git clone https://github.com/mekala27-45/trajectory && cd trajectory
+uv sync --all-packages
 
 # offline, no key, no spend: a scripted policy against one task
-trajectory run --task py-failing-suite-01 --model stub:methodical
-trajectory replay <run-id>
+uv run trajectory run --task py-failing-suite-01 --model stub:methodical
+uv run trajectory replay <run-id>
 
 # with a real model
 export ANTHROPIC_API_KEY=...
-trajectory run --suite core-12 --model anthropic/<model> \
+uv run trajectory run --suite core-12 --model anthropic/<model> \
   --seed 0 --seed 1 --seed 2 --parallel 4 --budget-usd 10.00
-trajectory report --format md
+uv run trajectory report --format md
 ```
 
-`--budget-usd` is a hard ceiling checked before every model call and shared across parallel
-runs. Any model LiteLLM can reach works, including a local Ollama server, with no code
-change.
+`--budget-usd` is a ceiling compared against the running spend before each model call, so a
+parallel batch can overshoot it by the calls already in flight; for a free tier priced by
+the request, `--max-calls` reserves a slot before each call and cannot overshoot. Any model
+LiteLLM can reach works, including a local Ollama server, with no code change. The package
+is not on PyPI yet, so it is run from a clone rather than installed.
 
 From a checkout, `make install` then `make check`. If you have no `make`, which includes a
 default Windows install, [CONTRIBUTING.md](CONTRIBUTING.md#without-make) lists the direct
@@ -117,8 +120,9 @@ default Windows install, [CONTRIBUTING.md](CONTRIBUTING.md#without-make) lists t
 
 ## What gets measured
 
-Ten metrics per run, each a pure function of the run record, so a metric added later can be
-applied to results published earlier. Full formulas in [docs/metrics.md](docs/metrics.md).
+Ten metrics per run, computed from the run record and the task it attempted, so a metric
+added later can be applied to results published earlier. Full formulas in
+[docs/metrics.md](docs/metrics.md).
 
 | | metric | what it catches |
 | --- | --- | --- |
@@ -139,8 +143,9 @@ would have published either 0% or 50%.
 
 ## Failure modes
 
-Ten named modes applied to every run. Seven decided by deterministic rules, three by a
-rubric judge whose self-agreement is measured and published.
+Eleven named modes applied to every run. Eight decided by deterministic rules, three by a
+rubric judge. The judge did not run on the results published here, so the three judged modes
+never fired and the judge's self-agreement is unmeasured, which the limitations say in full.
 
 | id | mode | how |
 | --- | --- | --- |
@@ -221,12 +226,12 @@ Full detail, including the storage shape and what is deliberately absent, in
 ## Writing your own tasks
 
 ```bash
-trajectory tasks new my-task-01 --difficulty 3 --language python
-trajectory tasks validate --strict
-trajectory tasks verify-references --task my-task-01
+uv run trajectory tasks new my-task-01 --difficulty 3 --language python
+uv run trajectory tasks validate --strict
+uv run trajectory tasks verify-references --task my-task-01
 ```
 
-The second command asserts that the unfixed workspace **fails** its hidden tests and that
+`verify-references` asserts that the unfixed workspace **fails** its hidden tests and that
 the reference playbook drives it to passing. A task that starts green is scored by every
 agent and measures nothing; a task whose own reference solution has rotted can be scored by
 none. Both happen in real benchmarks and both quietly move the suite average.
@@ -245,12 +250,19 @@ Not buried, because they decide whether the rest is worth reading.
   anything a front-end engineer would recognise as their job.
 - **The published matrix is scripted policies, not models.** It validates the harness. It
   says nothing about any language model. [MODEL-RESULTS.md](MODEL-RESULTS.md) is one real
-  model at two seeds, the second seed cut short by a free tier ceiling, which makes it a
+  model at two seeds, the second seed cut short by the call ceiling, which makes it a
   first measurement, not a ranking.
+- **The grader is hardened, not unbeatable.** The cheap exploits are closed: a planted
+  import-path module cannot shadow the hidden tests, and a verifier run that reports no test
+  scores zero. One route is left open and named rather than hidden: because a hidden test
+  imports the solution, the solution runs in the grader's process and could forge a pass
+  from there. Closing it needs verification against a copy of the workspace with the
+  solution behind a process boundary, which is the next piece of work.
+  [docs/grader-audit.md](docs/grader-audit.md) sets out the whole surface.
 - **The published matrix ran on the unisolated sandbox until 16 September 2026**, because
   the authoring machine had no Docker daemon. It now runs in containers, and re-recording it
   produced a result worth reading: the backend changed no verdict and exactly one
-  behavioural metric cell moved, by a tenth of its own seed variance. The local backend still
+  behavioural metric cell moved, by about a tenth of its own seed standard deviation. The local backend still
   exists, is still not an isolation boundary, and is still gated behind an environment
   variable, but that is now a caveat about a tool this repository ships rather than about
   these numbers.

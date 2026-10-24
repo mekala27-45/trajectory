@@ -14,7 +14,8 @@ have to be.
 Two work with no payment method.
 
 **NVIDIA build.** An OpenAI-compatible endpoint at `https://integrate.api.nvidia.com/v1`
-with a monthly credit allowance and no card. Reached through LiteLLM with the `nvidia_nim/`
+on a free developer tier with no card, rate limited rather than metered in dollars. Reached
+through LiteLLM with the `nvidia_nim/`
 prefix and a key in `NVIDIA_NIM_API_KEY`. This is the default for the hosted matrix.
 
 **A local Ollama server.** Free and unlimited, reached through the same provider with the
@@ -46,7 +47,7 @@ by both:
 The real matrix will not start until a one-call smoke has passed. `scripts/smoke_model.py`
 makes a single call with the same provider the matrix uses and a hard wall-clock cap, so a
 missing key, a mistyped model id, a retired model or a wrong base URL fails on call one
-rather than on call four hundred of a tier that refills once a month. The smoke also offers
+rather than on call four hundred of a long matrix. The smoke also offers
 a tool and checks the model calls it, because the agent loop acts only through tools: a
 model that chats well but cannot call a tool is useless to the run, and it is better to
 learn that for free.
@@ -61,5 +62,5 @@ length, which is how a model that "returned nothing" is correctly read as one th
 past a small token cap rather than one that failed.
 
 A slow reasoning model that does not advertise tool calling is the wrong tool here however
-capable it is in the abstract, and the smoke is what tells the difference cheaply, before
-the credits are spent.
+capable it is in the abstract, and the smoke is what tells the difference cheaply, before a
+full matrix runs.

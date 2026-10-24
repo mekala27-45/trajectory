@@ -29,9 +29,12 @@ credit 0.5 rather than as a partial success. The export refuses a Dockerfile tha
 the tests into the agent's image.
 
 `scripts/check_harbor_export.py` runs in CI with no Docker. It grades a sample of exports
-both ways: the oracle must score 1.0 and the untouched workspace 0.0. A task that cannot
-tell its own solution from its starting state has a broken verifier, which is the one
-defect an exporter must never ship.
+three ways: the oracle must score 1.0, the untouched workspace 0.0, and the untouched
+workspace with a module named after the test runner planted at its root must grade exactly
+like the untouched one and never run that module. The first catches a verifier that cannot
+tell a solution from its starting state; the third catches one an agent could talk into a
+pass. It checks the export against its own oracle, not against a run of the native verifier,
+and it is a sample, not the suite; the Harbor-model check below covers all twelve.
 
 ## ATIF trajectories
 
@@ -44,34 +47,47 @@ trajectory import atif trial/agent/trajectory.json \
 **Export.** The task statement is the opening user turn, then each native step, one tool
 call and its output, becomes one agent turn holding both, because ATIF only lets an
 observation refer to a tool call in its own step. What ATIF has no field for travels in its
-`extra` objects: exit codes, timings, the workspace manifests and the run's outcome. All 180
-recorded runs export, and all 180 validate against Harbor's own pydantic models.
+`extra` objects: exit codes, timings, the workspace manifests and the full verification
+record. All 200 committed runs export, and a CI step installs Harbor itself and validates
+every one against Harbor's `Trajectory` model, with every exported `task.toml` validated
+against Harbor's `TaskConfig`. The check imports nothing from this repository, so it cannot
+be satisfied by a local reimplementation of Harbor's rules.
 
 **Import.** A trajectory from Claude Code, Codex, mini-swe-agent or OpenHands scores with the
-same metrics and failure modes as a native run. Three adaptations make that honest:
+metrics its record can support. Three adaptations make the mapping honest:
 
 - Their tool names map to this harness's, so Claude Code's `Bash` and `Read` reach the
   command based metrics, and a `file_path` argument is read as `path`.
 - A closing text-only turn is read as the agent's `finish`. Those agents end by saying they
   are done rather than by calling a tool, and that sentence is the claim F03 premature
   success tests. A text turn followed by more tool calls is skipped as thinking aloud.
-- The result carries an `atif:` model prefix and the local backend, so it never lands on a
-  leaderboard. It scores another machine's trajectory; it does not measure one.
+- The result carries an `atif:` model prefix and the local backend. The leaderboard sorts
+  local-backend rows last and labels them, and these are meant to be read as another
+  machine's trajectory, not a measurement this harness made. Nothing yet filters an `atif:`
+  row out of an aggregate, so treat the prefix as a label, not a guarantee.
 
-**Round trip.** An export imports back losslessly. On every one of the 180 records the
-steps, the outcome, the failure modes and the full score come back identical, and that is a
-test.
+**Round trip.** A native export imports back without loss. On every one of the 200 records
+the steps, the outcome, the failure modes, the full score and the verification record,
+exit code included, come back identical, and that is a test. A few fields are deliberately
+not preserved, because they describe where the run happened rather than what it did: the run
+id, the sandbox backend, which becomes local, and the image id.
 
-**The one limit.** ATIF has no workspace snapshot. Three rules compare the workspace before
-and after a run: F02 path hallucination, F09 scope creep and F11 grader tampering. A native
-export carries both manifests, so those three survive its round trip. A foreign trajectory
-has none, so on it those three stay silent rather than guess. Every other metric and mode
-applies in full.
+**What a foreign trajectory cannot carry.** ATIF has no field for a command's exit code or
+for a malformed tool call, and no workspace snapshot. This harness writes those into `extra`,
+so its own round trip keeps them, but a trajectory from another agent has none of them. On a
+foreign trajectory, then: the three workspace-diff rules, F02 path hallucination, F09 scope
+creep and F11 grader tampering, stay silent; recovery rate and F01 and F05, which need to
+know a command failed, cannot fire; and tool call validity, which counts malformed calls,
+reads a clean 1.0. What does apply is every metric computed from the shape of the trajectory,
+redundancy, step count and efficiency among them, and F03 premature success, read from the
+closing turn. The import is a real scoring of another agent's process, with the parts its
+format cannot express named rather than faked.
 
 ## Why both
 
 Harbor task export lets a lab run these twelve tasks with its own agents and its own
 infrastructure. ATIF import lets the same lab bring the trajectories back and ask the
-questions a reward cannot answer: did the agent recover from a failed command, did it repeat
-itself, did it say it was done while the tests were red, did it try to plant something in
-the grader's path. The reward says whether an agent passed. The trajectory says how.
+questions a reward cannot answer: for a run recorded here, did the agent recover from a
+failed command, repeat itself, say it was done while the tests were red, or plant something
+in the grader's path; for a foreign trajectory, whichever of those its format carried. The
+reward says whether an agent passed. The trajectory says how.
