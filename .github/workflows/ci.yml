@@ -107,12 +107,25 @@ jobs:
           sudo /usr/bin/python3 -m pip install --quiet --break-system-packages "pytest==8.3.4"
           uv run python scripts/check_local_backend.py
 
+      # The coverage total and any failing test names are echoed as annotations as well as
+      # printed, because the annotation survives in places the run log does not reach: a
+      # failure that reads only "exit code 1" from outside the log is not diagnosable.
       - name: pytest with the coverage floor
-        run: >-
-          uv run pytest
-          --cov --cov-report=term-missing --cov-report=xml
-          --cov-fail-under=80
-          -p no:randomly
+        run: |
+          uv run pytest \
+            --cov --cov-report=term-missing --cov-report=xml \
+            --cov-fail-under=80 \
+            -p no:randomly 2>&1 | tee pytest.log
+          rc=${PIPESTATUS[0]}
+          echo "::notice title=coverage::$(grep -E '^TOTAL' pytest.log | tail -1)"
+          echo "::notice title=pytest::$(grep -E '[0-9]+ (passed|failed)' pytest.log | tail -1)"
+          if [ "$rc" -ne 0 ]; then
+            grep -E '^(FAILED|ERROR) ' pytest.log | head -20 | while read -r line; do
+              echo "::error title=pytest::$line"
+            done
+            grep -E 'Required test coverage' pytest.log | tail -1 | sed 's/^/::error title=coverage::/'
+          fi
+          exit "$rc"
 
       - uses: actions/upload-artifact@v4
         if: always()
