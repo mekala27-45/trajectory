@@ -117,13 +117,16 @@ jobs:
             --cov-fail-under=80 \
             -p no:randomly 2>&1 | tee pytest.log
           rc=${PIPESTATUS[0]}
-          echo "::notice title=coverage::$(grep -E '^TOTAL' pytest.log | tail -1)"
-          echo "::notice title=pytest::$(grep -E '[0-9]+ (passed|failed)' pytest.log | tail -1)"
+          # CI forces colour, so strip the escape codes before matching anything.
+          sed 's/\x1b\[[0-9;]*m//g' pytest.log > pytest.plain.log
+          echo "::notice title=coverage::$(grep -E '^TOTAL' pytest.plain.log | tail -1)"
+          echo "::notice title=pytest::$(grep -E '[0-9]+ (passed|failed)' pytest.plain.log | tail -1)"
           if [ "$rc" -ne 0 ]; then
-            grep -E '^(FAILED|ERROR) ' pytest.log | head -20 | while read -r line; do
+            grep -E '^(FAILED|ERROR) ' pytest.plain.log | head -20 | while read -r line; do
               echo "::error title=pytest::$line"
             done
-            grep -E 'Required test coverage' pytest.log | tail -1 | sed 's/^/::error title=coverage::/'
+            grep -E 'Required test coverage of .* not reached' pytest.plain.log | tail -1 \
+              | sed 's/^/::error title=coverage::/'
           fi
           exit "$rc"
 
