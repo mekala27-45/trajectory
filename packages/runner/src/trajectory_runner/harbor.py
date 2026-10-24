@@ -304,9 +304,7 @@ def render_solve_sh(loaded: LoadedTask) -> str:
             path = str(step.args.get("path", "")).strip()
             content = str(step.args.get("content", ""))
             if not path:
-                raise HarborExportError(
-                    f"{loaded.id}: write_file step {index} has no path"
-                )
+                raise HarborExportError(f"{loaded.id}: write_file step {index} has no path")
             encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
             out.append(f"# step {index}: write {path}")
             out.append(f"mkdir -p \"$(dirname '{path}')\"")
@@ -382,9 +380,7 @@ def export_task(loaded: LoadedTask, out_dir: Path, *, force: bool = False) -> Pa
     target = out_dir / task.id
     if target.exists():
         if not force:
-            raise HarborExportError(
-                f"{target} already exists. Pass force=True to overwrite it."
-            )
+            raise HarborExportError(f"{target} already exists. Pass force=True to overwrite it.")
         shutil.rmtree(target)
     (target / "environment").mkdir(parents=True)
     (target / "tests").mkdir()

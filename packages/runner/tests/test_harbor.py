@@ -101,7 +101,7 @@ class TestGuards:
 class TestSolveScript:
     def test_file_writes_round_trip_through_base64(self, tmp_path: Path) -> None:
         """Content with quotes, newlines and a heredoc-like marker survives exactly."""
-        nasty = "line one\n\"quoted\"\nB64\n$(whoami) `id`\n"
+        nasty = 'line one\n"quoted"\nB64\n$(whoami) `id`\n'
         task = make_task(id="demo-01", image_tag="trajectory/demo-01")
         playbook = make_playbook(task_id="demo-01", commands=["true"])
         # Replace the playbook with a single write_file step carrying the nasty content.

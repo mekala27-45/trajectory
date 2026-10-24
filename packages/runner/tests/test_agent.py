@@ -89,9 +89,7 @@ class TestTermination:
         )
         assert outcome.status is RunStatus.COMPLETED
 
-    def test_the_call_ceiling_stops_the_run_and_reports_budget_exceeded(
-        self, sample_task, sandbox
-    ):
+    def test_the_call_ceiling_stops_the_run_and_reports_budget_exceeded(self, sample_task, sandbox):
         """A request priced free tier caps calls, not dollars, and reports the same stop."""
         script = [PlannedCall(name="bash", arguments={"command": "true"})] * 20
         outcome = drive(sample_task, sandbox, script, call_budget=CallBudget(2))

@@ -77,9 +77,7 @@ tasks_app = typer.Typer(
 )
 app.add_typer(tasks_app, name="tasks")
 
-export_app = typer.Typer(
-    help="Export tasks to other benchmark formats.", no_args_is_help=True
-)
+export_app = typer.Typer(help="Export tasks to other benchmark formats.", no_args_is_help=True)
 app.add_typer(export_app, name="export")
 
 console = Console(no_color=bool(os.environ.get("NO_COLOR")), soft_wrap=False)
