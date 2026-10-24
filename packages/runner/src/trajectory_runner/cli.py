@@ -41,6 +41,7 @@ from trajectory_runner.execute import (
     prebuild_images,
     run_suite,
 )
+from trajectory_runner.harbor import HarborExportError, export_task
 from trajectory_runner.loader import (
     LoadedTask,
     Severity,
@@ -75,6 +76,11 @@ tasks_app = typer.Typer(
     help="Inspect, validate and scaffold task definitions.", no_args_is_help=True
 )
 app.add_typer(tasks_app, name="tasks")
+
+export_app = typer.Typer(
+    help="Export tasks to other benchmark formats.", no_args_is_help=True
+)
+app.add_typer(export_app, name="export")
 
 console = Console(no_color=bool(os.environ.get("NO_COLOR")), soft_wrap=False)
 error_console = Console(stderr=True, no_color=bool(os.environ.get("NO_COLOR")))
@@ -479,6 +485,41 @@ def tasks_policies() -> None:
         "and validated with no network and no spend, and every run they produce carries a "
         "[bold]stub:[/bold] model identifier so it can never be read as a model result."
     )
+
+
+# ------------------------------------------------------------------------ export
+
+
+@export_app.command("harbor")
+def export_harbor(
+    out: Annotated[Path, typer.Option("--out", "-o", help="Directory to write the tasks into.")],
+    task_id: Annotated[
+        str | None,
+        typer.Argument(help="One task to export. Omit to export the whole suite."),
+    ] = None,
+    suite: Annotated[
+        str | None, typer.Option(help="Suite to export when no task is named.")
+    ] = None,
+    tasks_root: Annotated[Path | None, typer.Option(help="Where the tasks live.")] = None,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite an existing export.")] = False,
+) -> None:
+    """Export tasks to the Harbor task format, one directory per task under --out.
+
+    Each export is a self-contained Harbor task: the instruction the agent sees, the
+    environment image with the workspace baked in, the hidden tests and a verifier that
+    writes a reward on every path, and the reference playbook as an oracle solution. The
+    hidden tests are placed under tests/, never in the agent's image.
+    """
+    tasks = load_tasks(tasks_root, suite)
+    selected = [pick_task(tasks, task_id)] if task_id else tasks
+    out.mkdir(parents=True, exist_ok=True)
+    try:
+        for loaded in selected:
+            target = export_task(loaded, out, force=force)
+            console.print(f"[green]exported[/green] {loaded.id} -> {target}")
+    except HarborExportError as exc:
+        fail(str(exc))
+    console.print(f"\n{len(selected)} task(s) written to {out}")
 
 
 # -------------------------------------------------------------------------- run

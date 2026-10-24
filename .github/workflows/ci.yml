@@ -121,6 +121,9 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
 
+      - name: harbor export grades the way the native harness does
+        run: uv run python scripts/check_harbor_export.py
+
   tasks:
     name: task images and reference solutions
     runs-on: ubuntu-24.04
