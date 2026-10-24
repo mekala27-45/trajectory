@@ -170,28 +170,19 @@ jobs:
           path: ${{ env.bundle }}
           retention-days: 30
 
-      - name: open a pull request with the model numbers
-        continue-on-error: true
-        uses: peter-evans/create-pull-request@v7
-        with:
-          branch: model-matrix-results
-          title: "docs: refresh the real model matrix results"
-          commit-message: "docs: refresh the real model matrix results"
-          body: |
-            Automated by `model-matrix`.
-
-            Real models through the twelve tasks on the Docker backend. The raw run
-            bundle is attached to the workflow run as an artifact; promote it into
-            `fixtures/model-runs` locally with `scripts/promote_matrix.py` once reviewed.
-
-            Read the means against their standard error, not alone: a solve rate that
-            moved by less than its own SE has not moved. Check how many seeds actually
-            finished before comparing, since the call ceiling can cut the last seed short.
-          add-paths: |
-            MODEL-RESULTS.generated.md
-            model-results.json
-            fixtures/model-runs
-          delete-branch: true
+      # Plain git to a branch named for this run, which can never collide with an earlier
+      # one. A pull request action pushed fine once and failed the second time, when its
+      # fixed branch already existed, and the records then reached only the artifact.
+      - name: push the records and tables to a branch for this run
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="model-runs-${{ github.run_id }}"
+          git checkout -b "$branch"
+          git add -f fixtures/model-runs MODEL-RESULTS.generated.md model-results.json
+          git commit -m "data: model matrix records and tables from run ${{ github.run_id }}"
+          git push --force origin "HEAD:refs/heads/$branch"
+          echo "::notice title=records-branch::$branch"
 
   # ------------------------------------------------- the free local path, no account
   local-smoke:

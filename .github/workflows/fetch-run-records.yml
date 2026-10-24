@@ -1,0 +1,45 @@
+name: fetch-run-records
+
+# A model matrix uploads its run records as an artifact, and an artifact is not reachable
+# from every place that needs the records. This copies one run's records onto a branch,
+# where plain git can fetch them, without calling a model again or spending a credit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "The model-matrix run whose records to copy."
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  copy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: model-matrix-runs
+          run-id: ${{ github.event.inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: bundle
+
+      - name: push the records to a branch
+        env:
+          RUN_ID: ${{ github.event.inputs.run_id }}
+        run: |
+          rm -rf fixtures/model-runs && mkdir -p fixtures/model-runs
+          find bundle -path '*runs/*.json' -not -path '*partial*' -exec cp {} fixtures/model-runs/ \;
+          count="$(ls fixtures/model-runs | wc -l)"
+          echo "::notice title=records::copied $count run records from run $RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "model-runs-$RUN_ID"
+          git add fixtures/model-runs
+          git commit -m "data: model run records from run $RUN_ID"
+          git push --force origin "HEAD:refs/heads/model-runs-$RUN_ID"
