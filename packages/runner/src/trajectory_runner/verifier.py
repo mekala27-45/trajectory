@@ -29,6 +29,18 @@ log = structlog.get_logger(__name__)
 # nothing on all 180 recorded runs, including the 25 that failed.
 OUTPUT_TAIL_BYTES = 4000
 
+# Environment the verification command runs under, over and above the task's own. These
+# close the cheapest way an agent can make a grader lie: the interpreter's implicit load
+# paths. PYTHONSAFEPATH drops the current directory from the front of sys.path, so a file
+# the agent wrote into its workspace cannot shadow a module the hidden tests import by
+# simply sharing its name. PYTHONNOUSERSITE ignores the user site directory, so a planted
+# usercustomize or a .pth file there does not run at interpreter startup. Neither touches
+# the paths a task legitimately uses: every task in the suite imports its solution through
+# an explicit sys.path entry or runs it as a subprocess, never through the implicit one,
+# so this is pure hardening with no change to what passes. It is set for every verifier,
+# not only the Python ones, because it is inert for go and node.
+VERIFY_HARDENING_ENV = {"PYTHONSAFEPATH": "1", "PYTHONNOUSERSITE": "1"}
+
 _PYTEST_SUMMARY = re.compile(r"(\d+)\s+(passed|failed|error|errors|skipped|xfailed|xpassed)\b")
 _GO_PASS = re.compile(r"^\s*--- PASS:", re.MULTILINE)
 _GO_FAIL = re.compile(r"^\s*--- FAIL:", re.MULTILINE)
@@ -154,6 +166,7 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
         task.verify_cmd,
         timeout_s=task.verify_timeout_seconds,
         cap_bytes=262_144,
+        env=VERIFY_HARDENING_ENV,
     )
     duration_ms = int((time.monotonic() - started) * 1000)
 

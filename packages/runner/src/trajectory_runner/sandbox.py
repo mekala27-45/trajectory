@@ -191,8 +191,10 @@ class Sandbox(Protocol):
         """Tear the sandbox down, including when the body raised."""
         ...
 
-    def exec(self, command: str, *, timeout_s: int, cap_bytes: int) -> ExecResult:
-        """Run a shell command in the workspace."""
+    def exec(
+        self, command: str, *, timeout_s: int, cap_bytes: int, env: dict[str, str] | None = None
+    ) -> ExecResult:
+        """Run a shell command in the workspace, with optional extra environment."""
         ...
 
     def read_file(self, path: str, *, max_lines: int) -> tuple[str, bool]:
@@ -611,20 +613,25 @@ class DockerSandbox:
             raise SandboxError("sandbox is not running")
         return self._container
 
-    def exec(self, command: str, *, timeout_s: int, cap_bytes: int) -> ExecResult:
-        """Run a shell command in the workspace."""
+    def exec(
+        self, command: str, *, timeout_s: int, cap_bytes: int, env: dict[str, str] | None = None
+    ) -> ExecResult:
+        """Run a shell command in the workspace, with optional extra environment."""
         container = self._require()
         started = time.monotonic()
+        environment = {
+            "TRAJ_CMD": command,
+            "TRAJ_TIMEOUT": str(timeout_s),
+            "TRAJ_CAP": str(cap_bytes),
+            "VERIFY_DIR": VERIFY_CONTAINER_PATH,
+        }
+        if env:
+            environment.update(env)
         exit_code, raw = container.exec_run(
             cmd=["bash", "-c", _WRAPPER],
             workdir=WORKSPACE_CONTAINER_PATH,
             user=AGENT_USER,
-            environment={
-                "TRAJ_CMD": command,
-                "TRAJ_TIMEOUT": str(timeout_s),
-                "TRAJ_CAP": str(cap_bytes),
-                "VERIFY_DIR": VERIFY_CONTAINER_PATH,
-            },
+            environment=environment,
             demux=False,
         )
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -861,7 +868,9 @@ class LocalSandbox:
         env.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
         return env
 
-    def exec(self, command: str, *, timeout_s: int, cap_bytes: int) -> ExecResult:
+    def exec(
+        self, command: str, *, timeout_s: int, cap_bytes: int, env: dict[str, str] | None = None
+    ) -> ExecResult:
         """Run a shell command in the workspace, refusing obvious host path accidents."""
         if _HOST_PATH_GUARD.search(command):
             return ExecResult(
@@ -876,16 +885,18 @@ class LocalSandbox:
                 timed_out=False,
             )
 
-        env = self._env()
-        env.update(
+        process_env = self._env()
+        process_env.update(
             {"TRAJ_CMD": command, "TRAJ_TIMEOUT": str(timeout_s), "TRAJ_CAP": str(cap_bytes)}
         )
+        if env:
+            process_env.update(env)
         started = time.monotonic()
         try:
             completed = subprocess.run(  # noqa: S603  fixed wrapper, command arrives by environment
                 ["bash", "-c", _WRAPPER],  # noqa: S607
                 cwd=self.workspace,
-                env=env,
+                env=process_env,
                 capture_output=True,
                 timeout=timeout_s + 15,
                 check=False,
