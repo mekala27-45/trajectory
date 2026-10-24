@@ -185,6 +185,18 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
         )
     else:
         tests_passed, tests_total = parsed
+        # A test the task declares but the runner never reported did not pass. Without
+        # this, a verifier that times out after seven of ten scores 7 of 7, and an agent
+        # that stops some tests from running scores better than one that let them fail.
+        expected = task.expected_tests
+        if expected is not None and tests_total < expected:
+            log.warning(
+                "verify.tests_missing",
+                task=task.id,
+                discovered=tests_total,
+                expected=expected,
+            )
+            tests_total = expected
         verification = Verification(
             # The exit code is authoritative. A parser that reports everything green while
             # the runner exited non-zero has missed something, usually a collection error.

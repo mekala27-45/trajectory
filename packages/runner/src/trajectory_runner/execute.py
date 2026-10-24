@@ -48,7 +48,7 @@ from trajectory_runner.sandbox import (
     build_task_image,
     docker_server_version,
 )
-from trajectory_runner.store import RunWriter
+from trajectory_runner.store import RUNS_DIR, RunWriter
 from trajectory_runner.verifier import VerificationError, verify
 
 log = structlog.get_logger(__name__)
@@ -385,7 +385,19 @@ def run_suite(
             return "call ceiling reached"
         return None
 
-    def execute_one(job: Job) -> Run:
+    def execute_one(job: Job) -> Run | str:
+        """Run one job, or return why it was skipped.
+
+        The caps are checked when the job starts, not when it was queued. A pool queues
+        every job at once, and the first real model matrix showed the cost of checking at
+        submission: the call ceiling ran out part way through, and four jobs that started
+        afterwards ran without a single model call and were recorded as attempts scored on
+        the untouched workspace. A run refused on its very first call is dropped for the
+        same reason, record file included, because no attempt happened.
+        """
+        spent = caps_spent()
+        if spent is not None:
+            return spent
         if on_progress:
             on_progress(job, None, "running")
         per_job = ExecutionOptions(
@@ -399,39 +411,32 @@ def run_suite(
             judge_temperature=options.judge_temperature,
             ci=options.ci,
         )
-        return execute(job.loaded, job.config, per_job)
+        run = execute(job.loaded, job.config, per_job)
+        if run.status is RunStatus.BUDGET_EXCEEDED and not run.steps:
+            (options.run_dir / RUNS_DIR / f"{run.id}.json").unlink(missing_ok=True)
+            return caps_spent() or "budget reached before the first model call"
+        return run
+
+    def settle(job: Job, outcome: Run | str) -> None:
+        if isinstance(outcome, str):
+            result.skipped.append((job, outcome))
+            if on_progress:
+                on_progress(job, None, "skipped")
+            return
+        result.runs.append(outcome)
+        if on_progress:
+            on_progress(job, outcome, "done")
 
     pending = list(jobs)
 
     if parallel <= 1:
         for job in pending:
-            spent = caps_spent()
-            if spent is not None:
-                result.skipped.append((job, spent))
-                if on_progress:
-                    on_progress(job, None, "skipped")
-                continue
-            run = execute_one(job)
-            result.runs.append(run)
-            if on_progress:
-                on_progress(job, run, "done")
+            settle(job, execute_one(job))
     else:
         with ThreadPoolExecutor(max_workers=parallel, thread_name_prefix="trajectory") as pool:
-            futures = {}
-            for job in pending:
-                spent = caps_spent()
-                if spent is not None:
-                    result.skipped.append((job, spent))
-                    if on_progress:
-                        on_progress(job, None, "skipped")
-                    continue
-                futures[pool.submit(execute_one, job)] = job
+            futures = {pool.submit(execute_one, job): job for job in pending}
             for future in as_completed(futures):
-                job = futures[future]
-                run = future.result()
-                result.runs.append(run)
-                if on_progress:
-                    on_progress(job, run, "done")
+                settle(futures[future], future.result())
 
     result.runs.sort(key=lambda run: run.id)
     result.wall_clock_s = round(time.monotonic() - started, 3)
@@ -468,6 +473,14 @@ class ReferenceCheck:
     # test failed both read as 0 of 1, which are very different problems.
     unfixed_parse_ok: bool = True
     reference_parse_ok: bool = True
+    # The hidden test count the task declares. Partial credit divides by it, so a wrong
+    # declaration would skew every score on the task, and this is where it gets caught.
+    expected_tests: int | None = None
+
+    @property
+    def count_matches(self) -> bool:
+        """True when the task declares no count, or the reference ran exactly that many."""
+        return self.expected_tests is None or self.reference_total == self.expected_tests
 
     @property
     def starts_broken(self) -> bool:
@@ -482,13 +495,23 @@ class ReferenceCheck:
     @property
     def ok(self) -> bool:
         """True when the task behaves the way a task has to."""
-        return self.starts_broken and self.reference_solves and self.status == "completed"
+        return (
+            self.starts_broken
+            and self.reference_solves
+            and self.count_matches
+            and self.status == "completed"
+        )
 
     @property
     def reason(self) -> str:
         """Why the check failed, in a phrase fit for a table cell."""
         if self.ok:
             return "pass"
+        if not self.count_matches:
+            return (
+                f"declares {self.expected_tests} hidden tests but the reference ran "
+                f"{self.reference_total}"
+            )
         if not self.starts_broken:
             return "starts green, so it measures nothing"
         if not self.reference_solves:
@@ -549,4 +572,5 @@ def check_reference(
         reference_output=after.stderr_tail if after else "",
         unfixed_parse_ok=before.parse_ok,
         reference_parse_ok=after.parse_ok if after else False,
+        expected_tests=task.expected_tests,
     )

@@ -120,3 +120,77 @@ class TestEndToEndOnLocal:
         assert len(result.runs) == 2
         assert result.solved == 2
         assert result.wall_clock_s >= 0
+
+
+class _RacedBudget(CallBudget):
+    """Reports headroom when a job starts, then refuses its first call.
+
+    That is the race a thread pool produces at the ceiling, made deterministic.
+    """
+
+    def exhausted(self) -> bool:
+        return False
+
+    def take(self) -> bool:
+        return False
+
+
+class TestCapsAtTheBoundary:
+    def _loaded(self, task_dir, sample_task):
+        return LoadedTask(
+            task=sample_task, directory=task_dir, playbook=_solving_playbook(sample_task.id)
+        )
+
+    def test_jobs_after_the_ceiling_are_skipped_not_recorded(
+        self, task_dir, sample_task, allow_local, tmp_path
+    ):
+        """Each job needs two calls. Three are allowed, across four jobs."""
+        loaded = self._loaded(task_dir, sample_task)
+        jobs = plan(
+            [loaded], model="stub:methodical", seeds=[0, 1, 2, 3], backend=SandboxBackend.LOCAL
+        )
+        options = ExecutionOptions(
+            run_dir=tmp_path, allow_local_override=True, call_budget=CallBudget(3)
+        )
+        result = run_suite(jobs, options, parallel=1)
+        assert len(result.runs) == 2
+        assert result.runs[0].status.value == "completed"
+        # Cut part way: its one call wrote the fix before the ceiling refused finish, so
+        # the hidden tests pass. A cap stops the agent; it does not erase work done.
+        assert result.runs[1].status.value == "budget_exceeded"
+        assert len(result.runs[1].steps) == 1
+        assert [reason for _, reason in result.skipped] == ["call ceiling reached"] * 2
+
+    def test_a_run_refused_on_its_first_call_is_dropped_with_its_file(
+        self, task_dir, sample_task, allow_local, tmp_path
+    ):
+        loaded = self._loaded(task_dir, sample_task)
+        jobs = plan([loaded], model="stub:methodical", seeds=[0], backend=SandboxBackend.LOCAL)
+        options = ExecutionOptions(
+            run_dir=tmp_path, allow_local_override=True, call_budget=_RacedBudget(10)
+        )
+        result = run_suite(jobs, options, parallel=1)
+        assert result.runs == []
+        assert [reason for _, reason in result.skipped] == [
+            "budget reached before the first model call"
+        ]
+        assert not list((tmp_path / "runs").glob("*.json"))
+
+
+class TestDeclaredTestCount:
+    def test_a_short_count_fails_the_reference_check_with_the_numbers(self):
+        from trajectory_runner.execute import ReferenceCheck
+
+        check = ReferenceCheck(
+            task_id="t",
+            unfixed_passed=0,
+            unfixed_total=10,
+            reference_passed=10,
+            reference_total=10,
+            steps=4,
+            status="completed",
+            error=None,
+            expected_tests=8,
+        )
+        assert not check.ok
+        assert check.reason == "declares 8 hidden tests but the reference ran 10"

@@ -81,6 +81,16 @@ class TestMetric2PartialCredit:
     def test_a_run_without_verification_scores_zero(self):
         assert partial_credit(None) == 0.0
 
+    def test_a_verifier_that_stopped_early_is_divided_by_the_declared_count(self):
+        """The real Go run: seven of ten printed a pass, then the verifier timed out."""
+        stopped = make_verification(passed=False, tests_passed=7, tests_total=7)
+        assert partial_credit(stopped) == 1.0  # what dividing by what ran used to say
+        assert partial_credit(stopped, expected=10) == pytest.approx(0.7)
+
+    def test_a_full_count_ignores_the_declaration(self):
+        full = make_verification(passed=False, tests_passed=3, tests_total=8)
+        assert partial_credit(full, expected=8) == pytest.approx(0.375)
+
 
 class TestMetric3StepEfficiency:
     def test_reference_six_over_taken_twelve_is_0_5(self):

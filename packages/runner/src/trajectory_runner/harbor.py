@@ -116,6 +116,7 @@ def render_task_toml(task: Task) -> str:
         "[trajectory]",
         f"task_id = {_toml_basic(task.id)}",
         f"verify_parser = {_toml_basic(task.verify_parser.value)}",
+        *([f"expected_tests = {task.expected_tests}"] if task.expected_tests else []),
         f"reference_step_count = {task.reference_step_count}",
         "",
     ]
@@ -157,13 +158,16 @@ out="$(cd "$WORKDIR" && VERIFY_DIR="$VERIFY_DIR" bash "$HERE/run_verify.sh" 2>&1
 rc=$?
 printf '%s\n' "$out"
 
-printf '%s' "$out" | python3 "$HERE/score.py" --parser {parser} --exit "$rc" --out "$OUT"
+printf '%s' "$out" | python3 "$HERE/score.py" --parser {parser} --exit "$rc" --out "$OUT"{expected}
 """
 
 
 def render_test_sh(task: Task) -> str:
     """The grading entrypoint, parameterised by the task's parser and the reward path."""
-    return _TEST_SH.format(reward_dir=REWARD_DIR, parser=task.verify_parser.value)
+    expected = f" --expected {task.expected_tests}" if task.expected_tests else ""
+    return _TEST_SH.format(
+        reward_dir=REWARD_DIR, parser=task.verify_parser.value, expected=expected
+    )
 
 
 # score.py is a standalone copy of the verifier's parsing. It deliberately imports nothing
@@ -244,6 +248,7 @@ def main(argv):
     ap.add_argument("--parser", required=True)
     ap.add_argument("--exit", type=int, required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--expected", type=int, default=None)
     args = ap.parse_args(argv)
 
     output = sys.stdin.read()
@@ -255,6 +260,8 @@ def main(argv):
         partial = 1.0 if ok else 0.0
     else:
         passed, total = parsed
+        if args.expected and total < args.expected:
+            total = args.expected  # a declared test that never ran did not pass
         partial = (passed / total) if total else 0.0
 
     solved = total > 0 and passed == total and args.exit == 0

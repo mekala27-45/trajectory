@@ -260,6 +260,18 @@ class Task(StrictModel):
     verify_timeout_seconds: int = Field(
         default=300, ge=5, le=1800, description="Ceiling for the verification phase."
     )
+    expected_tests: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "How many hidden tests the verifier must discover. Partial credit divides by "
+            "this, not by however many happened to run, so a verifier that times out or "
+            "crashes part way cannot score a failed attempt as full credit, and an agent "
+            "cannot raise its score by stopping tests from running. A run that discovers "
+            "fewer is not solved. verify-references checks the reference discovers exactly "
+            "this many."
+        ),
+    )
 
     reference_step_count: int = Field(
         ge=1,

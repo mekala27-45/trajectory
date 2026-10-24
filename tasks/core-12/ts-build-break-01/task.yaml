@@ -29,6 +29,7 @@ command_timeout_seconds: 240
 
 verify_cmd: node --test "$VERIFY_DIR"/*.test.mjs
 verify_parser: node_tap
+expected_tests: 7
 verify_timeout_seconds: 420
 
 reference_step_count: 10

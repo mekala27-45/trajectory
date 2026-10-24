@@ -109,13 +109,22 @@ def solved(verification: Verification | None) -> bool:
     return verification is not None and verification.passed
 
 
-def partial_credit(verification: Verification | None) -> float:
+def partial_credit(verification: Verification | None, expected: int | None = None) -> float:
     """Metric 2. Fraction of hidden tests that passed.
 
     Four failing tests taken down to one is progress, and a benchmark that reports that
     identically to no change at all has thrown away the only signal in the run.
+
+    The denominator is the number of tests the task declares, when it declares one, not the
+    number that happened to run. A real model's run on the Go task had its verifier time
+    out after seven of ten tests printed a pass, and dividing by what ran scored that
+    failed attempt as full credit. A test that never ran did not pass.
     """
-    return verification.partial_credit if verification is not None else 0.0
+    if verification is None:
+        return 0.0
+    if expected is not None and verification.tests_total < expected:
+        return round(verification.tests_passed / expected, 6)
+    return verification.partial_credit
 
 
 # ---------------------------------------------------------------------- metric 3
@@ -317,7 +326,7 @@ def score(
     was_solved = solved(run.verification)
     return TrajectoryScore(
         solved=was_solved,
-        partial_credit=partial_credit(run.verification),
+        partial_credit=partial_credit(run.verification, task.expected_tests),
         step_efficiency=step_efficiency(task, run.steps, was_solved=was_solved),
         tool_call_validity=tool_call_validity(run.steps),
         redundant_action_rate=redundant_action_rate(run.steps),

@@ -122,6 +122,24 @@ class TestVerifyAgainstASandbox:
         assert (result.tests_passed, result.tests_total) == (2, 2)
         assert result.partial_credit == 1.0
 
+    def test_a_declared_test_that_never_ran_counts_as_not_passed(self, task_dir, allow_local):
+        """Both discovered tests pass, but the task declares three: not solved, two of three."""
+        task = self._task(expected_tests=3)
+        with LocalSandbox(task, task_dir) as sandbox:
+            sandbox.write_file("src/app.py", "def add(a, b):\n    return a + b\n")
+            result = verify(task, sandbox)
+        assert result.passed is False
+        assert (result.tests_passed, result.tests_total) == (2, 3)
+        assert result.partial_credit == pytest.approx(2 / 3, abs=1e-6)
+
+    def test_a_count_at_or_above_the_declaration_is_left_alone(self, task_dir, allow_local):
+        task = self._task(expected_tests=2)
+        with LocalSandbox(task, task_dir) as sandbox:
+            sandbox.write_file("src/app.py", "def add(a, b):\n    return a + b\n")
+            result = verify(task, sandbox)
+        assert result.passed is True
+        assert (result.tests_passed, result.tests_total) == (2, 2)
+
     def test_partial_progress_is_measured(self, task_dir, allow_local):
         """Four failing tests down to one is progress, and a pass rate cannot see it."""
         task = self._task()

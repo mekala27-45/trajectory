@@ -47,6 +47,7 @@ verify_cmd: >
   export PATH=/usr/local/go/bin:$PATH; rm -rf zz_hidden && mkdir zz_hidden &&
   cp "$VERIFY_DIR"/*.go zz_hidden/ && go test -race -count=1 -v ./zz_hidden/
 verify_parser: go_test
+expected_tests: 10
 verify_timeout_seconds: 600
 
 reference_step_count: 9

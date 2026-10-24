@@ -39,6 +39,7 @@ command_timeout_seconds: 120
 
 verify_cmd: python3 -m pytest -q "$VERIFY_DIR"
 verify_parser: pytest
+expected_tests: 10
 verify_timeout_seconds: 300
 
 reference_step_count: 11
