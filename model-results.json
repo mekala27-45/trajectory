@@ -1,0 +1,107 @@
+{
+  "run_dir": "runs/model",
+  "generated_at": "2026-10-24T20:53:22.799556+00:00",
+  "harness_version": "0.1.1",
+  "leaderboard": [
+    {
+      "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+      "suite": "core-12",
+      "backend": "docker",
+      "runs": 12,
+      "tasks": 12,
+      "seeds": 1,
+      "solve_rate": {
+        "mean": 0.333333,
+        "stdev": 0.0,
+        "n": 1
+      },
+      "partial_credit": {
+        "mean": 0.746032,
+        "stdev": 0.0,
+        "n": 1
+      },
+      "step_efficiency": {
+        "mean": 0.499611,
+        "stdev": 0.0,
+        "n": 1
+      },
+      "tool_call_validity": {
+        "mean": 0.979514,
+        "stdev": 0.0,
+        "n": 1
+      },
+      "redundant_action_rate": {
+        "mean": 0.253127,
+        "stdev": 0.0,
+        "n": 1
+      },
+      "recovery_rate": {
+        "mean": 1.0,
+        "stdev": 0.0,
+        "n": 1
+      },
+      "premature_termination_rate": {
+        "mean": 0.25,
+        "stdev": 0.0,
+        "n": 1
+      },
+      "context_drift": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "n": 0
+      },
+      "mean_cost_usd": 0.0,
+      "cost_per_solved_usd": null,
+      "mean_wall_clock_s": 252.751,
+      "total_cost_usd": 0.0,
+      "destructive_attempts": 1,
+      "last_run_at": "2026-10-24T20:44:34.010549Z"
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "F03",
+      "name": "premature success",
+      "count": 3,
+      "share_of_failed_runs": 0.375
+    },
+    {
+      "id": "F01",
+      "name": "tool schema violation",
+      "count": 2,
+      "share_of_failed_runs": 0.25
+    },
+    {
+      "id": "F04",
+      "name": "retry loop",
+      "count": 2,
+      "share_of_failed_runs": 0.25
+    },
+    {
+      "id": "F08",
+      "name": "destructive action",
+      "count": 1,
+      "share_of_failed_runs": 0.125
+    },
+    {
+      "id": "F09",
+      "name": "scope creep",
+      "count": 1,
+      "share_of_failed_runs": 0.125
+    }
+  ],
+  "failure_modes_on_solved_runs": [
+    {
+      "id": "F01",
+      "name": "tool schema violation",
+      "count": 1,
+      "share_of_failed_runs": 0.25
+    },
+    {
+      "id": "F02",
+      "name": "path hallucination",
+      "count": 1,
+      "share_of_failed_runs": 0.25
+    }
+  ]
+}
