@@ -92,6 +92,54 @@ class TestMetric2PartialCredit:
         assert partial_credit(full, expected=8) == pytest.approx(0.375)
 
 
+class TestDeclaredCount:
+    """A declared test that never reported did not pass, wherever the count is read."""
+
+    def test_a_short_count_is_held_to_the_declaration(self):
+        stopped = make_verification(passed=False, tests_passed=7, tests_total=7)
+        held = stopped.counting_declared(10)
+        assert (held.tests_passed, held.tests_total, held.passed) == (7, 10, False)
+        assert held.partial_credit == pytest.approx(0.7)
+
+    def test_a_short_count_cannot_pass_even_when_the_runner_exited_clean(self):
+        cut_short = make_verification(passed=True, tests_passed=7, tests_total=7)
+        assert cut_short.counting_declared(10).passed is False
+
+    @pytest.mark.parametrize("declared", [None, 7, 5])
+    def test_a_full_count_or_no_declaration_comes_back_unchanged(self, declared):
+        full = make_verification(passed=True, tests_passed=7, tests_total=7)
+        assert full.counting_declared(declared) is full
+
+    def test_an_unparsed_result_counts_as_no_test_reported(self):
+        """Exit code 0 and nothing the parser could read: none of the ten passed."""
+        unparsed = make_verification(passed=True, tests_passed=1, tests_total=1)
+        unparsed = unparsed.model_copy(update={"parse_ok": False})
+        held = unparsed.counting_declared(10)
+        assert (held.tests_passed, held.tests_total, held.passed) == (0, 10, False)
+
+    def test_an_unparsed_result_without_a_declaration_still_fails(self):
+        unparsed = make_verification(passed=True, tests_passed=1, tests_total=1)
+        unparsed = unparsed.model_copy(update={"parse_ok": False})
+        held = unparsed.counting_declared(None)
+        assert (held.tests_passed, held.tests_total, held.passed) == (0, 1, False)
+
+    def test_holding_is_idempotent(self):
+        stopped = make_verification(passed=False, tests_passed=7, tests_total=7)
+        once = stopped.counting_declared(10)
+        assert once.counting_declared(10) is once
+        unparsed = stopped.model_copy(update={"parse_ok": False}).counting_declared(10)
+        assert unparsed.counting_declared(10) is unparsed
+
+    def test_score_will_not_solve_a_run_on_tests_that_never_ran(self):
+        run = make_run(
+            [finish_step(0)],
+            verification=make_verification(passed=True, tests_passed=7, tests_total=7),
+        )
+        result = score(run, make_task(expected_tests=10))
+        assert result.solved is False
+        assert result.partial_credit == pytest.approx(0.7)
+
+
 class TestMetric3StepEfficiency:
     def test_reference_six_over_taken_twelve_is_0_5(self):
         """reference_step_count 6 / 12 steps taken = 0.5."""
@@ -445,6 +493,21 @@ class TestRescore:
         second = rescore(first, task)
         assert second.score is not None
         assert second.score.context_drift == pytest.approx(0.3)
+
+    def test_rescoring_holds_an_old_record_to_the_declared_count(self):
+        """The Go record from before the rule read 7 of 7 beside a score of 0.7."""
+        run = make_run(
+            [*bash_steps("go test ./..."), finish_step(1)],
+            verification=make_verification(passed=False, tests_passed=7, tests_total=7),
+        )
+        updated = rescore(run, make_task(expected_tests=10))
+        assert updated.verification is not None
+        assert (updated.verification.tests_passed, updated.verification.tests_total) == (7, 10)
+        assert updated.verification.partial_credit == pytest.approx(0.7)
+        assert updated.score is not None
+        assert updated.score.partial_credit == pytest.approx(0.7)
+        assert run.verification is not None
+        assert run.verification.tests_total == 7  # the original is untouched
 
 
 class TestFailureModeRanking:

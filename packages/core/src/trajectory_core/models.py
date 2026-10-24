@@ -508,7 +508,14 @@ class Verification(StrictModel):
 
     passed: bool = Field(description="True only when every hidden test passed.")
     tests_passed: int = Field(ge=0, description="Number of hidden tests that passed.")
-    tests_total: int = Field(ge=0, description="Number of hidden tests discovered.")
+    tests_total: int = Field(
+        ge=0,
+        description=(
+            "Number of hidden tests counted: the number the runner reported, or the number "
+            "the task declares when fewer reported, since a declared test that never ran "
+            "did not pass."
+        ),
+    )
     stderr_tail: str = Field(
         default="",
         description=(
@@ -527,8 +534,9 @@ class Verification(StrictModel):
     parse_ok: bool = Field(
         default=True,
         description=(
-            "False when the output could not be parsed into a passed and total count. The "
-            "run then falls back to exit code only, and partial credit is not meaningful."
+            "False when the task's parser could not read a passed and total count from the "
+            "output. No test reported, so the run cannot pass, whatever the exit code: a "
+            "task graded by exit code alone declares the exit_code parser instead."
         ),
     )
 
@@ -539,6 +547,30 @@ class Verification(StrictModel):
         if self.tests_total <= 0:
             return 1.0 if self.passed else 0.0
         return round(self.tests_passed / self.tests_total, 6)
+
+    def counting_declared(self, declared: int | None) -> Verification:
+        """This result counted the way it is scored: a test that never reported did not pass.
+
+        Two cases. A runner that times out, crashes or is stopped partway reports only the
+        tests it reached. Counted as reported, the Go verifier that timed out after seven
+        of ten passes read 7 of 7; held to the declared count it reads 7 of 10 and cannot
+        pass. And a runner whose output the task's parser could not read at all reported
+        no test, so it reads 0 of the declared count whatever its exit code says. Before
+        that second case, a solution that ended the test process with exit code 0 before
+        the first test ran was scored as solved.
+
+        A result that reported at least the declared count comes back unchanged.
+        """
+        if not self.parse_ok:
+            total = declared if declared is not None else max(self.tests_total, 1)
+            if not self.passed and self.tests_passed == 0 and self.tests_total == total:
+                return self
+            return self.model_copy(
+                update={"tests_passed": 0, "tests_total": total, "passed": False}
+            )
+        if declared is None or self.tests_total >= declared:
+            return self
+        return self.model_copy(update={"tests_total": declared, "passed": False})
 
 
 # ---------------------------------------------------------------------------- score

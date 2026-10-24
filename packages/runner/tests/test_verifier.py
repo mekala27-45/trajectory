@@ -171,13 +171,28 @@ class TestVerifyAgainstASandbox:
             result = verify(task, sandbox)
         assert result.passed is False
 
-    def test_unparseable_output_falls_back_to_the_exit_code(self, task_dir, allow_local):
+    def test_unparseable_output_fails_closed_whatever_the_exit_code(self, task_dir, allow_local):
+        """No test reported, so none is known to have passed, even on exit code 0."""
         task = self._task(verify_cmd="echo 'totally unparseable'; exit 0")
         with LocalSandbox(task, task_dir) as sandbox:
             result = verify(task, sandbox)
-        assert result.passed is True
+        assert result.passed is False
         assert result.parse_ok is False
-        assert (result.tests_passed, result.tests_total) == (1, 1)
+        assert (result.tests_passed, result.tests_total) == (0, 1)
+
+    def test_a_test_process_that_stops_before_any_test_reports_is_not_solved(
+        self, task_dir, allow_local
+    ):
+        """Exit code 0 with no test reported is a run that showed nothing, not a pass."""
+        task = self._task(expected_tests=2)
+        with LocalSandbox(task, task_dir) as sandbox:
+            sandbox.write_file("src/app.py", "import os\nos._exit(0)\n")
+            result = verify(task, sandbox)
+        assert result.exit_code == 0
+        assert result.parse_ok is False
+        assert result.passed is False
+        assert (result.tests_passed, result.tests_total) == (0, 2)
+        assert result.partial_credit == 0.0
 
     def test_exit_code_tasks_report_parse_ok(self, task_dir, allow_local):
         task = self._task(verify_cmd="test -f src/app.py", verify_parser=VerifyParser.EXIT_CODE)

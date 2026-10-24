@@ -174,7 +174,10 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
     exit_passed = result.exit_code == 0
 
     if parsed is None:
-        verification = Verification(
+        # Only a task whose parser is the exit code is graded by the exit code. For any
+        # other parser, output it cannot read means no test reported, and the result is
+        # marked unparsed so the count below fails it closed.
+        reported = Verification(
             passed=exit_passed,
             tests_passed=1 if exit_passed else 0,
             tests_total=1,
@@ -185,19 +188,7 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
         )
     else:
         tests_passed, tests_total = parsed
-        # A test the task declares but the runner never reported did not pass. Without
-        # this, a verifier that times out after seven of ten scores 7 of 7, and an agent
-        # that stops some tests from running scores better than one that let them fail.
-        expected = task.expected_tests
-        if expected is not None and tests_total < expected:
-            log.warning(
-                "verify.tests_missing",
-                task=task.id,
-                discovered=tests_total,
-                expected=expected,
-            )
-            tests_total = expected
-        verification = Verification(
+        reported = Verification(
             # The exit code is authoritative. A parser that reports everything green while
             # the runner exited non-zero has missed something, usually a collection error.
             passed=exit_passed and tests_passed == tests_total and tests_total > 0,
@@ -207,6 +198,20 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
             duration_ms=duration_ms,
             exit_code=result.exit_code,
             parse_ok=True,
+        )
+
+    # A test the task declares but the runner never reported did not pass. Without this,
+    # a verifier that times out after seven of ten scores 7 of 7, and a solution that ends
+    # the test process with exit code 0 before the first test runs scores as solved.
+    # Rescoring applies the same rule, so a record made before it reads the same way.
+    verification = reported.counting_declared(task.expected_tests)
+    if verification != reported:
+        log.warning(
+            "verify.tests_missing",
+            task=task.id,
+            reported=f"{reported.tests_passed}/{reported.tests_total}",
+            counted=f"{verification.tests_passed}/{verification.tests_total}",
+            parse_ok=reported.parse_ok,
         )
 
     log.info(

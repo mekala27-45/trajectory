@@ -323,15 +323,20 @@ def score(
     Returns:
         The full score.
     """
-    was_solved = solved(run.verification)
+    # Held to the declared count here as well as in the verifier, so a record made before
+    # that rule, or by another harness, cannot be solved by tests that never ran.
+    verification = (
+        run.verification.counting_declared(task.expected_tests) if run.verification else None
+    )
+    was_solved = solved(verification)
     return TrajectoryScore(
         solved=was_solved,
-        partial_credit=partial_credit(run.verification, task.expected_tests),
+        partial_credit=partial_credit(verification, task.expected_tests),
         step_efficiency=step_efficiency(task, run.steps, was_solved=was_solved),
         tool_call_validity=tool_call_validity(run.steps),
         redundant_action_rate=redundant_action_rate(run.steps),
         recovery_rate=recovery_rate(run.steps),
-        premature_termination=premature_termination(run.status, run.verification, run.steps),
+        premature_termination=premature_termination(run.status, verification, run.steps),
         context_drift=context_drift,
         cost_usd=total_cost(run.steps),
         wall_clock_s=run.wall_clock_s,
@@ -344,7 +349,12 @@ def score(
 
 
 def rescore(run: Run, task: Task) -> Run:
-    """Return a copy of a run with its score recomputed.
+    """Return a copy of a run with its score recomputed under the current rules.
+
+    That includes the verification counts. A declared hidden test that never reported is
+    counted as not passed, so a record made before that rule comes back reading 7 of 10
+    rather than 7 of 7, the way the verifier would record it today, and the record agrees
+    with its own score.
 
     Judge scored metrics and classified failure modes are carried over rather than
     recomputed, because rescoring is meant to be free and offline. `trajectory score`
@@ -352,7 +362,9 @@ def rescore(run: Run, task: Task) -> Run:
     """
     existing_drift = run.score.context_drift if run.score else None
     updated = run.model_copy(deep=True)
-    updated.score = score(run, task, context_drift=existing_drift)
+    if updated.verification is not None:
+        updated.verification = updated.verification.counting_declared(task.expected_tests)
+    updated.score = score(updated, task, context_drift=existing_drift)
     return updated
 
 
