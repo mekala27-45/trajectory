@@ -385,8 +385,13 @@ class TestReadRoutes:
 
 class TestFailureModeBreakdown:
     def test_taxonomy_is_always_complete(self, client: TestClient):
+        from trajectory_core.models import FailureModeId
+
         body = client.get("/v1/failure-modes").json()
-        assert len(body["taxonomy"]) == 10
+        # Every identifier the harness knows, not a hand-kept count that goes stale the
+        # first time a mode is added.
+        assert len(body["taxonomy"]) == len(FailureModeId)
+        assert {entry["id"] for entry in body["taxonomy"]} == {m.value for m in FailureModeId}
         assert {entry["detection"] for entry in body["taxonomy"]} == {"rule", "judge"}
 
     def test_shares_use_the_right_denominator(self, client: TestClient, auth):
