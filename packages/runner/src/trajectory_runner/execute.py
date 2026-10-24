@@ -68,7 +68,7 @@ def build_provider(config: RunConfig, loaded: LoadedTask) -> Provider:
     `OLLAMA_API_BASE`, which is how the local model in CI is reached. An `nvidia_nim/`
     model may set `NVIDIA_NIM_API_BASE`, but does not need to: LiteLLM already defaults it
     to the NVIDIA build endpoint and reads the key from `NVIDIA_NIM_API_KEY`, so a bare
-    identifier such as `nvidia_nim/deepseek-ai/deepseek-v4-flash` works with only the key
+    identifier such as `nvidia_nim/deepseek-ai/deepseek-v4.1-flash` works with only the key
     set. Both are free, request priced tiers, which is why the matrix pairs them with a
     call ceiling and a rate limit rather than a dollar budget.
     """

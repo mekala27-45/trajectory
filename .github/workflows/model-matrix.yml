@@ -25,7 +25,7 @@ on:
       model:
         description: "LiteLLM model identifier for the matrix."
         required: false
-        default: "nvidia_nim/deepseek-ai/deepseek-v4-flash"
+        default: "nvidia_nim/deepseek-ai/deepseek-v4.1-flash"
       seeds:
         description: "Seeds per task."
         required: false
@@ -90,7 +90,7 @@ jobs:
         env:
           # LiteLLM reads NVIDIA_NIM_API_KEY; the repository secret is NVIDIA_API_KEY.
           NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-        run: uv run python scripts/smoke_model.py --model "${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4-flash' }}"
+        run: uv run python scripts/smoke_model.py --model "${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4.1-flash' }}"
 
   # ----------------------------------------------------------------- the real matrix
   matrix:
@@ -115,7 +115,7 @@ jobs:
         run: |
           uv run python scripts/run_matrix.py \
             --label model \
-            --model "${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4-flash' }}" \
+            --model "${{ github.event.inputs.model || 'nvidia_nim/deepseek-ai/deepseek-v4.1-flash' }}" \
             --seeds "${{ github.event.inputs.seeds || '2' }}" \
             --parallel 2 \
             --order seed \

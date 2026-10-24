@@ -7,7 +7,7 @@ run 400 of a matrix, after the first 399 have already been spent on a model that
 going to answer. This makes exactly one call, with the same provider the matrix uses, and
 says what came back.
 
-    uv run python scripts/smoke_model.py --model nvidia_nim/deepseek-ai/deepseek-v4-flash
+    uv run python scripts/smoke_model.py --model nvidia_nim/deepseek-ai/deepseek-v4.1-flash
 
 Exits non-zero when the call fails, so a workflow can gate the real run on it.
 """
