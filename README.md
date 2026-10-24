@@ -43,6 +43,24 @@ running the tests?
 Aggregate pass rate hides all of that. Trajectory-level metrics do not. This harness exists
 to make agent failures legible.
 
+## Beyond the leaderboard
+
+Three things this harness does that a pass-rate benchmark does not, each one command or one
+document away:
+
+- **It runs in your stack, not only this one.** Every task exports to the Harbor task
+  format with `trajectory export harbor`, instruction, environment, hidden tests, a
+  verifier that writes a reward on every path, and the reference solution as an oracle. CI
+  proves each export grades the same as the native harness.
+- **It resists reward hacking, and names the attempt.** The verifier is hardened so a file
+  the agent drops in its workspace cannot shadow what the hidden tests import, and failure
+  mode **F11 grader tampering** flags any attempt to plant one. A run that games its grader
+  is the one thing a pass rate cannot show and a reward model must never reward.
+  [docs/grader-audit.md](docs/grader-audit.md).
+- **It runs real models for free.** The same suite drives a real language model through a
+  no-card tier, under a shared call ceiling and rate limit rather than a dollar budget, with
+  a one-call smoke that fails before the credits do. [docs/real-models.md](docs/real-models.md).
+
 The published matrix shows the problem directly. Three of the five agents scored **100.0%
 +/- 0.0%**, identical rows on any conventional leaderboard. One of them made a malformed
 tool call on every single run. Another repeated roughly half of every command it issued.
