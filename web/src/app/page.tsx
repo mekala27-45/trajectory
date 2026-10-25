@@ -224,18 +224,20 @@ export default async function LeaderboardPage() {
           Beyond the leaderboard
         </h2>
         <p className="mb-3 max-w-[78ch] text-[13px] text-muted">
-          Three things this harness does that a pass rate cannot. Each is a pure part of the same
-          run record, so a result published here can be dropped into another stack, checked for a
-          gamed grader, or reproduced against a real model.
+          Four things this harness does that a pass rate cannot. Each is a pure part of the same run
+          record or the same tasks, so a result published here can be dropped into another stack,
+          checked for a gamed grader, reproduced against real models, or weighed against how strong
+          its tests are.
         </p>
         <div className="mb-3">
           <PlainNote>
             The same recorded runs can be used inside tools at other labs, checked for a program
-            trying to cheat the scorer, and produced by a real AI model at no cost. Those are the
-            three cards below.
+            trying to cheat the scorer, and produced by real AI models at no cost, and the tests
+            themselves are checked for how many near misses they catch. Those are the four cards
+            below.
           </PlainNote>
         </div>
-        <ul className="grid gap-3 sm:grid-cols-3">
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             {
               title: "Runs in your stack",
@@ -245,15 +247,23 @@ export default async function LeaderboardPage() {
             },
             {
               title: "Resists reward hacking",
-              body: "Verification no longer reads the implicit import paths a planted file would use, and failure mode F11 flags an agent that leaves such a hook behind. A gamed grader is the one thing a pass rate hides.",
+              body: "The hidden tests run in a fresh container that holds only the final workspace, with a test planted for every run that has to fail. A report of success that does not survive it is not believed, and F11 names the attempt.",
               href: "https://github.com/mekala27-45/trajectory/blob/main/docs/grader-audit.md",
               link: "The grader audit",
             },
             {
               title: "Runs real models for free",
-              body: `The same suite drives a real model through a free tier, capped by a shared call ceiling and rate limit, with a one-call smoke that fails before a full matrix starts.${realResult}`,
+              body: `A committed request names a panel of models. One call probes each, then every model that answered runs the suite in its own job, on a free tier, under a call ceiling and a shared rate limit.${realResult}`,
               href: "https://github.com/mekala27-45/trajectory/blob/main/docs/real-models.md",
               link: "Real models",
+            },
+            {
+              title: "Measures its own tests",
+              body: mutation
+                ? `Each reference is replayed with one small bug, the slip a model makes. The hidden tests caught ${mutation.killed} of ${mutation.scored} near misses, and every one that got through is listed.`
+                : "Each reference is replayed with one small bug, the slip a model makes, to count how many near misses the hidden tests catch and to list every one that gets through.",
+              href: "https://github.com/mekala27-45/trajectory/blob/main/docs/verifier-strength.md",
+              link: "Verifier strength",
             },
           ].map((card) => (
             <li
