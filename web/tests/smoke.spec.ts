@@ -42,6 +42,21 @@ test.describe("leaderboard", () => {
     }
   });
 
+  test("draws a real run under the thesis and opens its replay", async ({ page }) => {
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { level: 1, name: /a pass rate tells you an agent failed/i }),
+    ).toBeVisible();
+    // The figure is a recorded run, never a drawing of one: its label names a real model,
+    // and its link opens that run's replay.
+    const figure = page.getByRole("img", { name: /steps against a reference of \d+/i }).first();
+    await expect(figure).toBeVisible();
+    await expect(figure).not.toHaveAccessibleName(/^stub:/);
+    await page.getByRole("link", { name: "Replay this run" }).click();
+    await expect(page).toHaveURL(/\/runs\/[0-9a-f-]+\/?$/);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  });
+
   test("sorts when a header is clicked", async ({ page }) => {
     await page.goto("/");
     const header = page.getByRole("columnheader", { name: /step efficiency/i });

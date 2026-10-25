@@ -68,16 +68,6 @@ export const STAT_COLUMNS: readonly MetricColumn[] = [
     direction: "higher",
   },
   {
-    key: "recovery_rate",
-    header: "Recovery",
-    title: "Metric 6: recovery rate",
-    description:
-      "Of the commands that failed, the fraction the agent adapted after. A failure counts as recovered when at least one of the next two steps is something other than a re-issue of the same command. Measured over runs where something failed, so a row with nothing failing reads n/a.",
-    percent: true,
-    digits: 1,
-    direction: "higher",
-  },
-  {
     key: "redundant_action_rate",
     header: "Redundancy",
     title: "Metric 5: redundant action rate",
@@ -86,6 +76,16 @@ export const STAT_COLUMNS: readonly MetricColumn[] = [
     percent: true,
     digits: 1,
     direction: "lower",
+  },
+  {
+    key: "recovery_rate",
+    header: "Recovery",
+    title: "Metric 6: recovery rate",
+    description:
+      "Of the commands that failed, the fraction the agent adapted after. A failure counts as recovered when at least one of the next two steps is something other than a re-issue of the same command. Measured over runs where something failed, so a row with nothing failing reads n/a.",
+    percent: true,
+    digits: 1,
+    direction: "higher",
   },
   {
     key: "premature_termination_rate",

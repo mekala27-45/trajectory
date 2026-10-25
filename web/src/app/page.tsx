@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { TrajectoryFigure } from "@/components/trajectory-figure";
 import {
   DifficultyMeter,
   EmptyState,
@@ -10,8 +11,28 @@ import {
   PlainNote,
   Tag,
 } from "@/components/ui";
-import { getIndex, getLeaderboard, getTasks, listRuns } from "@/lib/api";
+import { getIndex, getLeaderboard, getRun, getTasks, listRuns } from "@/lib/api";
 import { count, isStubModel, percent, seconds, splitModel, timestamp, usd } from "@/lib/format";
+import type { RunSummary } from "@/lib/types";
+
+/**
+ * The run the home page draws.
+ *
+ * A real model run, never a scripted one, chosen by a fixed rule so the figure cannot be
+ * picked to flatter: the shortest run that called finish with hidden tests still failing
+ * after changing course on a failed command, then the shortest premature finish, then the
+ * shortest unsolved run. Ties go to the earliest identifier.
+ */
+function featuredRun(runs: RunSummary[]): RunSummary | undefined {
+  const real = runs
+    .filter((run) => !isStubModel(run.model) && !run.solved && run.steps >= 3 && run.steps <= 26)
+    .sort((a, b) => a.steps - b.steps || a.id.localeCompare(b.id));
+  return (
+    real.find((run) => run.premature_termination && (run.recovery_rate ?? 0) > 0) ??
+    real.find((run) => run.premature_termination) ??
+    real[0]
+  );
+}
 
 export const metadata = {
   title: "Leaderboard",
@@ -41,6 +62,10 @@ export default async function LeaderboardPage() {
   const realModels = index.models.filter((model) => !isStubModel(model));
   const realRuns = runs.filter((run) => !isStubModel(run.model));
   const realSolved = realRuns.filter((run) => run.solved).length;
+  const chosen = featuredRun(runs);
+  const figure = chosen ? await getRun(chosen.id) : null;
+  const figureTask = figure ? tasks.find((task) => task.id === figure.task_id) : undefined;
+
   const realResult =
     realModels.length === 1
       ? ` First result: ${splitModel(realModels[0]!).name} solved ${realSolved} of ${realRuns.length} runs.`
@@ -50,18 +75,22 @@ export default async function LeaderboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-3">
-        <h1 className="text-[22px] font-semibold sm:text-[26px]">
-          Coding agent results, with the spread
+      <section className="flex flex-col gap-4 pt-1 sm:pt-3">
+        <h1 className="max-w-[17ch] text-[32px] leading-[1.06] text-balance sm:text-[46px]">
+          A pass rate tells you an agent failed, not how.
         </h1>
-        <p className="max-w-[78ch] text-[14px] text-muted">
-          Each row is one agent on one suite from one sandbox: a scripted policy that checks the
-          harness, or a real model. Solve rate is the headline, and the other columns are what a
-          solve rate cannot tell you: whether the agent got there in a sensible number of steps,
-          whether it recovered when a command failed, and whether it declared victory while the
-          hidden tests were still red. Every number carries its standard deviation across seeds, and
-          a cell with no runs behind it reads n/a rather than zero.
+        <p className="max-w-[66ch] text-[16px] leading-relaxed text-muted">
+          Twelve containerized tasks, hidden tests that go in only after the agent stops, and a
+          reference path to score against. trajectory reads every step: where the agent changed
+          course, where it wandered, and whether it called done while the tests were still red.
         </p>
+        {figure && figureTask ? (
+          <TrajectoryFigure
+            run={figure}
+            referenceSteps={figureTask.reference_step_count}
+            taskTitle={figureTask.title}
+          />
+        ) : null}
       </section>
 
       <PlainNote>
@@ -108,9 +137,17 @@ export default async function LeaderboardPage() {
       </Panel>
 
       <section aria-labelledby="results">
-        <h2 id="results" className="mb-3 text-[16px] font-semibold">
-          Results
+        <h2 id="results" className="mb-1 text-[19px] sm:text-[21px]">
+          Results, with the spread
         </h2>
+        <p className="mb-3 max-w-[78ch] text-[13.5px] text-muted">
+          Each row is one agent on one suite from one sandbox: a scripted policy that checks the
+          harness, or a real model. Solve rate is the headline, and the other columns are what a
+          solve rate cannot tell you: whether the agent got there in a sensible number of steps,
+          whether it recovered when a command failed, and whether it declared victory while the
+          hidden tests were still red. Every number carries its standard deviation across seeds, and
+          a cell with no runs behind it reads n/a rather than zero.
+        </p>
         <div className="mb-3">
           <PlainNote>
             Solve rate is how often that program fully fixed the bug. The other columns are what the
@@ -130,7 +167,7 @@ export default async function LeaderboardPage() {
       </section>
 
       <section aria-labelledby="beyond">
-        <h2 id="beyond" className="mb-1 text-[16px] font-semibold">
+        <h2 id="beyond" className="mb-1 text-[19px] sm:text-[21px]">
           Beyond the leaderboard
         </h2>
         <p className="mb-3 max-w-[78ch] text-[13px] text-muted">
@@ -186,7 +223,7 @@ export default async function LeaderboardPage() {
       </section>
 
       <section aria-labelledby="tasks">
-        <h2 id="tasks" className="mb-1 text-[16px] font-semibold">
+        <h2 id="tasks" className="mb-1 text-[19px] sm:text-[21px]">
           Tasks
         </h2>
         <p className="mb-3 max-w-[78ch] text-[13px] text-muted">
