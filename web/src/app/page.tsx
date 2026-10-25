@@ -1,7 +1,15 @@
 import Link from "next/link";
 
 import { LeaderboardTable } from "@/components/leaderboard-table";
-import { DifficultyMeter, EmptyState, Field, NoteBanner, Panel, Tag } from "@/components/ui";
+import {
+  DifficultyMeter,
+  EmptyState,
+  Field,
+  NoteBanner,
+  Panel,
+  PlainNote,
+  Tag,
+} from "@/components/ui";
 import { getIndex, getLeaderboard, getTasks, listRuns } from "@/lib/api";
 import { count, isStubModel, percent, seconds, splitModel, timestamp, usd } from "@/lib/format";
 
@@ -56,6 +64,17 @@ export default async function LeaderboardPage() {
         </p>
       </section>
 
+      <PlainNote>
+        trajectory tests AI programs that fix code on their own. Most tests only ask whether the fix
+        worked. This one watches the whole attempt, step by step, and scores how the program worked,
+        not just whether it got there. Every row below is one such program. For the full
+        walkthrough, read the{" "}
+        <Link href="/guide/" className="text-accent hover:underline">
+          guide
+        </Link>
+        .
+      </PlainNote>
+
       <NoteBanner note={board.note || index.note} />
 
       <Panel className="px-4 py-3">
@@ -92,6 +111,13 @@ export default async function LeaderboardPage() {
         <h2 id="results" className="mb-3 text-[16px] font-semibold">
           Results
         </h2>
+        <div className="mb-3">
+          <PlainNote>
+            Solve rate is how often that program fully fixed the bug. The other columns are what the
+            solve rate hides: how direct the route was, whether it recovered after a failed command,
+            and whether it claimed success before the hidden tests passed.
+          </PlainNote>
+        </div>
         {board.rows.length === 0 ? (
           <EmptyState title="No results in this dataset.">
             Nothing has been scored yet. Run the harness and rebuild the bundle with
@@ -112,6 +138,13 @@ export default async function LeaderboardPage() {
           run record, so a result published here can be dropped into another stack, checked for a
           gamed grader, or reproduced against a real model.
         </p>
+        <div className="mb-3">
+          <PlainNote>
+            The same recorded runs can be used inside tools at other labs, checked for a program
+            trying to cheat the scorer, and produced by a real AI model at no cost. Those are the
+            three cards below.
+          </PlainNote>
+        </div>
         <ul className="grid gap-3 sm:grid-cols-3">
           {[
             {
@@ -161,6 +194,13 @@ export default async function LeaderboardPage() {
           sees, and a reference solution that has to pass those tests in CI. The reference step
           count is what step efficiency is measured against.
         </p>
+        <div className="mb-3">
+          <PlainNote>
+            Each task is like a sealed exam: a small project with a bug, a set of hidden checks the
+            program never sees until it stops, and a known-good answer used to keep the exam fair.
+            Click any task to read what is broken and what counts as fixed.
+          </PlainNote>
+        </div>
         {tasks.length === 0 ? (
           <EmptyState title="No tasks in this dataset." />
         ) : (

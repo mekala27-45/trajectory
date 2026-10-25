@@ -38,6 +38,20 @@ export function Chip({
   );
 }
 
+/**
+ * A short plain-language aside for a reader new to the field. Clearly marked and easy to
+ * skip, so it helps a newcomer understand what they are looking at without getting in the
+ * way of someone who already knows the work.
+ */
+export function PlainNote({ children }: { children: ReactNode }) {
+  return (
+    <aside className="max-w-[76ch] border-l-2 border-accent-line bg-accent-bg/60 py-2.5 pr-3.5 pl-3.5 text-[13px] leading-relaxed text-muted">
+      <span className="mb-1 block font-mono text-[11px] text-accent">in plain words</span>
+      {children}
+    </aside>
+  );
+}
+
 /** The sandbox a run came from. Part of a row's identity, so it is always visible. */
 export function BackendChip({ backend }: { backend: SandboxBackend }) {
   return (

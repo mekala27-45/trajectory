@@ -1,5 +1,5 @@
 import { FailureCharts } from "@/components/failure-charts";
-import { Chip, Field, Panel } from "@/components/ui";
+import { Chip, Field, Panel, PlainNote } from "@/components/ui";
 import { getFailures, getIndex, getTasks, listRuns } from "@/lib/api";
 import { count, percent } from "@/lib/format";
 import { failureColor } from "@/lib/colors";
@@ -37,6 +37,13 @@ export default async function FailuresPage() {
           got the hidden tests green anyway is a process problem that happened to succeed.
         </p>
       </section>
+
+      <PlainNote>
+        A failure mode is a named, specific way a program can go wrong: quitting early, repeating
+        the same command, running something destructive, and so on. There are eleven. This page
+        counts how often each one happened, and it counts them even on runs that passed, because a
+        program can reach the right answer in a careless way.
+      </PlainNote>
 
       <Panel className="px-4 py-3">
         <h2 className="sr-only">Denominator</h2>
