@@ -27,7 +27,10 @@ test.describe("leaderboard", () => {
     // Real models are shown first; every row is one choice away.
     await page.getByRole("combobox", { name: /agents/i }).selectOption("all");
     const expected = leaderboard().rows.length;
-    const rows = page.locator("table tbody tr");
+    // By name: the page has a second table, of every pair of models, under the first.
+    const rows = page
+      .getByRole("table", { name: /aggregate results per model/i })
+      .locator("tbody tr");
     await expect(rows).toHaveCount(expected);
     expect(expected).toBeGreaterThan(0);
 

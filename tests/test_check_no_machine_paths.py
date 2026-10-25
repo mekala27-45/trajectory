@@ -7,7 +7,9 @@ it, so this file quotes the real offending lines rather than inventing stand-ins
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Any
 
 import check_no_machine_paths as gate
 import pytest
@@ -120,3 +122,89 @@ class TestWhatStaysAllowed:
 
     def test_a_missing_file_does_not_raise(self, tmp_path: Path) -> None:
         assert gate.offences(tmp_path / "nope") == []
+
+
+# A model panel record whose steps quote pip run as the container's `agent` user.
+QUOTING_RECORD = ROOT / "fixtures/model-runs/01a170ff-100f-70b9-85d5-fb1cfb52ea66.json"
+
+
+def a_record(**fields: Any) -> dict[str, Any]:
+    """The smallest record shape the gate reads: one step, a verification, one hit."""
+    record: dict[str, Any] = {
+        "id": "r1",
+        "config": {"model": "scripted/reference"},
+        "steps": [
+            {
+                "index": 0,
+                "thought": "check where pip put it",
+                "tool_name": "bash",
+                "tool_args": {"command": "pip show libcore"},
+                "tool_output": "Location: /home/agent/.local/lib/python3.12/site-packages",
+                "error": None,
+            }
+        ],
+        "verification": {"stderr_tail": "collected 4 items"},
+        "failure_modes": [{"id": "F08", "evidence": "step 0: rm -rf /root/.cache"}],
+        "error": None,
+    }
+    record.update(fields)
+    return record
+
+
+def write(tmp_path: Path, record: dict[str, Any]) -> Path:
+    f = tmp_path / "record.json"
+    f.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    return f
+
+
+class TestRunRecords:
+    def test_both_record_directories_are_read_as_records(self) -> None:
+        checked = gate.tracked_text_files()
+        records = [p for p in checked if gate.is_run_record(p)]
+        folders = {p.parent.relative_to(ROOT).as_posix() for p in records}
+        assert folders == {"fixtures/model-runs", "fixtures/recorded-runs"}
+
+    def test_files_beside_the_records_are_still_read_as_lines(self) -> None:
+        assert not gate.is_run_record(ROOT / "fixtures/model-runs.provenance.json")
+        assert not gate.is_run_record(ROOT / "fixtures/mutation/core-12.json")
+
+    def test_the_record_ci_flagged_quotes_the_agent_home_and_passes(self) -> None:
+        # The steps really do say /home/agent, which is why reading lines failed CI,
+        # and the fields the runner wrote do not, which is why this record is clean.
+        assert "/home/agent/" in QUOTING_RECORD.read_text(encoding="utf-8")
+        assert gate.line_offences(QUOTING_RECORD)
+        assert gate.offences(QUOTING_RECORD) == []
+
+    def test_what_the_container_said_is_set_aside(self, tmp_path: Path) -> None:
+        assert gate.record_offences(write(tmp_path, a_record())) == []
+
+    def test_a_host_path_in_the_runs_own_error_is_caught(self, tmp_path: Path) -> None:
+        traceback = 'File "/home/claude/.venv/lib/python3.12/site-packages/litellm/main.py"'
+        found = gate.record_offences(write(tmp_path, a_record(error=traceback)))
+        assert [(where, reason) for where, reason, _ in found] == [
+            ("/error", "an absolute path into a Linux user home")
+        ]
+
+    def test_a_host_path_in_the_config_is_caught(self, tmp_path: Path) -> None:
+        config = {"model": "scripted/reference", "task_dir": "/Users/ajay/trajectory/tasks"}
+        found = gate.record_offences(write(tmp_path, a_record(config=config)))
+        assert [where for where, _, _ in found] == ["/config/task_dir"]
+
+    def test_a_step_field_the_runner_writes_is_still_checked(self, tmp_path: Path) -> None:
+        record = a_record()
+        record["steps"][0]["timestamp"] = "/root/.cache"
+        found = gate.record_offences(write(tmp_path, record))
+        assert [where for where, _, _ in found] == ["/steps/0/timestamp"]
+
+    def test_setting_quotes_aside_leaves_the_file_alone(self, tmp_path: Path) -> None:
+        record = a_record()
+        before = json.dumps(record, sort_keys=True)
+        gate.written_by_the_runner(record)
+        assert json.dumps(record, sort_keys=True) == before
+
+    def test_a_file_that_is_not_a_record_is_read_as_lines(self, tmp_path: Path) -> None:
+        f = tmp_path / "broken.json"
+        f.write_text('{"error": "/home/claude/x",\n', encoding="utf-8")
+        assert [where for where, _, _ in gate.record_offences(f)] == [1]
+        f.write_text('["/home/claude/x"]\n', encoding="utf-8")
+        assert [where for where, _, _ in gate.record_offences(f)] == [1]

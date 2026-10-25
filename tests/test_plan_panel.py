@@ -148,8 +148,7 @@ def test_records_summary_counts_by_model(tmp_path: Path):
     for path in recorded:
         (tmp_path / path.name).write_bytes(path.read_bytes())
     models = Counter(
-        Run.model_validate_json(path.read_text(encoding="utf-8")).config.model
-        for path in recorded
+        Run.model_validate_json(path.read_text(encoding="utf-8")).config.model for path in recorded
     )
     text = panel.records_summary(tmp_path)
     for model, count in models.items():

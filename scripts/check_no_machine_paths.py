@@ -27,15 +27,29 @@ This file and its test are exempt, because they have to name the patterns to loo
 Anything else that genuinely needs one of these strings should read it from the
 environment instead, which is what the three fixes above all did.
 
+Run records are read as JSON rather than as lines, because part of a record is a quotation.
+Each step quotes what the model wrote and what the task container printed back, and a
+failure mode's evidence quotes those steps. Inside the container the agent is the user
+`agent`, so pip reports `/home/agent/.local`, and a model is free to type `/root/` into a
+command. Those strings are evidence about the model, and editing them would falsify the
+record, so they are set aside. Every other field of a record was written by the runner on
+the host, where a home directory path is exactly the bug this gate exists for, so the rest
+of the record is still checked: the config, the image, the fingerprint, and the run's own
+error, which is where a traceback from the host would land.
+
 Exits 0 when clean, 1 otherwise, naming every offending file and line.
 """
 
 from __future__ import annotations
 
+import copy
+import json
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -54,6 +68,12 @@ EXEMPT = {
     "scripts/check_no_machine_paths.py",
     "tests/test_check_no_machine_paths.py",
 }
+
+# Where run records live, and the fields of a record that quote the task container.
+RUN_RECORDS = ("fixtures/model-runs/", "fixtures/recorded-runs/")
+QUOTED_STEP_FIELDS = ("thought", "tool_name", "tool_args", "tool_output", "error")
+QUOTED_VERIFICATION_FIELDS = ("stderr_tail",)
+QUOTED_FAILURE_FIELDS = ("evidence",)
 
 
 def tracked_text_files() -> list[Path]:
@@ -78,18 +98,91 @@ def tracked_text_files() -> list[Path]:
     ]
 
 
-def offences(path: Path) -> list[tuple[int, str, str]]:
-    """Every banned absolute path in one file, as (line number, reason, the line)."""
+def offences(path: Path) -> list[tuple[int | str, str, str]]:
+    """Every banned absolute path in one file, as (where, reason, the text).
+
+    Where is a line number, or a JSON pointer for a run record.
+    """
+    if is_run_record(path):
+        return record_offences(path)
+    return line_offences(path)
+
+
+def line_offences(path: Path) -> list[tuple[int | str, str, str]]:
+    """Every banned absolute path in a file read as lines, as (line, reason, the line)."""
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
-    found: list[tuple[int, str, str]] = []
+    found: list[tuple[int | str, str, str]] = []
     for number, line in enumerate(text.splitlines(), start=1):
-        for pattern, reason in COMPILED.items():
-            if pattern.search(line):
-                found.append((number, reason, line.strip()[:120]))
-                break
+        reason = banned(line)
+        if reason:
+            found.append((number, reason, line.strip()[:120]))
+    return found
+
+
+def banned(text: str) -> str | None:
+    """The reason the first banned pattern in the text cannot be committed, if any."""
+    for pattern, reason in COMPILED.items():
+        if pattern.search(text):
+            return reason
+    return None
+
+
+def is_run_record(path: Path) -> bool:
+    """True for a JSON file in one of the directories that hold run records."""
+    try:
+        relative = path.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return False
+    return relative.endswith(".json") and relative.startswith(RUN_RECORDS)
+
+
+def written_by_the_runner(record: dict[str, Any]) -> dict[str, Any]:
+    """A copy of a run record without the strings it quotes from the task container."""
+    kept = copy.deepcopy(record)
+    sections = (
+        (kept.get("steps"), QUOTED_STEP_FIELDS),
+        ([kept.get("verification")], QUOTED_VERIFICATION_FIELDS),
+        (kept.get("failure_modes"), QUOTED_FAILURE_FIELDS),
+    )
+    for entries, fields in sections:
+        for entry in entries if isinstance(entries, list) else []:
+            if isinstance(entry, dict):
+                for field in fields:
+                    entry.pop(field, None)
+    return kept
+
+
+def strings(node: object, pointer: str = "") -> Iterator[tuple[str, str]]:
+    """Every string in a parsed JSON value, with its JSON pointer."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield from strings(value, f"{pointer}/{key}")
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from strings(value, f"{pointer}/{index}")
+    elif isinstance(node, str):
+        yield pointer, node
+
+
+def record_offences(path: Path) -> list[tuple[int | str, str, str]]:
+    """Every banned absolute path in the fields of a run record the runner wrote.
+
+    A file in a record directory that does not parse as a record is read as lines.
+    """
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return line_offences(path)
+    if not isinstance(record, dict):
+        return line_offences(path)
+    found: list[tuple[int | str, str, str]] = []
+    for pointer, text in strings(written_by_the_runner(record)):
+        reason = banned(text)
+        if reason:
+            found.append((pointer, reason, text.strip()[:120]))
     return found
 
 
@@ -99,8 +192,8 @@ def main() -> int:
     checked = 0
     for path in tracked_text_files():
         checked += 1
-        for number, reason, line in offences(path):
-            problems.append(f"{path.relative_to(ROOT)}:{number}: {reason}\n    {line}")
+        for where, reason, line in offences(path):
+            problems.append(f"{path.relative_to(ROOT)}:{where}: {reason}\n    {line}")
 
     for problem in problems:
         print(problem, file=sys.stderr)
