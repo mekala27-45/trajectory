@@ -1,0 +1,96 @@
+{
+  "id": "01a17128-7228-70a1-889f-e89e1bb25b4d",
+  "schema_version": 1,
+  "task_id": "py-flaky-test-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/z-ai/glm-5.3",
+    "temperature": 0.7,
+    "max_steps": 40,
+    "seed": 0,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 2700,
+    "command_timeout_seconds": 240,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-25T03:43:58.492877Z",
+  "finished_at": "2026-10-25T04:20:17.417700Z",
+  "status": "error",
+  "steps": [],
+  "verification": {
+    "passed": false,
+    "tests_passed": 6,
+    "tests_total": 9,
+    "stderr_tail": ")\nE       TypeError: retry_delays() got an unexpected keyword argument 'rng'\n\n/verify/test_determinism.py:97: TypeError\n_____________ test_the_visible_suite_passes_twelve_times_in_a_row ______________\n\n    def test_the_visible_suite_passes_twelve_times_in_a_row():\n        command = [sys.executable, \"-m\", \"pytest\", \"-q\", \"--no-header\"]\n        command += [\"-p\", \"no:cacheprovider\", \"tests\"]\n        for run in range(12):\n            completed = subprocess.run(\n                command,\n                cwd=WORKSPACE,\n                capture_output=True,\n                text=True,\n                timeout=120,\n                check=False,\n            )\n            # Bind the code before asserting on it. Asserting on the CompletedProcess itself\n            # would put the inner run's own summary line into pytest's output, where the\n            # harness would count it as part of this suite.\n            returncode = completed.returncode\n>           assert returncode == 0, (\n                f\"run {run + 1} of 12 of the visible suite failed. A suite that passes most of \"\n                f\"the time is not fixed:\\n{quiet(completed.stdout)}\\n{quiet(completed.stderr)}\"\n            )\nE           AssertionError: run 1 of 12 of the visible suite failed. A suite that passes most of the time is not fixed:\nE                 def test_sample_covers_every_tenant():\nE                     # The auditor's whole point is that a reviewer sees traffic from every tenant, so a\nE                     # sample that leaves one out is not usable.\nE                     picked = sample_requests(make_requests(), SAMPLE_SIZE)\nE             >       assert set(tenant_counts(picked)) == set(TENANTS)\nE             E       AssertionError: assert {'globex', 'i...', 'umbrella'} == {'acme', 'glo...', 'umbrella'}\nE             E         \nE             E         Extra items in the right set:\nE             E         'acme'\nE             E         Use -v to get more diff\nE             \nE             tests/test_sampler.py:35: AssertionError\nE             =========================== short test summary info ============================\nE             FAILED tests/test_sampler.py::test_sample_covers_every_tenant - AssertionErro...\nE             \nE           assert 1 == 0\n\n/verify/test_determinism.py:255: AssertionError\n=============================== warnings summary ===============================\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/verify/pytest-cache-files-3htq06ci'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/lastfailed: [Errno 13] Permission denied: '/verify/pytest-cache-files-osygsrac'\n    config.cache.set(\"cache/lastfailed\", self.lastfailed)\n\n../usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51\n  /usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/stepwise: [Errno 13] Permission denied: '/verify/pytest-cache-files-pp31es3z'\n    session.config.cache.set(STEPWISE_CACHE_DIR, [])\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED ../verify/test_balance_04f708.py::test_balance_04f708 - assert 169 == 172\nFAILED ../verify/test_determinism.py::test_sampling_is_deterministic_with_an_injected_rng\nFAILED ../verify/test_determinism.py::test_retry_delays_are_deterministic_with_an_injected_rng\nFAILED ../verify/test_determinism.py::test_the_visible_suite_passes_twelve_times_in_a_row\n4 failed, 6 passed, 3 warnings in 0.45s\n",
+    "duration_ms": 2939,
+    "exit_code": 1,
+    "parse_ok": true,
+    "canary": "test_balance_04f708",
+    "tampered": false,
+    "partial_credit": 0.666667
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.666667,
+    "step_efficiency": null,
+    "tool_call_validity": 1.0,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 2178.925,
+    "destructive_attempts": 0,
+    "total_steps": 0,
+    "total_commands": 0,
+    "schema_violations": 0,
+    "failed_commands": 0
+  },
+  "failure_modes": [],
+  "image_id": "sha256:9f863b7d614222e6d46045155aee97b3517c6a6c0bb3d342e9d405d647bd1653",
+  "harness_version": "0.3.0",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true,
+    "source_commit": "ee6ed89f18a4d9354ebcf5091a225263cb005fad"
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "b78d040988277558",
+      "pytest.ini": "d6e3e89cc6aab794",
+      "src/sampler/__init__.py": "4add352f076a124a",
+      "src/sampler/core.py": "a7b00b87469ec4e7",
+      "tests/test_sampler.py": "83dc4461eb82fd8e"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "b78d040988277558",
+      "pytest.ini": "d6e3e89cc6aab794",
+      "src/sampler/__init__.py": "4add352f076a124a",
+      "src/sampler/core.py": "a7b00b87469ec4e7",
+      "tests/test_sampler.py": "83dc4461eb82fd8e"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.",
+  "wall_clock_s": 2178.925,
+  "solved": false,
+  "total_cost_usd": 0.0
+}

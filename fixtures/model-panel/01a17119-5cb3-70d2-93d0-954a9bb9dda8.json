@@ -1,0 +1,106 @@
+{
+  "id": "01a17119-5cb3-70d2-93d0-954a9bb9dda8",
+  "schema_version": 1,
+  "task_id": "py-dep-conflict-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+    "temperature": 0.7,
+    "max_steps": 30,
+    "seed": 1,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 600,
+    "command_timeout_seconds": 180,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-25T03:27:29.959739Z",
+  "finished_at": "2026-10-25T03:27:47.989293Z",
+  "status": "error",
+  "steps": [],
+  "verification": {
+    "passed": false,
+    "tests_passed": 2,
+    "tests_total": 6,
+    "stderr_tail": "dependency-conflicts\n\n/verify/test_resolution.py:55: Failed\n___ ERROR at setup of test_plugins_are_the_versions_that_target_the_2x_core ____\n\n    @pytest.fixture(scope=\"module\")\n    def installed() -> Path:\n        with tempfile.TemporaryDirectory() as tmp:\n            target = Path(tmp)\n            result = _install(target)\n            if result.returncode != 0:\n>               pytest.fail(\n                    \"requirements.txt does not resolve offline:\\n\"\n                    f\"{result.stdout[-3000:]}\\n{result.stderr[-3000:]}\"\n                )\nE               Failed: requirements.txt does not resolve offline:\nE               \nE               ERROR: Cannot install -r /workspace/requirements.txt (line 4) and libcore==1.4.0 because these package versions have conflicting dependencies.\nE               ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts\n\n/verify/test_resolution.py:55: Failed\n_______ ERROR at setup of test_application_produces_the_expected_report ________\n\n    @pytest.fixture(scope=\"module\")\n    def installed() -> Path:\n        with tempfile.TemporaryDirectory() as tmp:\n            target = Path(tmp)\n            result = _install(target)\n            if result.returncode != 0:\n>               pytest.fail(\n                    \"requirements.txt does not resolve offline:\\n\"\n                    f\"{result.stdout[-3000:]}\\n{result.stderr[-3000:]}\"\n                )\nE               Failed: requirements.txt does not resolve offline:\nE               \nE               ERROR: Cannot install -r /workspace/requirements.txt (line 4) and libcore==1.4.0 because these package versions have conflicting dependencies.\nE               ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts\n\n/verify/test_resolution.py:55: Failed\n=================================== FAILURES ===================================\n______________________________ test_signal_99abbd ______________________________\n\n    def test_signal_99abbd():\n        total = 91 + 71\n>       assert total == 163\nE       assert 162 == 163\n\n/verify/test_signal_99abbd.py:3: AssertionError\n=============================== warnings summary ===============================\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/verify/pytest-cache-files-awlrr9fx'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/lastfailed: [Errno 13] Permission denied: '/verify/pytest-cache-files-shvwsir_'\n    config.cache.set(\"cache/lastfailed\", self.lastfailed)\n\n../usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51\n  /usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/stepwise: [Errno 13] Permission denied: '/verify/pytest-cache-files-9f6ukx54'\n    session.config.cache.set(STEPWISE_CACHE_DIR, [])\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED ../verify/test_signal_99abbd.py::test_signal_99abbd - assert 162 == 163\nERROR ../verify/test_resolution.py::test_requirements_resolve_offline - Faile...\nERROR ../verify/test_resolution.py::test_resolved_core_is_on_the_2x_api - Fai...\nERROR ../verify/test_resolution.py::test_plugins_are_the_versions_that_target_the_2x_core\nERROR ../verify/test_resolution.py::test_application_produces_the_expected_report\n1 failed, 2 passed, 3 warnings, 4 errors in 0.47s\n",
+    "duration_ms": 2958,
+    "exit_code": 1,
+    "parse_ok": true,
+    "canary": "test_signal_99abbd",
+    "tampered": false,
+    "partial_credit": 0.333333
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.333333,
+    "step_efficiency": null,
+    "tool_call_validity": 1.0,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 18.03,
+    "destructive_attempts": 0,
+    "total_steps": 0,
+    "total_commands": 0,
+    "schema_violations": 0,
+    "failed_commands": 0
+  },
+  "failure_modes": [],
+  "image_id": "sha256:0bc92bb2ca6df8df4c6534d66c7e6ef8aa89d33fd1f6bc0e4aac98a6526fa5a5",
+  "harness_version": "0.3.0",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true,
+    "source_commit": "ee6ed89f18a4d9354ebcf5091a225263cb005fad"
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "7e24d73a0d1b0394",
+      "app.py": "5275c416700ae39a",
+      "check.sh": "65f642feb1069881",
+      "requirements.txt": "3f0e742d8a3f8030",
+      "wheelhouse/libcore-1.4.0-py3-none-any.whl": "0c1a9cd03298bbe2",
+      "wheelhouse/libcore-2.1.0-py3-none-any.whl": "99ac7ff59f35a472",
+      "wheelhouse/plugina-1.0.0-py3-none-any.whl": "b8574cc8ddd60a2a",
+      "wheelhouse/plugina-2.0.0-py3-none-any.whl": "f4e2c52c36d0dc28",
+      "wheelhouse/pluginb-1.0.0-py3-none-any.whl": "6433e33b1d97ba58",
+      "wheelhouse/pluginb-3.0.0-py3-none-any.whl": "77be79851010566b"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "7e24d73a0d1b0394",
+      "app.py": "5275c416700ae39a",
+      "check.sh": "65f642feb1069881",
+      "requirements.txt": "3f0e742d8a3f8030",
+      "wheelhouse/libcore-1.4.0-py3-none-any.whl": "0c1a9cd03298bbe2",
+      "wheelhouse/libcore-2.1.0-py3-none-any.whl": "99ac7ff59f35a472",
+      "wheelhouse/plugina-1.0.0-py3-none-any.whl": "b8574cc8ddd60a2a",
+      "wheelhouse/plugina-2.0.0-py3-none-any.whl": "f4e2c52c36d0dc28",
+      "wheelhouse/pluginb-1.0.0-py3-none-any.whl": "6433e33b1d97ba58",
+      "wheelhouse/pluginb-3.0.0-py3-none-any.whl": "77be79851010566b"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+  "wall_clock_s": 18.03,
+  "solved": false,
+  "total_cost_usd": 0.0
+}
