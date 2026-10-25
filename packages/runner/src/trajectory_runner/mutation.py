@@ -19,6 +19,11 @@ not pass is reported as such rather than scored. A mutant that breaks the build 
 the tests is still killed, and is counted separately, because catching a crash says less
 about a suite than catching a wrong answer does.
 
+A kill has to happen twice. Every mutant the tests fail is replayed once more, and one that
+passes the second time is unstable, not killed: a suite with a clock or a race in it can
+fail a change it never noticed, and a reward that pays a near miss half the time has not
+caught it. Unstable mutants are scored and count against the suite.
+
 The operators are the classic ones and deliberately small. A surviving mutant is not
 automatically a weak test: some mutants are equivalent to the original, and no test could
 tell them apart. The report lists every survivor so a reader can judge which.
@@ -44,7 +49,8 @@ from trajectory_runner.verifier import verify
 log = structlog.get_logger(__name__)
 
 PYTHON_SUFFIXES = (".py",)
-C_LIKE_SUFFIXES = (".go", ".ts", ".mts", ".js", ".mjs")
+SCRIPT_SUFFIXES = (".ts", ".mts", ".js", ".mjs")
+C_LIKE_SUFFIXES = (".go", *SCRIPT_SUFFIXES)
 SQL_SUFFIXES = (".sql",)
 TEXT_SUFFIXES = (".txt",)
 MUTABLE_SUFFIXES = PYTHON_SUFFIXES + C_LIKE_SUFFIXES + SQL_SUFFIXES + TEXT_SUFFIXES
@@ -52,6 +58,7 @@ MUTABLE_SUFFIXES = PYTHON_SUFFIXES + C_LIKE_SUFFIXES + SQL_SUFFIXES + TEXT_SUFFI
 KILLED = "killed"
 KILLED_BY_CRASH = "killed by a crash"
 SURVIVED = "survived"
+UNSTABLE = "unstable"
 NOT_RUN = "not run"
 
 
@@ -118,9 +125,14 @@ class TaskMutation:
         return sum(1 for r in self.results if r.outcome == SURVIVED)
 
     @property
+    def unstable(self) -> int:
+        """Mutants the hidden tests failed once and passed on the confirming replay."""
+        return sum(1 for r in self.results if r.outcome == UNSTABLE)
+
+    @property
     def scored(self) -> int:
-        """Mutants with a verdict."""
-        return self.killed + self.survived
+        """Mutants with a verdict. An unstable one counts, and not as killed."""
+        return self.killed + self.survived + self.unstable
 
     @property
     def score(self) -> float | None:
@@ -340,17 +352,94 @@ def _code_spans(source: str, skip: re.Pattern[str]) -> Iterator[tuple[int, int]]
         yield position, len(source)
 
 
+def _quoted_end(source: str, at: int) -> int | None:
+    """Where the one line string opening at `at` ends, or None when it never closes."""
+    quote, index = source[at], at + 1
+    while index < len(source) and source[index] != "\n":
+        if source[index] == "\\":
+            index += 2
+            continue
+        if source[index] == quote:
+            return index + 1
+        index += 1
+    return None
+
+
+def _script_code_spans(source: str) -> Iterator[tuple[int, int]]:
+    """The code in a JavaScript or TypeScript file, including inside template literals.
+
+    The text inside backticks is a string, but each `${...}` in it is code again, and a
+    comparison written there is as much a part of the solution as one written anywhere
+    else. Interpolations nest, so this walks the file with a stack of open ones, each
+    holding how many braces deep its own code has gone. Go's backtick string is raw, has
+    no such holes, and keeps the simpler skip.
+    """
+    length, index, start = len(source), 0, 0
+    depths: list[int] = []
+    in_template = False
+    while index < length:
+        char = source[index]
+        if in_template:
+            if char == "\\":
+                index += 2
+            elif char == "`":
+                in_template, index = False, index + 1
+                start = index
+            elif source.startswith("${", index):
+                depths.append(0)
+                in_template, index = False, index + 2
+                start = index
+            else:
+                index += 1
+            continue
+        skip_to: int | None = None
+        if source.startswith("//", index):
+            newline = source.find("\n", index)
+            skip_to = length if newline == -1 else newline
+        elif source.startswith("/*", index):
+            close = source.find("*/", index + 2)
+            skip_to = length if close == -1 else close + 2
+        elif char in "\"'":
+            skip_to = _quoted_end(source, index)
+        elif char == "`":
+            if index > start:
+                yield start, index
+            in_template, index = True, index + 1
+            continue
+        elif char == "{" and depths:
+            depths[-1] += 1
+        elif char == "}" and depths:
+            if depths[-1] == 0:
+                if index > start:
+                    yield start, index
+                depths.pop()
+                in_template, index = True, index + 1
+                continue
+            depths[-1] -= 1
+        if skip_to is None:
+            index += 1
+            continue
+        if index > start:
+            yield start, index
+        index = start = skip_to
+    if not in_template and start < length:
+        yield start, length
+
+
 def text_mutants(path: str, source: str) -> list[Mutant]:
     """Every single-token mutant of a non python file, outside its strings and comments."""
     suffix = PurePosixPath(path).suffix
+    rules = _TEXT_RULES
     if suffix in SQL_SUFFIXES:
-        rules, skip = _SQL_RULES, _SQL_SKIP
+        rules, spans = _SQL_RULES, _code_spans(source, _SQL_SKIP)
     elif suffix in TEXT_SUFFIXES:
-        rules, skip = _PIN_RULES, _HASH_SKIP
+        rules, spans = _PIN_RULES, _code_spans(source, _HASH_SKIP)
+    elif suffix in SCRIPT_SUFFIXES:
+        spans = _script_code_spans(source)
     else:
-        rules, skip = _TEXT_RULES, _C_LIKE_SKIP
+        spans = _code_spans(source, _C_LIKE_SKIP)
     mutants: list[Mutant] = []
-    for start, end in _code_spans(source, skip):
+    for start, end in spans:
         for operator, pattern, change in rules:
             for match in pattern.finditer(source, start, end):
                 token = next(group for group in match.groups() if group is not None)
@@ -546,6 +635,36 @@ def _attempt(
     )
 
 
+def confirm(*, result: MutantResult, replay: Callable[[], MutantResult]) -> MutantResult:
+    """Hold a kill to a second replay of the same mutant.
+
+    A survivor needs no second look: a test that passes a wrong answer once has already
+    shown it can. A kill does, because a test with a clock or a race in it can fail a run
+    for reasons the change did not cause. A kill that does not happen again is unstable,
+    and a confirming replay that did not complete leaves the mutant without a verdict.
+    """
+    if result.outcome not in (KILLED, KILLED_BY_CRASH):
+        return result
+    again = replay()
+    if again.outcome in (KILLED, KILLED_BY_CRASH):
+        return result
+    if again.outcome == SURVIVED:
+        failed = result.tests_total - result.tests_passed
+        return MutantResult(
+            result.mutant,
+            UNSTABLE,
+            tests_passed=result.tests_passed,
+            tests_total=result.tests_total,
+            detail=(
+                f"failed {failed} of {result.tests_total} hidden tests, then passed all "
+                f"{again.tests_total} on the confirming replay"
+            ),
+        )
+    return MutantResult(
+        result.mutant, NOT_RUN, detail=f"the confirming replay did not finish: {again.detail}"
+    )
+
+
 def mutate_task(
     loaded: LoadedTask,
     *,
@@ -585,7 +704,7 @@ def mutate_task(
 
     chosen = sample(found, per_task, seed=loaded.id)
 
-    def one(mutant: Mutant) -> MutantResult:
+    def attempt(mutant: Mutant) -> MutantResult:
         result = _attempt(
             loaded,
             mutant,
@@ -594,6 +713,10 @@ def mutate_task(
             allow_local_override=allow_local_override,
         )
         assert isinstance(result, MutantResult)
+        return result
+
+    def one(mutant: Mutant) -> MutantResult:
+        result = confirm(result=attempt(mutant), replay=lambda: attempt(mutant))
         log.info("mutation.mutant", task=loaded.id, mutant=mutant.label, outcome=result.outcome)
         return result
 
@@ -614,6 +737,7 @@ def task_record(report: TaskMutation) -> dict[str, object]:
         "killed": report.killed,
         "killed_by_assertion": report.killed_by_assertion,
         "survived": report.survived,
+        "unstable": report.unstable,
         "score": report.score,
         "mutants": [
             {
@@ -655,6 +779,8 @@ def suite_record(
         "killed": killed,
         "killed_by_assertion": sum(report.killed_by_assertion for report in reports),
         "survived": sum(report.survived for report in reports),
+        "unstable": sum(report.unstable for report in reports),
+        "confirmation": "every kill is replayed once more and counts only when it fails again",
         "score": round(killed / scored, 6) if scored else None,
         "tasks": [task_record(report) for report in reports],
     }

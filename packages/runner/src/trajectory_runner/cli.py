@@ -519,6 +519,7 @@ def tasks_mutate(
     table.add_column("sites", justify="right")
     table.add_column("killed", justify="right")
     table.add_column("by a crash", justify="right")
+    table.add_column("unstable", justify="right")
     table.add_column("survived", justify="right")
     table.add_column("score", justify="right")
 
@@ -533,13 +534,14 @@ def tasks_mutate(
         )
         reports.append(report)
         if not report.sites or not report.control_passed:
-            table.add_row(report.task_id, str(report.sites), "", "", "", report.control_detail)
+            table.add_row(report.task_id, str(report.sites), "", "", "", "", report.control_detail)
             continue
         table.add_row(
             report.task_id,
             str(report.sites),
             str(report.killed),
             str(report.killed - report.killed_by_assertion),
+            str(report.unstable),
             str(report.survived),
             "n/a" if report.score is None else f"{report.score:.0%}",
         )
@@ -555,8 +557,10 @@ def tasks_mutate(
     )
     for report in reports:
         for result in report.results:
-            if result.outcome == "survived":
-                console.print(f"[yellow]survived[/yellow] {report.task_id}: {result.mutant.label}")
+            if result.outcome in ("survived", "unstable"):
+                console.print(
+                    f"[yellow]{result.outcome}[/yellow] {report.task_id}: {result.mutant.label}"
+                )
     console.print(
         f"{record['killed']} of {record['scored']} mutants killed across {len(tasks)} task(s)"
     )

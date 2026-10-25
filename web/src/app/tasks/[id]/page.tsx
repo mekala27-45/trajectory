@@ -68,7 +68,10 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const { task, runs, solve_rate_by_model: byModel } = results;
   const mutation = await getMutation();
   const strength = mutation?.tasks.find((entry) => entry.task_id === task.id) ?? null;
-  const survivors = strength?.mutants.filter((mutant) => mutant.outcome === "survived") ?? [];
+  const survivors =
+    strength?.mutants.filter(
+      (mutant) => mutant.outcome === "survived" || mutant.outcome === "unstable",
+    ) ?? [];
   const groups = groupByModel(runs);
   const solved = runs.filter((run) => run.solved).length;
 
@@ -157,23 +160,34 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   {strength.killed_by_assertion}
                 </Field>
                 <Field label="Got through">{strength.survived}</Field>
+                {strength.unstable ? (
+                  <Field
+                    label="Unstable"
+                    title="Failed by the hidden tests once, then passed when replayed. Scored, and not counted as caught."
+                  >
+                    {strength.unstable}
+                  </Field>
+                ) : null}
                 <Field label="Mutation sites">{strength.sites}</Field>
               </dl>
               {survivors.length > 0 ? (
                 <div className="mt-3 border-t border-line pt-2">
                   <p className="mb-1 font-mono text-[10px] tracking-wide text-dim uppercase">
-                    Changes the hidden tests did not notice
+                    Changes the hidden tests did not reliably notice
                   </p>
                   <ul className="flex flex-col gap-1">
                     {survivors.map((mutant) => (
                       <li key={mutant.label} className="font-mono text-[12px] break-all text-fg">
                         {mutant.label}
+                        {mutant.outcome === "unstable" ? (
+                          <span className="ml-2 text-dim">unstable: failed once, passed once</span>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
                   <p className="mt-2 max-w-[80ch] text-[12px] text-muted">
                     Some of these may be equivalent to the original, so no test could notice them.
-                    The rest are gaps a reward model would be paid for.
+                    The rest are near misses this reward would pay in full.
                   </p>
                 </div>
               ) : null}

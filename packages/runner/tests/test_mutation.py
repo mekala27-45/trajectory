@@ -11,7 +11,13 @@ from trajectory_runner.loader import LoadedTask
 from trajectory_runner.mutation import (
     KILLED,
     KILLED_BY_CRASH,
+    NOT_RUN,
     SURVIVED,
+    UNSTABLE,
+    Mutant,
+    MutantResult,
+    TaskMutation,
+    confirm,
     mutants_for,
     mutate_task,
     mutated_playbook,
@@ -92,6 +98,33 @@ class TestTextOperators:
         found = {(m.operator, m.before, m.after) for m in text_mutants("r.txt", "core==2.1\n")}
         assert ("pin", "==", "!=") in found
         assert ("version", "2", "3") in found
+
+    def test_code_inside_a_template_literal_is_code(self):
+        source = 'const s = `${list.length === 0 ? "none" : list.join(", ")} a < b`;\n'
+        found = [(m.operator, m.before, m.after) for m in text_mutants("m.ts", source)]
+        assert ("equality", "===", "!==") in found
+        assert ("constant", "0", "1") in found
+        # The text around the interpolation is still a string.
+        assert not any(op == "compare" for op, _, _ in found)
+
+    def test_template_literals_nest(self):
+        source = "const s = `outer ${ `inner ${x === 1}` } tail < 2`;\nconst y = a < b;\n"
+        mutants = text_mutants("m.ts", source)
+        assert {(m.before, m.line) for m in mutants if m.operator == "equality"} == {("===", 1)}
+        assert {(m.before, m.line) for m in mutants if m.operator == "compare"} == {("<", 2)}
+        for mutant in mutants:
+            assert mutant.content.count("`") == 4
+
+    def test_a_brace_inside_an_interpolation_does_not_close_it(self):
+        source = "const s = `${f({ a: 1 }) === 2 ? 'x' : 'y'}`;\n"
+        found = {(m.operator, m.before) for m in text_mutants("m.ts", source)}
+        assert ("equality", "===") in found
+        assert ("constant", "2") in found
+
+    def test_a_go_raw_string_has_no_interpolation(self):
+        source = "x := `${a == b}`\ny := c == d\n"
+        mutants = [m for m in text_mutants("m.go", source) if m.operator == "equality"]
+        assert [m.line for m in mutants] == [2]
 
 
 class TestThePlaybook:
@@ -181,6 +214,54 @@ class TestEndToEnd:
         assert report.control_passed is False
         assert report.results == []
         assert report.score is None
+
+
+def _mutant() -> Mutant:
+    return Mutant(path="f.py", line=1, operator="compare", before="<", after="<=", content="")
+
+
+class TestAKillHasToHappenTwice:
+    def test_a_kill_that_happens_again_stands(self):
+        first = MutantResult(_mutant(), KILLED, tests_passed=3, tests_total=4)
+        again = MutantResult(_mutant(), KILLED_BY_CRASH)
+        assert confirm(result=first, replay=lambda: again) is first
+
+    def test_a_kill_that_does_not_happen_again_is_unstable(self):
+        first = MutantResult(_mutant(), KILLED, tests_passed=9, tests_total=10)
+        again = MutantResult(_mutant(), SURVIVED, tests_passed=10, tests_total=10)
+        result = confirm(result=first, replay=lambda: again)
+        assert result.outcome == UNSTABLE
+        assert (result.tests_passed, result.tests_total) == (9, 10)
+        assert "failed 1 of 10" in result.detail
+
+    def test_a_confirming_replay_that_did_not_finish_leaves_no_verdict(self):
+        first = MutantResult(_mutant(), KILLED, tests_passed=1, tests_total=2)
+        again = MutantResult(_mutant(), NOT_RUN, detail="SandboxError: no docker")
+        result = confirm(result=first, replay=lambda: again)
+        assert result.outcome == NOT_RUN
+        assert "no docker" in result.detail
+
+    def test_a_survivor_is_not_replayed(self):
+        survivor = MutantResult(_mutant(), SURVIVED, tests_passed=2, tests_total=2)
+
+        def replay() -> MutantResult:
+            raise AssertionError("a survivor needs no second look")
+
+        assert confirm(result=survivor, replay=replay) is survivor
+
+    def test_an_unstable_mutant_is_scored_and_not_killed(self):
+        report = TaskMutation(
+            task_id="t",
+            results=[
+                MutantResult(_mutant(), KILLED),
+                MutantResult(_mutant(), UNSTABLE),
+                MutantResult(_mutant(), SURVIVED),
+                MutantResult(_mutant(), NOT_RUN),
+            ],
+        )
+        assert (report.killed, report.unstable, report.survived) == (1, 1, 1)
+        assert report.scored == 3
+        assert report.score == round(1 / 3, 6)
 
 
 @pytest.mark.parametrize("count", [0, 1])

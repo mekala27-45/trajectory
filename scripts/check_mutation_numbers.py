@@ -38,6 +38,7 @@ SUMMARY_PREFIXES = (
     "- Sample:",
     "- Mutants scored:",
     "- Killed:",
+    "- Confirmation:",
 )
 
 
@@ -55,6 +56,8 @@ def render(report: dict[str, Any]) -> str:
     killed = int(report["killed"])
     scored = int(report["scored"])
     by_assertion = int(report["killed_by_assertion"])
+    # Reports from before kills were confirmed carry no unstable count and no confirmation.
+    unstable = int(report.get("unstable", 0))
     lines = [
         f"- Backend: {report['backend']}",
         f"- Harness version: `{report['harness_version']}`",
@@ -63,44 +66,53 @@ def render(report: dict[str, Any]) -> str:
         f"- Killed: {killed} of {scored} ({_percent(report['score'])}), "
         f"{by_assertion} by a failing assertion and {killed - by_assertion} by a crash or a "
         "failed build",
+    ]
+    if "confirmation" in report:
+        lines.append(
+            f"- Confirmation: every kill was replayed once more; {unstable} mutant(s) failed "
+            "once, passed the second time, and count as not killed"
+        )
+    lines += [
         "",
-        "| task | solution files | sites | scored | killed | by a crash | survived | score |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| task | solution files | sites | scored | killed | by a crash | unstable | survived "
+        "| score |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for task in tasks:
         files = ", ".join(f"`{name}`" for name in task["files"]) or "none"
         if not task["scored"]:
             reason = task["control_detail"] or "no mutant could be scored"
             lines.append(
-                f"| {task['task_id']} | {files} | {task['sites']} | 0 | | | "
+                f"| {task['task_id']} | {files} | {task['sites']} | 0 | | | | "
                 f"| n/a: {_cell(reason)} |"
             )
             continue
         crash = int(task["killed"]) - int(task["killed_by_assertion"])
         lines.append(
             f"| {task['task_id']} | {files} | {task['sites']} | {task['scored']} "
-            f"| {task['killed']} | {crash} | {task['survived']} | {_percent(task['score'])} |"
+            f"| {task['killed']} | {crash} | {task.get('unstable', 0)} | {task['survived']} "
+            f"| {_percent(task['score'])} |"
         )
 
     survivors = [
         (task["task_id"], mutant)
         for task in tasks
         for mutant in task["mutants"]
-        if mutant["outcome"] == "survived"
+        if mutant["outcome"] in ("survived", "unstable")
     ]
     lines += ["", "### Survivors", ""]
     if not survivors:
         lines.append("Every scored mutant was killed.")
     else:
         lines += [
-            "Each row is a change the hidden tests did not notice. Some are equivalent to the "
-            "original and no test could notice them; the rest are gaps.",
+            "Each row is a change the hidden tests did not reliably notice. Some are equivalent "
+            "to the original and no test could notice them; the rest are gaps.",
             "",
-            "| task | mutant | hidden tests passed |",
-            "| --- | --- | --- |",
+            "| task | mutant | outcome | hidden tests passed |",
+            "| --- | --- | --- | --- |",
         ]
         lines += [
-            f"| {task_id} | `{_cell(mutant['label'])}` "
+            f"| {task_id} | `{_cell(mutant['label'])}` | {mutant['outcome']} "
             f"| {mutant['tests_passed']} of {mutant['tests_total']} |"
             for task_id, mutant in survivors
         ]

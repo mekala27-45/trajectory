@@ -428,7 +428,8 @@ export interface MutantRecord {
   operator: string;
   before: string;
   after: string;
-  outcome: "killed" | "killed by a crash" | "survived" | "not run";
+  /** `unstable`: failed once, then passed the confirming replay. Scored, not killed. */
+  outcome: "killed" | "killed by a crash" | "survived" | "unstable" | "not run";
   tests_passed: number;
   tests_total: number;
   detail: string;
@@ -445,6 +446,8 @@ export interface TaskMutationRecord {
   killed: number;
   killed_by_assertion: number;
   survived: number;
+  /** Absent from reports written before kills were confirmed. */
+  unstable?: number;
   score: number | null;
   mutants: MutantRecord[];
 }
@@ -460,6 +463,9 @@ export interface MutationReport {
   killed: number;
   killed_by_assertion: number;
   survived: number;
+  unstable?: number;
+  /** How a kill was confirmed. Absent from reports written before kills were confirmed. */
+  confirmation?: string;
   score: number | null;
   tasks: TaskMutationRecord[];
 }

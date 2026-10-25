@@ -83,9 +83,31 @@ def paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
 def test_the_render_names_every_survivor_and_every_unscored_task():
     rendered = gate.render(REPORT)
     assert "- Killed: 2 of 3 (66.7%), 1 by a failing assertion and 1 by a crash" in rendered
-    assert "| py-perf-01 | `src/rollup/core.py` | 9 | 3 | 2 | 1 | 1 | 66.7% |" in rendered
-    assert "| py-perf-01 | `src/rollup/core.py:123 > -> >=` | 9 of 9 |" in rendered
+    assert "| py-perf-01 | `src/rollup/core.py` | 9 | 3 | 2 | 1 | 0 | 1 | 66.7% |" in rendered
+    assert "| py-perf-01 | `src/rollup/core.py:123 > -> >=` | survived | 9 of 9 |" in rendered
     assert "n/a: the reference writes no source file to mutate" in rendered
+    # A report from before kills were confirmed claims no confirmation.
+    assert "- Confirmation:" not in rendered
+
+
+def test_a_confirmed_report_lists_its_unstable_mutants():
+    report = json.loads(json.dumps(REPORT))
+    report["confirmation"] = "every kill is replayed once more"
+    report["unstable"] = 1
+    task = report["tasks"][0]
+    task["unstable"] = 1
+    task["mutants"].append(
+        {
+            "label": "src/rollup/core.py:30 < -> <=",
+            "outcome": "unstable",
+            "tests_passed": 8,
+            "tests_total": 9,
+        }
+    )
+    rendered = gate.render(report)
+    assert "- Confirmation: every kill was replayed once more; 1 mutant(s) failed once" in rendered
+    assert "| py-perf-01 | `src/rollup/core.py:30 < -> <=` | unstable | 8 of 9 |" in rendered
+    assert "- Confirmation:" in "\n".join(gate.required(rendered))
 
 
 def test_a_missing_report_has_nothing_to_check(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
