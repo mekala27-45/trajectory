@@ -120,7 +120,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           </Field>
           <Field label="Runs">{count(runs.length)}</Field>
           <Field label="Solved">{runs.length === 0 ? "n/a" : `${solved} of ${runs.length}`}</Field>
-          <Field label="Models">{count(groups.length)}</Field>
+          <Field label="Agents">{count(groups.length)}</Field>
         </dl>
       </Panel>
 
@@ -198,11 +198,12 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
 
       <section aria-labelledby="per-model">
         <h2 id="per-model" className="mb-1 text-[16px] font-semibold">
-          Results by model
+          Results by agent
         </h2>
         <p className="mb-3 max-w-[80ch] text-[13px] text-muted">
-          One group per model. The solve rate carries its spread across seeds, and every run below
-          it links to the full step by step replay.
+          One group per agent, a scripted policy that checks the harness or a real model. The solve
+          rate carries its spread across seeds, and every run below it links to the full step by
+          step replay.
         </p>
 
         {groups.length === 0 ? (

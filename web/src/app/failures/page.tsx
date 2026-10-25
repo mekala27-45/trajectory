@@ -24,7 +24,7 @@ function agreementLine(second: string, entry: ModeAgreementEntry): string {
 export const metadata = {
   title: "Failure modes",
   description:
-    "The failure modes the harness classifies, how each one is detected, and how often each fired, by model and by task difficulty.",
+    "The failure modes the harness classifies, how each one is detected, and how often each fired, by agent and by task difficulty.",
 };
 
 export default async function FailuresPage() {

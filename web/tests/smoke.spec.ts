@@ -29,7 +29,7 @@ test.describe("leaderboard", () => {
     const expected = leaderboard().rows.length;
     // By name: the page has a second table, of every pair of models, under the first.
     const rows = page
-      .getByRole("table", { name: /aggregate results per model/i })
+      .getByRole("table", { name: /aggregate results per agent/i })
       .locator("tbody tr");
     await expect(rows).toHaveCount(expected);
     expect(expected).toBeGreaterThan(0);
@@ -80,13 +80,13 @@ test.describe("leaderboard", () => {
 });
 
 test.describe("task page", () => {
-  test("opens from the leaderboard and lists results by model", async ({ page }) => {
+  test("opens from the leaderboard and lists results by agent", async ({ page }) => {
     await page.goto("/");
     const first = tasks()[0]!;
     await page.getByRole("link", { name: new RegExp(first.title.slice(0, 40), "i") }).click();
     await expect(page).toHaveURL(new RegExp(`/tasks/${first.id}/?$`));
     await expect(page.getByRole("heading", { level: 1, name: first.title })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /results by model/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /results by agent/i })).toBeVisible();
     await expect(page.getByText(/difficulty tier/i).first()).toBeVisible();
   });
 });
@@ -161,7 +161,7 @@ test.describe("failure modes", () => {
     await expect(charts).toHaveCount(2);
     await expect(charts.first()).toBeVisible();
     await expect(page.locator("svg.recharts-surface").first()).toBeVisible();
-    await expect(page.getByRole("img", { name: /failure modes by model/i })).toBeVisible();
+    await expect(page.getByRole("img", { name: /failure modes by agent/i })).toBeVisible();
     await expect(
       page.getByRole("img", { name: /failure modes by task difficulty/i }),
     ).toBeVisible();

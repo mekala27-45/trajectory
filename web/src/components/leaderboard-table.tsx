@@ -264,7 +264,7 @@ export function LeaderboardTable({
         <div className="scroll-x rounded-lg border border-line bg-raised">
           <table className="w-full min-w-[60rem] border-collapse text-[13px]">
             <caption className="sr-only">
-              Aggregate results per model, suite and sandbox backend. Every metric column shows a
+              Aggregate results per agent, suite and sandbox backend. Every metric column shows a
               mean with its standard deviation across seeds, and reads n/a when no runs sit behind
               it.
             </caption>

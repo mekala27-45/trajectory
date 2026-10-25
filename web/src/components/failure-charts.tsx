@@ -111,12 +111,12 @@ export function FailureCharts({
     <div className="flex flex-col gap-5">
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartPanel
-          heading="Failure modes by model"
-          caption="One bar per model, stacked by failure mode, counted over every run that model produced rather than only the ones that failed. That is deliberate: three of the policies here solve every task, so a chart scoped to failures would show nothing at all for them. A taller bar means more runs carried a mode, and a run can carry several."
+          heading="Failure modes by agent"
+          caption="One bar per agent, a scripted policy or a real model, stacked by failure mode, counted over every run that agent produced rather than only the ones that failed. That is deliberate: three of the scripted policies here solve every task, so a chart scoped to failures would show nothing at all for them. A taller bar means more runs carried a mode, and a run can carry several."
           rows={modelRows}
           modes={modelModes}
           layout="vertical"
-          categoryLabel="Model"
+          categoryLabel="Agent"
           valueLabel="Runs carrying the mode (a run can carry several)"
           specById={specById}
           onSegment={(mode, key) => select(mode, { dimension: "model", key })}
