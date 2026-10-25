@@ -1,12 +1,13 @@
 {
-  "purpose": "A second judge from a family that is neither the first judge's nor any agent's reads every run the panel judge read, so the three judged failure modes and context drift carry an agreement figure from outside the judge that produced them. Candidates in order; the first the free tier serves judges them all.",
+  "purpose": "A second judge from a family that is neither the first judge's nor any agent's reads every run the panel judge read, so the three judged failure modes and context drift carry an agreement figure from outside the judge that produced them. Second attempt: workflow run 40184208378 hit its 100 minute limit with nothing written, because deepseek-v4.1-flash timed out three times at 180 seconds on the first run and was passed over, and gemma-4-31b-it then timed out on run after run. The free tier holds a reply in its queue for minutes, so a call may now wait 420 seconds, six workers share the rate, and the script sends no new run after 80 minutes and names any it did not reach. Same candidates in the same order, the whole set, temperature 0.",
   "second_judges": [
     "nvidia_nim/deepseek-ai/deepseek-v4.1-flash",
     "nvidia_nim/google/gemma-4-31b-it",
     "nvidia_nim/poolside/laguna-xs-2.1"
   ],
   "sample": 1.0,
-  "parallel": 3,
-  "rpm": 15,
-  "temperature": 0.0
+  "parallel": 6,
+  "rpm": 20,
+  "temperature": 0.0,
+  "timeout_s": 420
 }
