@@ -82,6 +82,26 @@ def test_a_drifted_figure_is_caught(workspace: tuple[Path, Path]):
     assert gate.main([]) == 1
 
 
+def test_a_sentence_inside_the_block_is_held_too(workspace: tuple[Path, Path]):
+    """The denominator a share is of is a claim about the records, so it is held too."""
+    _, document = workspace
+    gate.main(["--write"])
+    body = document.read_text(encoding="utf-8")
+    line = next(line for line in body.splitlines() if line.startswith("Share is of the "))
+    document.write_text(body.replace(line, line.replace("Share is of", "Share is of all")))
+    assert gate.main([]) == 1
+
+
+def test_lines_in_the_wrong_order_are_caught(workspace: tuple[Path, Path]):
+    _, document = workspace
+    gate.main(["--write"])
+    body = document.read_text(encoding="utf-8")
+    rows = [line for line in body.splitlines() if line.startswith("| `")][:2]
+    swapped = body.replace(rows[0], "\0").replace(rows[1], rows[0]).replace("\0", rows[1])
+    document.write_text(swapped, encoding="utf-8")
+    assert gate.main([]) == 1
+
+
 def test_write_leaves_the_prose_around_the_block_alone(workspace: tuple[Path, Path]):
     _, document = workspace
     document.write_text("# Real models\n\nAuthor prose before.\n", encoding="utf-8")
@@ -217,3 +237,33 @@ def test_how_each_run_ended_keeps_the_provider_apart(workspace: tuple[Path, Path
     assert lines[0] == "### How each run ended"
     row = next(line for line in lines if gate._short(run.config.model) in line)
     assert row.rstrip(" |").endswith("| 1 | 0")
+
+
+def test_a_cell_holding_a_provider_ended_run_is_marked():
+    """A per task cell the provider cut short says so, and the model's summary counts it."""
+    from trajectory_core.models import RunStatus
+    from trajectory_runner.store import read_runs
+
+    runs = [run for run in read_runs(RECORDED) if run.config.model == "stub:hasty"]
+    target = min(runs, key=lambda run: (run.task_id, run.config.seed))
+    ended = target.model_copy(
+        update={
+            "status": RunStatus.ERROR,
+            "error": f"{target.config.model} failed after 4 attempt(s): Request timed out",
+        }
+    )
+    lines = gate.signal_lines([ended if run is target else run for run in runs])
+    row = next(line for line in lines if line.startswith(f"| {target.task_id} |"))
+    assert row.rstrip(" |").endswith(gate.PROVIDER_MARK)
+    others = [line for line in lines if line.startswith("| ") and "-0" in line.split("|")[1]]
+    assert sum(gate.PROVIDER_MARK in line for line in others) == 1
+    summary = next(line for line in lines if line.startswith("- Tasks with a learning signal"))
+    assert summary.endswith("; 1 of the 12 holds a run the provider ended")
+
+
+def test_no_mark_and_no_clause_when_the_provider_ended_nothing():
+    from trajectory_runner.store import read_runs
+
+    lines = gate.signal_lines(read_runs(RECORDED))
+    assert not any(gate.PROVIDER_MARK in line for line in lines if line.startswith("| "))
+    assert not any("provider ended" in line for line in lines if line.startswith("- Tasks"))

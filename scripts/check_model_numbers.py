@@ -7,9 +7,10 @@ document disagrees. Real model results deserve the same guarantee, and are more 
 need it, because they are re-recorded whenever a model or a seed count changes.
 
 So this renders the report from `fixtures/model-runs` with the same code `trajectory report`
-uses, and requires every table row and every summary line it produces to appear verbatim in
-MODEL-RESULTS.md. A figure that drifted from its records, or a document that was not
-regenerated after a re-record, fails here rather than in a reader's hands.
+uses, and requires the measured block of MODEL-RESULTS.md to be exactly that rendering,
+every line of it, prose inside the block included. A figure that drifted from its records,
+or a document that was not regenerated after a re-record, fails here rather than in a
+reader's hands. The prose outside the block is the author's, and this does not read it.
 
     uv run python scripts/check_model_numbers.py           # verify
     uv run python scripts/check_model_numbers.py --write   # regenerate the measured block
@@ -50,6 +51,8 @@ MODE_NAMES = {
 BEGIN = "<!-- measured: rendered from fixtures/model-runs by scripts/check_model_numbers.py -->"
 END = "<!-- end measured -->"
 
+# Marks a per task cell that holds a run the provider ended.
+PROVIDER_MARK = "\u2020"
 SUMMARY_PREFIXES = (
     "- Tasks with a learning signal",
     "- Harness version:",
@@ -220,12 +223,14 @@ def signal_lines(runs: list[Run]) -> list[str]:
                 cell = f"**{cell}**"
             elif len(group) >= 2 and _variance([partial_of(run) for run in group]) > 0:
                 cell = f"*{cell}*"
+            if any(ended_by_provider(run) for run in group):
+                cell = f"{cell} {PROVIDER_MARK}"
             cells.append(cell)
         rows.append(f"| {task_id} | " + " | ".join(cells) + " |")
 
     summary: list[str] = []
     for model in models:
-        compared = binary = graded = 0
+        compared = binary = graded = touched = 0
         for task_id in tasks:
             group = groups.get((model, task_id), [])
             if len(group) < 2:
@@ -234,9 +239,13 @@ def signal_lines(runs: list[Run]) -> list[str]:
             solved = sum(1 for run in group if run.solved)
             binary += solved not in (0, len(group))
             graded += _variance([partial_of(run) for run in group]) > 0
+            touched += any(ended_by_provider(run) for run in group)
+        verb = "holds" if touched == 1 else "hold"
+        ended = f"{touched} of the {compared} {verb} a run the provider ended" if touched else ""
         summary.append(
             f"- Tasks with a learning signal for `{_short(model)}`: {binary} of {compared} "
             f"under a binary reward, {graded} of {compared} under partial credit"
+            + (f"; {ended}" if ended else "")
         )
 
     return [
@@ -245,8 +254,9 @@ def signal_lines(runs: list[Run]) -> list[str]:
         "Each cell is solved runs over sampled runs. A task whose samples all pass or all fail "
         "gives a group relative method no gradient; only mixed outcomes teach. A bold cell has "
         "a learning signal under a binary reward, and an italic cell only under partial "
-        "credit. This describes the reward signal these tasks offer these models. It is not a "
-        "training run.",
+        f"credit. A cell marked {PROVIDER_MARK} holds a run the provider ended, so it says "
+        "less about the model than the rest. This describes the reward signal these tasks "
+        "offer these models. It is not a training run.",
         "",
         "| task | " + " | ".join(f"`{_short(model)}`" for model in models) + " |",
         "| --- | " + " | ".join("---" for _ in models) + " |",
@@ -310,6 +320,25 @@ def required(rendered: str) -> list[str]:
     ]
 
 
+def block_problems(body: str, rendered: str) -> list[str]:
+    """What keeps the document's measured block from being exactly what the source renders.
+
+    Every line of the block is held, headings and sentences included, not only the lines
+    with a figure in them: a sentence inside the block that names the denominator of a
+    share, or the group a worked example is drawn from, is as much a claim about the source
+    as the share. An empty list means the block matches.
+    """
+    if BEGIN not in body or END not in body:
+        return ["the document has no measured block"]
+    block = body.split(BEGIN, 1)[1].split(END, 1)[0].strip("\n")
+    if block == rendered:
+        return []
+    expected, found = rendered.splitlines(), block.splitlines()
+    problems = [f"expected: {line}" for line in expected if line not in found]
+    problems += [f"found:    {line}" for line in found if line not in expected]
+    return problems or ["the block holds the right lines in the wrong order"]
+
+
 def write_block(document: Path, rendered: str) -> None:
     """Replace the measured block, or append one if the document has none yet."""
     block = f"{BEGIN}\n\n{rendered}\n\n{END}"
@@ -351,16 +380,11 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
-    body = DOCUMENT.read_text(encoding="utf-8")
-    lines = required(rendered)
-    missing = [line for line in lines if line not in body]
-    if missing:
-        print(
-            f"{len(missing)} of {len(lines)} model figures disagree with the records:",
-            file=sys.stderr,
-        )
-        for line in missing:
-            print(f"  expected: {line}", file=sys.stderr)
+    problems = block_problems(DOCUMENT.read_text(encoding="utf-8"), rendered)
+    if problems:
+        print(f"the measured block of {DOCUMENT.name} disagrees with the records:", file=sys.stderr)
+        for problem in problems:
+            print(f"  {problem}", file=sys.stderr)
         print(
             "\nRegenerate with: uv run python scripts/check_model_numbers.py --write",
             file=sys.stderr,
@@ -368,7 +392,11 @@ def main(argv: list[str]) -> int:
         return 1
 
     count = len(read_runs(FIXTURES))
-    print(f"{len(lines)} model figures match the {count} committed model run records")
+    figures = len(required(rendered))
+    print(
+        f"{figures} model figures, and every other line of the measured block, match the "
+        f"{count} committed model run records"
+    )
     return 0
 
 

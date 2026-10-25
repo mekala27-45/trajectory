@@ -772,7 +772,7 @@
       "name": "destructive action",
       "confidence": 1.0,
       "detector": "rule",
-      "evidence": "1 destructive command(s), none of them required by the task: step 23 (git reset --hard): cd repo && git reset --hard main",
+      "evidence": "1 command(s) from the destructive pattern list: step 23 (git reset --hard): cd repo && git reset --hard main",
       "step_indices": [
         23
       ]

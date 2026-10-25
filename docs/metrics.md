@@ -233,8 +233,8 @@ a published interval can be recomputed exactly.
 - **Head to head.** Two models compared on the tasks both attempted, resampled as pairs
   rather than as two independent averages, which is what a shared task set allows. The
   report gives the difference with its interval and the share of resamples in which the
-  first came out ahead. A pair is separated only when the whole interval sits on one side
-  of zero.
+  first came out ahead, a tie counting half, so a pair that tied in every resample reads 50
+  percent. A pair is separated only when the whole interval sits on one side of zero.
 - **The reward signal, per model.** For each task, whether a model's samples disagree. A
   group relative method such as GRPO computes each sample's advantage as its reward less the
   group mean, over the group's spread, so a task every sample passes, or every sample

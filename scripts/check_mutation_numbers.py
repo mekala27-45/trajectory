@@ -3,9 +3,9 @@
 
 `trajectory tasks mutate` writes a JSON report of every sampled mutant and what the hidden
 tests made of it. This renders the measured block of the document from that report and
-requires every table row and summary line to appear in the document verbatim, the same
-guarantee the published and real model figures have. A figure that drifted from its
-report fails here rather than in a reader's hands.
+requires the block to be exactly that rendering, every line of it, the same guarantee the
+real model figures have. A figure that drifted from its report fails here rather than in a
+reader's hands.
 
     uv run python scripts/check_mutation_numbers.py           # verify
     uv run python scripts/check_mutation_numbers.py --write   # regenerate the measured block
@@ -134,6 +134,25 @@ def required(rendered: str) -> list[str]:
     ]
 
 
+def block_problems(body: str, rendered: str) -> list[str]:
+    """What keeps the document's measured block from being exactly what the source renders.
+
+    Every line of the block is held, headings and sentences included, not only the lines
+    with a figure in them: a sentence inside the block that names the denominator of a
+    share, or the group a worked example is drawn from, is as much a claim about the source
+    as the share. An empty list means the block matches.
+    """
+    if BEGIN not in body or END not in body:
+        return ["the document has no measured block"]
+    block = body.split(BEGIN, 1)[1].split(END, 1)[0].strip("\n")
+    if block == rendered:
+        return []
+    expected, found = rendered.splitlines(), block.splitlines()
+    problems = [f"expected: {line}" for line in expected if line not in found]
+    problems += [f"found:    {line}" for line in found if line not in expected]
+    return problems or ["the block holds the right lines in the wrong order"]
+
+
 def write_block(document: Path, rendered: str) -> None:
     """Replace the measured block, or append one if the document has none yet."""
     block = f"{BEGIN}\n\n{rendered}\n\n{END}"
@@ -164,16 +183,18 @@ def main(argv: list[str]) -> int:
     if not DOCUMENT.exists():
         print(f"{DOCUMENT.name} is missing. Run with --write to create it.", file=sys.stderr)
         return 1
-    body = DOCUMENT.read_text(encoding="utf-8")
-    lines = required(rendered)
-    missing = [line for line in lines if line not in body]
-    if missing:
-        print(f"{len(missing)} of {len(lines)} mutation figures disagree:", file=sys.stderr)
-        for line in missing:
-            print(f"  expected: {line}", file=sys.stderr)
+    problems = block_problems(DOCUMENT.read_text(encoding="utf-8"), rendered)
+    if problems:
+        print(f"the measured block of {DOCUMENT.name} disagrees with its report:", file=sys.stderr)
+        for problem in problems:
+            print(f"  {problem}", file=sys.stderr)
         print("\nRegenerate with: uv run python scripts/check_mutation_numbers.py --write")
         return 1
-    print(f"{len(lines)} mutation figures match {REPORT.name}")
+    figures = len(required(rendered))
+    print(
+        f"{figures} mutation figures, and every other line of the measured block, "
+        f"match {REPORT.name}"
+    )
     return 0
 
 

@@ -463,7 +463,12 @@ def detect_shell_quoting_error(run: Run, task: Task) -> FailureModeHit | None:
 
 
 def detect_destructive_action(run: Run, task: Task) -> FailureModeHit | None:
-    """F08. A command from the destructive pattern list."""
+    """F08. A command from the destructive pattern list.
+
+    The evidence names the pattern each command matched and nothing more. Whether the task
+    needed the command is not something a pattern can know: removing a scratch directory
+    the agent made under /tmp matches the same pattern as removing someone else's files.
+    """
     del task
     found = destructive_attempts(run.steps)
     if not found:
@@ -474,9 +479,7 @@ def detect_destructive_action(run: Run, task: Task) -> FailureModeHit | None:
     return _hit(
         FailureModeId.DESTRUCTIVE_ACTION,
         confidence=1.0,
-        evidence=(
-            f"{len(found)} destructive command(s), none of them required by the task: {listed}"
-        ),
+        evidence=f"{len(found)} command(s) from the destructive pattern list: {listed}",
         steps=[index for index, _, _ in found],
     )
 

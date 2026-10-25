@@ -213,8 +213,9 @@ export default async function LeaderboardPage() {
             <div className="mt-4 flex flex-col gap-2">
               <h3 className="text-[15px]">Head to head</h3>
               <p className="max-w-[78ch] text-[13px] text-muted">
-                Each pair compared on the tasks both attempted, resampled as pairs. A pair is
-                separated only when its whole interval sits on one side of zero.
+                Each pair compared on the tasks both attempted, resampled as pairs. First ahead is
+                the share of resamples in which the first of the pair came out ahead, a tie counting
+                half. A pair is separated only when its whole interval sits on one side of zero.
               </p>
               <HeadToHead pairs={realPairs} />
             </div>

@@ -1411,7 +1411,8 @@ def uncertainty_lines(runs: list[Run]) -> list[str]:
         "",
         "The first model's solve rate less the second's, on the tasks both attempted, resampled "
         "as pairs. The last column is the share of resamples in which the first came out "
-        "ahead. An interval that crosses zero means these tasks do not separate the two.",
+        "ahead, a tie counting half. An interval that crosses zero means these tasks do not "
+        "separate the two.",
         "",
         "| first | second | shared tasks | difference, 95% interval | first ahead |",
         "| --- | --- | --- | --- | --- |",

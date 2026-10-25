@@ -132,3 +132,24 @@ def test_a_figure_that_drifts_fails(paths: tuple[Path, Path]):
     changed["killed"] = 3
     report.write_text(json.dumps(changed), encoding="utf-8")
     assert gate.main([]) == 1
+
+
+def test_a_sentence_inside_the_block_is_held_too(paths: tuple[Path, Path]):
+    """Not only the table rows: every line between the markers is the report's to write."""
+    _, document = paths
+    assert gate.main(["--write"]) == 0
+    body = document.read_text(encoding="utf-8")
+    block = body.split(gate.BEGIN, 1)[1].split(gate.END, 1)[0]
+    prose = next(
+        line for line in block.splitlines() if line and not line.startswith(("|", "-", "#"))
+    )
+    document.write_text(body.replace(prose, prose + " Edited by hand."), encoding="utf-8")
+    assert gate.main([]) == 1
+
+
+def test_prose_outside_the_block_is_the_authors(paths: tuple[Path, Path]):
+    _, document = paths
+    assert gate.main(["--write"]) == 0
+    body = document.read_text(encoding="utf-8")
+    document.write_text(body.replace("more prose", "different prose"), encoding="utf-8")
+    assert gate.main([]) == 0
