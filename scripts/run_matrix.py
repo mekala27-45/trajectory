@@ -78,6 +78,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument(
+        "--timeout-scale",
+        type=float,
+        default=1.0,
+        help="Stretch every task's wall clock ceiling by this factor, for a model whose "
+        "provider queues each request. The step ceiling is unchanged, and the ceiling each "
+        "run had is stored in its record.",
+    )
+    parser.add_argument(
         "--order",
         choices=("task", "seed", "auto"),
         default="auto",
@@ -187,6 +195,7 @@ def main(argv: list[str]) -> int:
             backend=backend,
             temperature=args.temperature,
             order=order,
+            timeout_scale=args.timeout_scale,
         )
         image_tags = prebuild_images(jobs) if backend is SandboxBackend.DOCKER else {}
 

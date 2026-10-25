@@ -61,7 +61,9 @@ TOP_LEVEL = {
     "judge_model",
     "models",
 }
-ENTRY_KEYS = {"model", "tasks", "seeds", "max_calls", "note"}
+ENTRY_KEYS = {"model", "tasks", "seeds", "max_calls", "parallel", "timeout_scale", "note"}
+# How far a wall clock ceiling may be stretched for a model whose provider queues requests.
+MAX_TIMEOUT_SCALE = 6.0
 
 
 class RequestError(ValueError):
@@ -77,6 +79,8 @@ class Entry:
     seeds: tuple[int, ...]
     max_calls: int
     note: str = ""
+    parallel: int | None = None
+    timeout_scale: float = 1.0
 
     @property
     def slug(self) -> str:
@@ -106,12 +110,14 @@ class Entry:
             "--rpm",
             f"{rpm:g}",
             "--parallel",
-            str(parallel),
+            str(self.parallel or parallel),
             "--order",
             "seed",
             "--temperature",
             f"{temperature:g}",
         ]
+        if self.timeout_scale != 1.0:
+            args += ["--timeout-scale", f"{self.timeout_scale:g}"]
         for seed in self.seeds:
             args += ["--seed", str(seed)]
         for task in self.tasks:
@@ -215,6 +221,22 @@ def parse_request(body: Any, tasks: list[LoadedTask]) -> Request:  # noqa: ANN40
         note = item.get("note", "")
         if not isinstance(note, str):
             raise RequestError(f"{where}: note must be a string")
+        own_parallel = item.get("parallel")
+        if own_parallel is not None and (
+            isinstance(own_parallel, bool)
+            or not isinstance(own_parallel, int)
+            or not 1 <= own_parallel <= 8
+        ):
+            raise RequestError(f"{where}: parallel must be an integer from 1 to 8")
+        scale = item.get("timeout_scale", 1.0)
+        if (
+            isinstance(scale, bool)
+            or not isinstance(scale, int | float)
+            or not 1.0 <= scale <= MAX_TIMEOUT_SCALE
+        ):
+            raise RequestError(
+                f"{where}: timeout_scale must be a number from 1 to {MAX_TIMEOUT_SCALE:g}"
+            )
         entries.append(
             Entry(
                 model=model,
@@ -222,6 +244,8 @@ def parse_request(body: Any, tasks: list[LoadedTask]) -> Request:  # noqa: ANN40
                 seeds=seeds,
                 max_calls=max_calls,
                 note=note,
+                parallel=own_parallel,
+                timeout_scale=float(scale),
             )
         )
 
@@ -345,15 +369,16 @@ def plan_summary(
         f"{request.rpm_total:g} requests a minute shared by up to {request.max_parallel} "
         f"jobs at once, so {rate_per_job(request, len(jobs)):g} each.",
         "",
-        "| model | tasks | seeds | call ceiling | probe |",
-        "| --- | --- | --- | --- | --- |",
+        "| model | tasks | seeds | call ceiling | wall clock | probe |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for entry, ok, detail in outcomes:
         status = "not probed" if ok is None else ("ok" if ok else "left out")
         tasks = ", ".join(entry.tasks) if entry.tasks else "all"
         seeds = ", ".join(str(seed) for seed in entry.seeds)
+        clock = "as set" if entry.timeout_scale == 1.0 else f"x{entry.timeout_scale:g}"
         lines.append(
-            f"| `{entry.model}` | {tasks} | {seeds} | {entry.max_calls} "
+            f"| `{entry.model}` | {tasks} | {seeds} | {entry.max_calls} | {clock} "
             f"| {status}: {_cell(detail)} |"
         )
     if judge is not None:

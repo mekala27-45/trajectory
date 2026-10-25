@@ -91,6 +91,11 @@ def build_provider(config: RunConfig, loaded: LoadedTask) -> Provider:
     )
 
 
+# The run model's own ceiling on a wall clock limit, and how far a scale may stretch one.
+MAX_RUN_TIMEOUT_S = 3600
+MAX_TIMEOUT_SCALE = 6.0
+
+
 def config_for(
     task: Task,
     *,
@@ -99,15 +104,26 @@ def config_for(
     backend: SandboxBackend = SandboxBackend.DOCKER,
     temperature: float = 0.0,
     max_output_bytes: int = 16_384,
+    timeout_scale: float = 1.0,
 ) -> RunConfig:
-    """Build a run configuration from a task's own limits."""
+    """Build a run configuration from a task's own limits.
+
+    `timeout_scale` stretches the task's wall clock ceiling, and nothing else. A model
+    served from a shared free tier can wait tens of seconds in a queue before each reply,
+    and that wait counts against the ceiling as if the agent had spent it, so a slow queue
+    would read as an agent that ran out of time. The step ceiling, which bounds the work,
+    is never scaled, and the ceiling a run actually had is stored in its config.
+    """
+    if not 1.0 <= timeout_scale <= MAX_TIMEOUT_SCALE:
+        raise ValueError(f"timeout_scale must be between 1 and {MAX_TIMEOUT_SCALE:g}")
+    timeout = min(MAX_RUN_TIMEOUT_S, round(task.timeout_seconds * timeout_scale))
     return RunConfig(
         model=model,
         temperature=temperature,
         max_steps=task.max_steps,
         seed=seed,
         tools_enabled=list(ToolName),
-        timeout_seconds=task.timeout_seconds,
+        timeout_seconds=timeout,
         command_timeout_seconds=task.command_timeout_seconds,
         max_output_bytes=max_output_bytes,
         sandbox_backend=backend,
@@ -301,6 +317,7 @@ def plan(
     backend: SandboxBackend,
     temperature: float = 0.0,
     order: str = "task",
+    timeout_scale: float = 1.0,
 ) -> list[Job]:
     """Build the job list for a suite run.
 
@@ -326,7 +343,12 @@ def plan(
         Job(
             loaded,
             config_for(
-                loaded.task, model=model, seed=seed, backend=backend, temperature=temperature
+                loaded.task,
+                model=model,
+                seed=seed,
+                backend=backend,
+                temperature=temperature,
+                timeout_scale=timeout_scale,
             ),
         )
         for loaded, seed in pairs

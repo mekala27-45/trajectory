@@ -182,3 +182,29 @@ def test_no_annotation_outside_a_workflow(
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     panel.annotate("notice", "t", "m")
     assert capsys.readouterr().out == ""
+
+
+def test_an_entry_can_have_its_own_workers_and_a_longer_clock():
+    request = panel.parse_request(
+        body(models=[{"model": "nvidia_nim/v/slow", "parallel": 4, "timeout_scale": 3}]),
+        TASKS,
+    )
+    (job,) = panel.plan(request, list(request.entries), None)
+    args = job["args"].split()
+    assert args[args.index("--parallel") + 1] == "4"
+    assert args[args.index("--timeout-scale") + 1] == "3"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"parallel": 0}, {"parallel": 9}, {"timeout_scale": 0.5}, {"timeout_scale": 7}],
+)
+def test_entry_limits_are_bounded(change: dict[str, object]):
+    with pytest.raises(panel.RequestError):
+        panel.parse_request(body(models=[{"model": "nvidia_nim/v/m", **change}]), TASKS)
+
+
+def test_an_unscaled_entry_passes_no_scale():
+    request = panel.parse_request(body(), TASKS)
+    (job,) = panel.plan(request, list(request.entries), None)
+    assert "--timeout-scale" not in job["args"]

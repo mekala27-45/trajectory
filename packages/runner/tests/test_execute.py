@@ -194,3 +194,36 @@ class TestDeclaredTestCount:
         )
         assert not check.ok
         assert check.reason == "declares 8 hidden tests but the reference ran 10"
+
+
+class TestTimeoutScale:
+    """A queued provider gets more wall clock, and nothing else changes."""
+
+    def test_the_default_is_the_task_ceiling(self):
+        task = make_task(timeout_seconds=600)
+        assert config_for(task, model="m").timeout_seconds == 600
+
+    def test_a_scale_stretches_the_wall_clock_only(self):
+        task = make_task(timeout_seconds=600, max_steps=30)
+        config = config_for(task, model="m", timeout_scale=2.5)
+        assert config.timeout_seconds == 1500
+        assert config.max_steps == 30
+        assert config.command_timeout_seconds == task.command_timeout_seconds
+
+    def test_the_ceiling_stops_at_the_run_maximum(self):
+        task = make_task(timeout_seconds=1200)
+        assert config_for(task, model="m", timeout_scale=6).timeout_seconds == 3600
+
+    @pytest.mark.parametrize("scale", [0.5, 6.5])
+    def test_a_scale_out_of_range_is_refused(self, scale: float):
+        with pytest.raises(ValueError, match="timeout_scale"):
+            config_for(make_task(), model="m", timeout_scale=scale)
+
+    def test_plan_carries_the_scale_to_every_job(self, task_dir, sample_task):
+        loaded = LoadedTask(
+            task=sample_task, directory=task_dir, playbook=_solving_playbook(sample_task.id)
+        )
+        jobs = plan(
+            [loaded], model="m", seeds=[0, 1], backend=SandboxBackend.DOCKER, timeout_scale=2
+        )
+        assert {job.config.timeout_seconds for job in jobs} == {sample_task.timeout_seconds * 2}
