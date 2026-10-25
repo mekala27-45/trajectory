@@ -3,12 +3,14 @@
   "backend": "docker",
   "per_task": 12,
   "harness_version": "0.3.0",
-  "generated_at": "2026-10-25T02:57:03.865503+00:00",
-  "scored": 91,
-  "killed": 72,
-  "killed_by_assertion": 70,
+  "generated_at": "2026-10-25T03:41:34.667967+00:00",
+  "scored": 94,
+  "killed": 75,
+  "killed_by_assertion": 73,
   "survived": 19,
-  "score": 0.791209,
+  "unstable": 0,
+  "confirmation": "every kill is replayed once more and counts only when it fails again",
+  "score": 0.797872,
   "tasks": [
     {
       "task_id": "cli-implement-01",
@@ -22,6 +24,7 @@
       "killed": 12,
       "killed_by_assertion": 11,
       "survived": 0,
+      "unstable": 0,
       "score": 1.0,
       "mutants": [
         {
@@ -180,6 +183,7 @@
       "killed": 0,
       "killed_by_assertion": 0,
       "survived": 0,
+      "unstable": 0,
       "score": null,
       "mutants": []
     },
@@ -195,6 +199,7 @@
       "killed": 9,
       "killed_by_assertion": 9,
       "survived": 3,
+      "unstable": 0,
       "score": 0.75,
       "mutants": [
         {
@@ -355,6 +360,7 @@
       "killed": 8,
       "killed_by_assertion": 8,
       "survived": 4,
+      "unstable": 0,
       "score": 0.666667,
       "mutants": [
         {
@@ -515,6 +521,7 @@
       "killed": 6,
       "killed_by_assertion": 6,
       "survived": 0,
+      "unstable": 0,
       "score": 1.0,
       "mutants": [
         {
@@ -603,6 +610,7 @@
       "killed": 11,
       "killed_by_assertion": 11,
       "survived": 1,
+      "unstable": 0,
       "score": 0.916667,
       "mutants": [
         {
@@ -761,6 +769,7 @@
       "killed": 2,
       "killed_by_assertion": 2,
       "survived": 0,
+      "unstable": 0,
       "score": 1.0,
       "mutants": [
         {
@@ -801,6 +810,7 @@
       "killed": 7,
       "killed_by_assertion": 7,
       "survived": 5,
+      "unstable": 0,
       "score": 0.583333,
       "mutants": [
         {
@@ -961,6 +971,7 @@
       "killed": 7,
       "killed_by_assertion": 6,
       "survived": 2,
+      "unstable": 0,
       "score": 0.777778,
       "mutants": [
         {
@@ -1086,6 +1097,7 @@
       "killed": 8,
       "killed_by_assertion": 8,
       "survived": 4,
+      "unstable": 0,
       "score": 0.666667,
       "mutants": [
         {
@@ -1241,28 +1253,55 @@
         "src/shipments.ts",
         "src/status.ts"
       ],
-      "sites": 0,
-      "control_passed": false,
-      "control_detail": "no operator applies to the source the reference writes",
-      "scored": 0,
-      "killed": 0,
-      "killed_by_assertion": 0,
+      "sites": 2,
+      "control_passed": true,
+      "control_detail": "9/9",
+      "scored": 2,
+      "killed": 2,
+      "killed_by_assertion": 2,
       "survived": 0,
-      "score": null,
-      "mutants": []
+      "unstable": 0,
+      "score": 1.0,
+      "mutants": [
+        {
+          "label": "src/shipments.ts:7 === -> !==",
+          "path": "src/shipments.ts",
+          "line": 7,
+          "operator": "equality",
+          "before": "===",
+          "after": "!==",
+          "outcome": "killed",
+          "tests_passed": 8,
+          "tests_total": 9,
+          "detail": ""
+        },
+        {
+          "label": "src/shipments.ts:7 0 -> 1",
+          "path": "src/shipments.ts",
+          "line": 7,
+          "operator": "constant",
+          "before": "0",
+          "after": "1",
+          "outcome": "killed",
+          "tests_passed": 8,
+          "tests_total": 9,
+          "detail": ""
+        }
+      ]
     },
     {
       "task_id": "ts-build-break-01",
       "files": [
         "packages/app/src/main.ts"
       ],
-      "sites": 2,
+      "sites": 3,
       "control_passed": true,
       "control_detail": "7/7",
-      "scored": 2,
-      "killed": 2,
-      "killed_by_assertion": 2,
+      "scored": 3,
+      "killed": 3,
+      "killed_by_assertion": 3,
       "survived": 0,
+      "unstable": 0,
       "score": 1.0,
       "mutants": [
         {
@@ -1274,6 +1313,18 @@
           "after": "!==",
           "outcome": "killed",
           "tests_passed": 5,
+          "tests_total": 7,
+          "detail": ""
+        },
+        {
+          "label": "packages/app/src/main.ts:11 2 -> 3",
+          "path": "packages/app/src/main.ts",
+          "line": 11,
+          "operator": "constant",
+          "before": "2",
+          "after": "3",
+          "outcome": "killed",
+          "tests_passed": 6,
           "tests_total": 7,
           "detail": ""
         },
