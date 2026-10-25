@@ -23,6 +23,8 @@ test.describe("leaderboard", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
+    // Real models are shown first; every row is one choice away.
+    await page.getByRole("combobox", { name: /agents/i }).selectOption("all");
     const expected = leaderboard().rows.length;
     const rows = page.locator("table tbody tr");
     await expect(rows).toHaveCount(expected);

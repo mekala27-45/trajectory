@@ -80,6 +80,11 @@ export function LeaderboardTable({
   suites: string[];
   backends: SandboxBackend[];
 }) {
+  // Real models first: the scripted policies solve nearly everything by construction, so a
+  // board that shows them by default leads with rows that are not findings. One choice away.
+  const realCount = rows.filter((row) => !isStubModel(row.model)).length;
+  const scriptedCount = rows.length - realCount;
+  const [kind, setKind] = useState<string>(realCount > 0 ? "real" : "all");
   const [suite, setSuite] = useState<string>("all");
   const [backend, setBackend] = useState<string>("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "solve_rate", desc: true }]);
@@ -88,10 +93,11 @@ export function LeaderboardTable({
     () =>
       rows.filter(
         (row) =>
+          (kind === "all" || (kind === "real") !== isStubModel(row.model)) &&
           (suite === "all" || row.suite === suite) &&
           (backend === "all" || row.backend === backend),
       ),
-    [rows, suite, backend],
+    [rows, kind, suite, backend],
   );
 
   const columns = useMemo(
@@ -200,6 +206,20 @@ export function LeaderboardTable({
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-end gap-x-4 gap-y-2">
+        <label className="flex flex-col gap-1">
+          <span className="font-mono text-[10px] tracking-wide text-dim uppercase">Agents</span>
+          <select
+            value={kind}
+            onChange={(event) => setKind(event.target.value)}
+            className="min-w-[11rem] rounded-md border border-line bg-raised px-2 py-1 font-mono text-[12.5px] text-fg"
+          >
+            {realCount > 0 ? <option value="real">real models ({realCount})</option> : null}
+            {scriptedCount > 0 ? (
+              <option value="scripted">scripted policies ({scriptedCount})</option>
+            ) : null}
+            <option value="all">all agents ({rows.length})</option>
+          </select>
+        </label>
         <label className="flex flex-col gap-1">
           <span className="font-mono text-[10px] tracking-wide text-dim uppercase">Suite</span>
           <select
