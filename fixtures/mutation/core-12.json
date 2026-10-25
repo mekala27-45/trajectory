@@ -3,7 +3,7 @@
   "backend": "docker",
   "per_task": 12,
   "harness_version": "0.3.0",
-  "generated_at": "2026-10-25T03:41:34.667967+00:00",
+  "generated_at": "2026-10-25T04:20:37.085214+00:00",
   "scored": 94,
   "killed": 75,
   "killed_by_assertion": 73,
