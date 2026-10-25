@@ -168,3 +168,23 @@ def test_an_agreement_on_runs_no_longer_committed_fails(workspace: tuple[Path, P
     gate.AGREEMENT.write_text(json.dumps(_agreement(["not-a-committed-run"])), encoding="utf-8")
     assert gate.main(["--write"]) == 1
     assert not document.exists()
+
+
+def test_how_each_run_ended_keeps_the_provider_apart(workspace: tuple[Path, Path]):
+    """A run the provider ended has its own column, apart from the agent's own endings."""
+    from trajectory_core.models import Run, RunStatus
+
+    fixtures, _ = workspace
+    first = sorted(fixtures.glob("*.json"))[0]
+    run = Run.model_validate_json(first.read_text(encoding="utf-8"))
+    ended = run.model_copy(
+        update={
+            "status": RunStatus.ERROR,
+            "error": f"{run.config.model} failed after 4 attempt(s): Request timed out",
+        }
+    )
+    first.write_text(ended.model_dump_json(indent=2), encoding="utf-8")
+    lines = gate.ending_lines(gate.read_runs(fixtures))
+    assert lines[0] == "### How each run ended"
+    row = next(line for line in lines if gate._short(run.config.model) in line)
+    assert row.rstrip(" |").endswith("| 1 | 0")

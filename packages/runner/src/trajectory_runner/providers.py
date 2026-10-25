@@ -26,6 +26,8 @@ from typing import Any, Protocol, runtime_checkable
 
 import structlog
 
+from trajectory_core.models import Run, RunStatus
+
 log = structlog.get_logger(__name__)
 
 STUB_PREFIX = "stub:"
@@ -309,7 +311,7 @@ class LiteLLMProvider:
                 time.sleep(delay)
 
         raise ProviderError(
-            f"{self.model} failed after {attempts} attempt(s): {last_error}"
+            PROVIDER_FAILURE.format(model=self.model) + f"{attempts} attempt(s): {last_error}"
         ) from last_error
 
     def _parse(self, response: Any) -> ModelReply:  # noqa: ANN401  litellm response is untyped
@@ -363,6 +365,24 @@ class LiteLLMProvider:
             finish_reason=getattr(choice, "finish_reason", None),
             reasoning=reasoning if isinstance(reasoning, str) and reasoning.strip() else None,
         )
+
+
+# How a provider failure reads in a run record: the provider raises it, and the agent loop
+# stores the message as the run's error. ended_by_provider reads it back.
+PROVIDER_FAILURE = "{model} failed after "
+
+
+def ended_by_provider(run: Run) -> bool:
+    """Whether the provider ended this run: a call kept failing until the retries ran out.
+
+    Such a run measures the provider at the time, not the model, which is why a panel's
+    rerun may replace it and the model figures count it apart from the agent's own endings.
+    """
+    return (
+        run.status is RunStatus.ERROR
+        and run.error is not None
+        and run.error.startswith(PROVIDER_FAILURE.format(model=run.config.model))
+    )
 
 
 def _is_rate_limit(exc: Exception) -> bool:

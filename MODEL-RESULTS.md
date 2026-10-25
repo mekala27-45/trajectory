@@ -85,6 +85,12 @@ Each interval is a 95% two stage bootstrap over tasks, then over each task's see
 | --- | --- | --- | --- | --- | --- | --- |
 | `nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b` | 12 | 20 | 33.3% [8.3, 58.3] | 0.749 [0.605, 0.877] | 33.3% | 50.0% |
 
+### How each run ended
+
+| model | runs | solved | agent finished | step ceiling | wall clock ceiling | call ceiling | provider ended | other error |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `nemotron-3.5-lightning-30b-a3b` | 20 | 7 | 8 | 10 | 0 | 1 | 1 | 0 |
+
 ### Per task, read as an RL reward signal
 
 Each cell is solved runs over sampled runs. A task whose samples all pass or all fail gives a group relative method no gradient; only mixed outcomes teach. A bold cell has a learning signal under a binary reward, and an italic cell only under partial credit. This describes the reward signal these tasks offer these models. It is not a training run.

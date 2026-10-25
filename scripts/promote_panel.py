@@ -34,9 +34,10 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from trajectory_core.models import Run, RunStatus, Task
+from trajectory_core.models import Run, Task
 from trajectory_core.scoring import rescore
 from trajectory_runner.loader import discover
+from trajectory_runner.providers import ended_by_provider
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "fixtures" / "model-runs"
@@ -72,14 +73,10 @@ def load(directory: Path) -> list[Run]:
 def provider_ended(run: Run) -> bool:
     """A run the model provider ended: its calls kept failing until the retries ran out.
 
-    That is a measurement of the provider on that afternoon, not of the model, and it is the
+    That is a measurement of the provider at the time, not of the model, and it is the
     only kind of run a rerun is allowed to replace.
     """
-    return (
-        run.status is RunStatus.ERROR
-        and run.error is not None
-        and run.error.startswith(f"{run.config.model} failed after ")
-    )
+    return ended_by_provider(run)
 
 
 def _key(run: Run) -> tuple[str, str, int]:

@@ -30,9 +30,10 @@ from pathlib import Path
 from typing import Any
 
 from trajectory_core.aggregate import failure_mode_counts, leaderboard
-from trajectory_core.models import Run
+from trajectory_core.models import Run, RunStatus
 from trajectory_core.stats import group_advantages
 from trajectory_runner.cli import _markdown_report
+from trajectory_runner.providers import ended_by_provider
 from trajectory_runner.store import read_runs
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -86,7 +87,42 @@ def render(fixtures: Path) -> str:
     agreement: list[str] = []
     if AGREEMENT.is_file():
         agreement = ["", *judge_lines(json.loads(AGREEMENT.read_text(encoding="utf-8")), runs)]
-    return "\n".join([*lines, "", *signal_lines(runs), *agreement]).strip("\n")
+    return "\n".join([*lines, "", *ending_lines(runs), "", *signal_lines(runs), *agreement]).strip(
+        "\n"
+    )
+
+
+def ending_lines(runs: list[Run]) -> list[str]:
+    """How each run ended, per model, with the provider's failures apart from the agent's.
+
+    A run the provider ended is a measurement of the provider, so it gets its own column:
+    a solve rate read without it would charge the model for the free tier's bad hour.
+    """
+    columns = (
+        ("agent finished", RunStatus.COMPLETED),
+        ("step ceiling", RunStatus.MAX_STEPS),
+        ("wall clock ceiling", RunStatus.TIMEOUT),
+        ("call ceiling", RunStatus.BUDGET_EXCEEDED),
+    )
+    lines = [
+        "### How each run ended",
+        "",
+        "| model | runs | solved | "
+        + " | ".join(name for name, _ in columns)
+        + " | provider ended | other error |",
+        "| --- | --- | --- | " + " | ".join("---" for _ in columns) + " | --- | --- |",
+    ]
+    for model in sorted({run.config.model for run in runs}):
+        mine = [run for run in runs if run.config.model == model]
+        ended = sum(1 for run in mine if ended_by_provider(run))
+        other = sum(1 for run in mine if run.status is RunStatus.ERROR) - ended
+        counts = [sum(1 for run in mine if run.status is status) for _, status in columns]
+        lines.append(
+            f"| `{_short(model)}` | {len(mine)} | {sum(1 for run in mine if run.solved)} | "
+            + " | ".join(str(count) for count in counts)
+            + f" | {ended} | {other} |"
+        )
+    return lines
 
 
 def judge_lines(report: dict[str, Any], runs: list[Run]) -> list[str]:
