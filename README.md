@@ -51,7 +51,7 @@ to make agent failures legible.
 
 ## Beyond the leaderboard
 
-Three things this harness does that a pass-rate benchmark does not, each one command or one
+Five things this harness does that a pass-rate benchmark does not, each one command or one
 document away:
 
 - **It runs in your stack, not only this one.** Every task exports to the Harbor task
@@ -66,9 +66,19 @@ document away:
   use, and failure mode **F11 grader tampering** flags a startup hook left behind or a report
   the planted test caught. A run that games its grader is the one thing a pass rate cannot
   show. [docs/grader-audit.md](docs/grader-audit.md).
-- **It runs real models for free.** The same suite drives a real language model through a
-  no-card tier, under a shared call ceiling and rate limit rather than a dollar budget, with
-  a one-call smoke that fails before a full matrix starts. [docs/real-models.md](docs/real-models.md).
+- **It runs a panel of real models for free.** A committed request names the models, and one
+  workflow probes each with a single call, then runs every model that answered in its own job,
+  under its own call ceiling and a share of one rate limit, on a no-card tier.
+  [docs/real-models.md](docs/real-models.md).
+- **It says how sure each number is.** Every model's solve rate carries a 95% interval from
+  resampling the tasks, then their seeds, with every task weighing the same; pass@k; and every
+  pair of models compared head to head on the tasks both attempted. With twelve tasks the
+  intervals are wide, and the site draws them rather than hiding them.
+  [docs/metrics.md](docs/metrics.md#how-sure-a-number-is).
+- **It measures its own tests.** Mutation testing replays each reference with one small bug,
+  the slip a model makes, and counts how many the hidden tests catch. Every near miss that got
+  through is listed by file and line, because a reward that pays a near miss in full teaches it.
+  [docs/verifier-strength.md](docs/verifier-strength.md).
 
 The published matrix shows the problem directly. Three of the five agents scored **100.0%
 +/- 0.0%**, identical rows on any conventional leaderboard. One of them made a malformed
