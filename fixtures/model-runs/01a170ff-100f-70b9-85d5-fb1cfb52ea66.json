@@ -616,7 +616,7 @@
     "redundant_action_rate": 0.04,
     "recovery_rate": 1.0,
     "premature_termination": false,
-    "context_drift": null,
+    "context_drift": 0.1,
     "cost_usd": 0.0,
     "wall_clock_s": 440.911,
     "destructive_attempts": 0,
@@ -625,7 +625,41 @@
     "schema_violations": 0,
     "failed_commands": 3
   },
-  "failure_modes": [],
+  "failure_modes": [
+    {
+      "id": "F07",
+      "name": "long horizon context loss",
+      "confidence": 0.85,
+      "detector": "judge",
+      "evidence": "At step 19 the agent established that plugina==2.0.0 + pluginb==3.0.0 + libcore==2.1.0 install cleanly and app.py runs correctly. It then never applied that conclusion to requirements.txt. Instead steps 25-29 re-derive the same facts: step 25 `pip show` repeats step 13; step 28 repeats the exact `pip install ... plugina==2.0.0 pluginb==1.0.0` command from steps 11/14 with the same known failure; step 29 repeats the individual --dry-run probes from step 26. The agent also lost track of the fact that check.sh installs into a temp --target directory, wasting steps 20-23 installing into local site-packages.",
+      "step_indices": [
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        28,
+        29
+      ]
+    },
+    {
+      "id": "F06",
+      "name": "ignored test output",
+      "confidence": 0.55,
+      "detector": "judge",
+      "evidence": "Step 24 re-ran `sh check.sh` and got the identical ResolutionImpossible error about requirements.txt line 4 (libcore==1.4.0) conflicting. The next action (step 25) was `pip show plugina pluginb libcore` — inspecting already-installed packages rather than addressing the failing input file (requirements.txt), which the agent never re-read or edited. Steps 26-29 continued with redundant --dry-run probes of individual packages. This is borderline: these are diagnostic steps, but none touch the file named in the failure or move toward the fix the agent had already identified at step 19.",
+      "step_indices": [
+        24,
+        25,
+        26,
+        27,
+        28,
+        29
+      ]
+    }
+  ],
   "image_id": "sha256:1571898b69b8597aceeac11a9b30d2f5c48c004fdc984ce52b015417fa4cfb65",
   "harness_version": "0.3.0",
   "runner_fingerprint": {
@@ -670,7 +704,7 @@
     "truncated": false
   },
   "context_compressed": false,
-  "error": "judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": true, \"confi...4, 25, 26, 27, 28, 29]}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type\nlong_horizon_context_loss\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": true, \"confi...9, 25, 26, 27, 28, 29]}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type\nenvironment_mismatch\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": false, \"conf...\"\", \"step_indices\": []}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type",
+  "error": null,
   "wall_clock_s": 440.911,
   "solved": false,
   "total_cost_usd": 0.0

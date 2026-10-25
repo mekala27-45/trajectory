@@ -803,5 +803,37 @@
         "rerun_provider_ended": true
       }
     ]
+  },
+  "rejudged": {
+    "workflow_run_id": "40179971123",
+    "workflow": ".github/workflows/rejudge.yml",
+    "judge_model": "nvidia_nim/stepfun-ai/step-5-preview",
+    "read_again": [
+      "01a170ec-49e4-70b9-9e75-fb8ef7ba6066",
+      "01a170ec-49e8-70b8-8274-74cce531f2ba",
+      "01a170ee-43a0-7066-8650-0d5e1a9bce91",
+      "01a170f6-365c-7019-b515-4ced261e9b52",
+      "01a170f6-96e7-70dd-b449-883c076e9c60",
+      "01a170f9-5243-70b2-94d5-9d301e72fe9d",
+      "01a170fe-c203-70e4-8cdb-418965057fc3",
+      "01a170ff-100f-70b9-85d5-fb1cfb52ea66",
+      "01a17109-63f9-708a-b871-c1f383d9863f",
+      "01a17119-aee4-70e4-81c7-2a13f4192a5c",
+      "01a1711c-e709-70b9-a5e8-1c115e3b24d6",
+      "01a1711e-ab7b-70f1-a90f-add75a3b92d6",
+      "01a1711f-4944-705e-b81f-d8aaa51c7fbe",
+      "01a1712d-c982-701e-8adc-1d15b0c279d2",
+      "01a1712d-dabe-7068-bae6-0b1d083c5b12",
+      "01a17131-ac0c-70f0-b8d6-f4b5c851e1f2",
+      "01a17138-bb11-70aa-94db-b5085fe53f05",
+      "01a1713c-bf05-70c6-b88f-28c0f0063098",
+      "01a17149-b197-70cc-8f8c-6a4d323f9e48",
+      "01a1714e-7ccd-70fc-a7b4-058a437bd69c",
+      "01a17159-766f-70d3-9efe-6bdf395633b6",
+      "01a17194-5af9-704d-a12f-b5d1881524d4"
+    ],
+    "still_unjudged": [],
+    "at_commit": "5d601369a08ac9bd8efe1106199c2e0696605af4",
+    "promoted_at": "2026-10-25T10:14:42+00:00"
   }
 }

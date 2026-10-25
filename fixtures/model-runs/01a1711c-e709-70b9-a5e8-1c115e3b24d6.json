@@ -904,7 +904,7 @@
     "redundant_action_rate": 0.516129,
     "recovery_rate": 1.0,
     "premature_termination": false,
-    "context_drift": null,
+    "context_drift": 0.0,
     "cost_usd": 0.0,
     "wall_clock_s": 504.378,
     "destructive_attempts": 0,
@@ -922,6 +922,36 @@
       "evidence": "1 reference(s) to paths that were not in the workspace at the start and were not created during the run, read through a file tool: step 6: migrations/0001_initial.up.sql",
       "step_indices": [
         6
+      ]
+    },
+    {
+      "id": "F06",
+      "name": "ignored test output",
+      "confidence": 0.75,
+      "detector": "judge",
+      "evidence": "Step 16: applying the migration fails with 'canceling statement due to statement timeout' on the UPDATE inside the procedure. Step 22 then measures a 5000-row UPDATE at 30ms, and step 38 shows 300 batched UPDATEs at max 23.2ms — i.e. the inner statements are far under the 700ms timeout. The agent never addresses the actual cause (the CALL/DO driver statement itself being subject to statement_timeout, which SPEC.md explicitly says is not timed against the budget) and instead keeps re-running the same failing file (steps 25-26) and re-testing the same procedure manually (steps 34-44).",
+      "step_indices": [
+        16,
+        22,
+        25,
+        26,
+        38,
+        44
+      ]
+    },
+    {
+      "id": "F07",
+      "name": "long horizon context loss",
+      "confidence": 0.7,
+      "detector": "judge",
+      "evidence": "Step 22 established that a 5000-row UPDATE takes 30ms and step 38 established 300 batched UPDATEs at max 23.2ms, both far under the 700ms statement_timeout. Yet at steps 39-44 the agent keeps re-investigating whether statement_timeout applies to the procedure's inner statements, re-running SHOW statement_timeout (step 39), re-testing SET statement_timeout (step 42), and re-creating the same procedure (step 44) without using the timing evidence it already collected. It also re-writes the identical up-migration file at step 25 after the step 16 failure, and re-runs the same manual UPDATE timing test at steps 19-22 and 29-30.",
+      "step_indices": [
+        22,
+        25,
+        38,
+        39,
+        42,
+        44
       ]
     }
   ],
@@ -3711,7 +3741,7 @@
     "truncated": false
   },
   "context_compressed": false,
-  "error": "judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": true, \"confi...8, 19, 25, 26, 27, 31]}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type\nlong_horizon_context_loss\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": true, \"confi...9, 40, 41, 42, 43, 44]}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type\nenvironment_mismatch\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": false, \"conf...\"\", \"step_indices\": []}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type",
+  "error": null,
   "wall_clock_s": 504.378,
   "solved": false,
   "total_cost_usd": 0.0

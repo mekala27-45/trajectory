@@ -1,0 +1,86 @@
+{
+  "purpose": "Rerun the 48 runs of panel 40155008047 that the provider ended, and only those: each ended when a call failed with a timeout or a 429 through every retry, or with an HTTP 400, so the record measures the free tier at the time rather than the model. Same models, tasks, seeds, temperature and caps as that panel. At promotion each rerun replaces the run with the same model, task and seed, and stands whatever it scores, so nothing is chosen by outcome. The total rate is lower than the first panel's, the provider now waits most of a minute after a 429 instead of retrying inside the same window, and the judge reads a verdict sent as JSON text.",
+  "suite": "core-12",
+  "temperature": 0.7,
+  "rpm_total": 24,
+  "max_parallel": 5,
+  "parallel": 2,
+  "judge_model": "nvidia_nim/stepfun-ai/step-5-preview",
+  "models": [
+    {
+      "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+      "runs": [
+        ["cli-implement-01", 1],
+        ["sql-migration-01", 1],
+        ["ts-build-break-01", 1]
+      ]
+    },
+    {
+      "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+      "runs": [
+        ["cli-implement-01", 1],
+        ["git-surgery-01", 1],
+        ["go-race-01", 1],
+        ["log-forensics-01", 1],
+        ["py-dep-conflict-01", 1],
+        ["py-etl-schema-01", 1],
+        ["py-failing-suite-01", 1],
+        ["py-flaky-test-01", 1],
+        ["py-perf-01", 1],
+        ["sql-migration-01", 0],
+        ["ts-api-contract-01", 1],
+        ["ts-build-break-01", 1]
+      ]
+    },
+    {
+      "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+      "runs": [
+        ["cli-implement-01", 0],
+        ["go-race-01", 0],
+        ["go-race-01", 1],
+        ["py-etl-schema-01", 1],
+        ["sql-migration-01", 1]
+      ]
+    },
+    {
+      "model": "nvidia_nim/openai/gpt-oss-20b",
+      "runs": [
+        ["cli-implement-01", 1],
+        ["git-surgery-01", 0],
+        ["git-surgery-01", 1],
+        ["go-race-01", 1],
+        ["py-etl-schema-01", 0],
+        ["py-etl-schema-01", 1],
+        ["py-failing-suite-01", 1],
+        ["py-perf-01", 0],
+        ["sql-migration-01", 0],
+        ["sql-migration-01", 1],
+        ["ts-api-contract-01", 0],
+        ["ts-api-contract-01", 1],
+        ["ts-build-break-01", 0],
+        ["ts-build-break-01", 1]
+      ]
+    },
+    {
+      "model": "nvidia_nim/z-ai/glm-5.3",
+      "runs": [
+        ["cli-implement-01", 0],
+        ["cli-implement-01", 1],
+        ["git-surgery-01", 0],
+        ["go-race-01", 0],
+        ["go-race-01", 1],
+        ["log-forensics-01", 0],
+        ["py-dep-conflict-01", 0],
+        ["py-etl-schema-01", 0],
+        ["py-etl-schema-01", 1],
+        ["py-failing-suite-01", 0],
+        ["py-flaky-test-01", 0],
+        ["py-perf-01", 0],
+        ["sql-migration-01", 0],
+        ["sql-migration-01", 1]
+      ],
+      "parallel": 4,
+      "timeout_scale": 3
+    }
+  ]
+}

@@ -807,7 +807,7 @@
     "redundant_action_rate": 0.138889,
     "recovery_rate": 1.0,
     "premature_termination": false,
-    "context_drift": null,
+    "context_drift": 0.0,
     "cost_usd": 0.0,
     "wall_clock_s": 731.208,
     "destructive_attempts": 0,
@@ -858,7 +858,7 @@
     "truncated": false
   },
   "context_compressed": false,
-  "error": "judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": false, \"conf...\"\", \"step_indices\": []}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type\nlong_horizon_context_loss\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": false, \"conf...\"\", \"step_indices\": []}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type\nenvironment_mismatch\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": false, \"conf...\"\", \"step_indices\": []}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type",
+  "error": null,
   "wall_clock_s": 731.208,
   "solved": false,
   "total_cost_usd": 0.0

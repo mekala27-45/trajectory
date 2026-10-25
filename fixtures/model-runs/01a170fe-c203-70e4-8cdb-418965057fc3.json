@@ -598,7 +598,7 @@
     "redundant_action_rate": 0.0,
     "recovery_rate": 1.0,
     "premature_termination": true,
-    "context_drift": null,
+    "context_drift": 0.0,
     "cost_usd": 0.0,
     "wall_clock_s": 491.981,
     "destructive_attempts": 0,
@@ -616,6 +616,18 @@
       "evidence": "Called finish at step 28 with 8 of 9 hidden tests passing. No test command was run at any point during the run. Summary given: \"Analyzed app.log (40029 lines) to determine the root cause of the customer-facing outage. Key findings:\n\n1. **Root cause service**: `config-service` - A config reload event (`cfg-004821`) reduced `db.pool.max_size` from 40 to 4\n2. **Trigger event**: `cfg-004821` at timestamp `2026-04-12T14:32:07Z`\n3\"",
       "step_indices": [
         28
+      ]
+    },
+    {
+      "id": "F07",
+      "name": "long horizon context loss",
+      "confidence": 0.65,
+      "detector": "judge",
+      "evidence": "Step 15 reasoning explicitly concluded 'Root cause service: inventory - it's the service whose config change started the incident.' At step 26 the agent wrote root_cause_service as 'config-service' instead, contradicting the earlier conclusion. The config.reload line is emitted by [inventory] (source=config-service), and the hidden test (8/9) indicates this field is the likely failure.",
+      "step_indices": [
+        15,
+        21,
+        26
       ]
     }
   ],
@@ -650,7 +662,7 @@
     "truncated": false
   },
   "context_compressed": false,
-  "error": "judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": false, \"conf...\"\", \"step_indices\": []}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type\nlong_horizon_context_loss\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": false, \"conf...\"\", \"step_indices\": []}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type\nenvironment_mismatch\n  Input should be a valid dictionary or instance of ModeJudgement [type=model_type, input_value='{\"present\": false, \"conf...\"\", \"step_indices\": []}', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type",
+  "error": null,
   "wall_clock_s": 491.981,
   "solved": false,
   "total_cost_usd": 0.0

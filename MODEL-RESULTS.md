@@ -83,8 +83,8 @@ Share is of the 50 unsolved run(s), not of all runs.
 | F01 | tool schema violation | 15 | 30.0% |
 | F02 | path hallucination | 8 | 16.0% |
 | F03 | premature success | 8 | 16.0% |
-| F06 | ignored test output | 4 | 8.0% |
-| F07 | long horizon context loss | 3 | 6.0% |
+| F06 | ignored test output | 7 | 14.0% |
+| F07 | long horizon context loss | 7 | 14.0% |
 | F04 | retry loop | 1 | 2.0% |
 
 ### Failure modes on runs that passed
@@ -231,12 +231,17 @@ measured zero, not an unmeasured one.
 
 `stepfun-ai/step-5-preview`, from a fifth publisher, reads every unsolved run for the three
 failure modes a rule cannot decide and for context drift. On the first pass it filled each
-mode judgement in its reply as a JSON string, the schema refused all of them, and the 55
-unsolved runs it read were sealed with no verdict. The reply is now read as the object it
-encodes, and the 28 unsolved reruns were judged: ignored test output in four runs, context
-loss in three, and a drift of 0.0 on every one. The same judge is reading again the 22
-first pass runs still without a verdict, and this section is rewritten when it has, beside
-how far a second judge from another family agrees.
+mode judgement in its reply as a JSON string, the schema refused that reply on 54 of the 55
+unsolved runs it read, one call timed out, and all 55 were sealed with no verdict. The reply
+is now read as the object it encodes. The 28 unsolved reruns were judged as they ran, and the same judge, at the same
+temperature, read again the 22 first pass runs still without a verdict, and only those, in
+workflow run 40179971123. The promotion checked that nothing in those records changed but
+the judge's own output.
+
+All 50 unsolved runs now carry a verdict: ignored test output on seven, long horizon
+context loss on seven, environment mismatch on none, and a context drift of 0.0 on 47 of
+the 50. How far a second judge from another family agrees is being measured next, and this
+section is rewritten when it has.
 
 ## Limitations
 
