@@ -1,0 +1,13 @@
+{
+  "purpose": "Two more models, chosen by the first probe round. nemotron 3 ultra answers in about a second. glm 5.3 answers in about 26 seconds a call on the free tier tonight, which would spend most task wall clock ceilings on queueing alone, so its runs get three times each ceiling and four workers. The step ceiling, which bounds the work, is unchanged, and every run records the ceiling it had.",
+  "suite": "core-12",
+  "temperature": 0.7,
+  "rpm_total": 34,
+  "max_parallel": 2,
+  "parallel": 2,
+  "seeds": [0, 1],
+  "models": [
+    { "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b" },
+    { "model": "nvidia_nim/z-ai/glm-5.3", "parallel": 4, "timeout_scale": 3 }
+  ]
+}
