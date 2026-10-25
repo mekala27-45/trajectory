@@ -335,9 +335,8 @@ and MLOps. Four years across software engineering and frontier model evaluation,
 evaluation work on contract: agent trajectory scoring, benchmark task authoring, rubric
 design.
 
-That contract work is covered by NDA, which is the reason this repository exists. It applies
-the same methodology to tasks written from scratch, in public, where the numbers can be
-checked rather than taken on trust.
+That contract work is under NDA, so none of it is here. This repository was built from
+scratch, in public, so the numbers can be checked rather than taken on trust.
 
 [Portfolio](https://mekala27-45.github.io) &nbsp; [GitHub](https://github.com/mekala27-45)
 &nbsp; mekalaajayk@gmail.com
