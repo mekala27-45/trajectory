@@ -30,6 +30,7 @@ import json
 import re
 import sys
 import threading
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -60,6 +61,7 @@ MAX_CANDIDATES = 4
 MODEL_RE = re.compile(r"^[a-z0-9_]+(/[A-Za-z0-9._:-]+)+$")
 RPM_CEILING = 40.0
 ANNOTATED_FAILURES = 5
+NOT_REACHED = "not reached before the deadline"
 JUDGED = (
     FailureModeId.IGNORED_TEST_OUTPUT,
     FailureModeId.LONG_HORIZON_CONTEXT_LOSS,
@@ -122,22 +124,37 @@ def second_opinions(
     parallel: int = 4,
     temperature: float = 0.0,
     rpm: float | None = None,
+    deadline: float | None = None,
+    left_out: dict[str, str] | None = None,
 ) -> list[tuple[Run, JudgeVerdict]]:
     """The second judge's verdict on each run, leaving out the runs it could not judge.
 
     Calls are spaced across every worker by one limiter, because a free tier counts
-    requests per key and a thread pool is a burst by construction.
+    requests per key and a thread pool is a burst by construction. A run whose turn comes
+    after `deadline`, a `time.monotonic()` instant, is not sent at all, so a slow provider
+    cuts the measurement short instead of the workflow's timeout cutting it off with
+    nothing written. Every run left out goes into `left_out` with the reason, so a report
+    says how short it fell and why.
     """
     limiter = RateLimiter(rpm)
     failed: list[str] = []
     lock = threading.Lock()
 
+    def leave_out(run: Run, reason: str) -> None:
+        if left_out is not None:
+            with lock:
+                left_out[run.id] = reason
+
     def second(run: Run) -> JudgeVerdict | None:
         limiter.acquire()
+        if deadline is not None and time.monotonic() >= deadline:
+            leave_out(run, NOT_REACHED)
+            return None
         try:
             return judge_run(client, run, tasks[run.task_id], temperature=temperature)
         except JudgeError as exc:
             print(f"  second judge failed on {run.id}: {str(exc)[:200]}", file=sys.stderr)
+            leave_out(run, f"the second judge failed: {str(exc)[:300]}")
             with lock:
                 failed.append(run.id)
                 first_few = len(failed) <= ANNOTATED_FAILURES
@@ -312,7 +329,15 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--provenance", type=Path, default=PROVENANCE)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--tasks-root", type=Path, default=ROOT / "tasks")
+    parser.add_argument(
+        "--deadline-minutes",
+        type=float,
+        default=None,
+        help="Send no new run after this long, and report the runs not reached.",
+    )
     args = parser.parse_args(argv)
+    started = time.monotonic()
+    deadline = None if args.deadline_minutes is None else started + args.deadline_minutes * 60
 
     runs = read_runs(args.records)
     first_judge: str | None = None
@@ -348,6 +373,7 @@ def main(argv: list[str]) -> int:
         annotate("error", "no second judge", str(exc)[:900])
         return 1
     print(f"second judge: {model}")
+    left_out: dict[str, str] = {}
     rest = second_opinions(
         chosen[1:],
         tasks,
@@ -355,6 +381,8 @@ def main(argv: list[str]) -> int:
         parallel=request.parallel,
         temperature=request.temperature,
         rpm=request.rpm,
+        deadline=deadline,
+        left_out=left_out,
     )
     pairs = [(chosen[0], opening), *rest]
     report = agreement_report(
@@ -366,6 +394,7 @@ def main(argv: list[str]) -> int:
         sampled=len(chosen),
     )
     report["passed_over"] = list(request.second_judges[: request.second_judges.index(model)])
+    report["left_out"] = dict(sorted(left_out.items()))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(f"compared {report['compared_runs']} run(s); wrote {args.out}")

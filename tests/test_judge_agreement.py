@@ -135,6 +135,32 @@ def test_a_run_the_second_judge_cannot_judge_is_left_out():
     assert [run.id for run, _ in pairs] == [one.id]
 
 
+def test_every_run_left_out_is_named_with_its_reason():
+    tasks = {loaded.id: loaded.task for loaded in discover(ROOT / "tasks")}
+    one, two = _unsolved()[:2]
+    first_pass = [_judged(one, drift=0.2, hits=[]), _judged(two, drift=0.6, hits=[])]
+    left_out: dict[str, str] = {}
+    client = ScriptedJudge([_verdict(0.3)])  # runs out after one verdict
+    pairs = agreement.second_opinions(first_pass, tasks, client, parallel=1, left_out=left_out)
+    assert [run.id for run, _ in pairs] == [one.id]
+    assert list(left_out) == [two.id]
+    assert left_out[two.id].startswith("the second judge failed")
+
+
+def test_a_run_whose_turn_comes_after_the_deadline_is_not_sent():
+    tasks = {loaded.id: loaded.task for loaded in discover(ROOT / "tasks")}
+    runs = [_judged(run, drift=0.2, hits=[]) for run in _unsolved()[:3]]
+    left_out: dict[str, str] = {}
+    # A judge with no verdicts raises if it is called at all, so this proves no call was made.
+    client = ScriptedJudge([])
+    pairs = agreement.second_opinions(
+        runs, tasks, client, parallel=2, deadline=0.0, left_out=left_out
+    )
+    assert pairs == []
+    assert sorted(left_out) == sorted(run.id for run in runs)
+    assert set(left_out.values()) == {agreement.NOT_REACHED}
+
+
 def _request(tmp_path: Path, **body: object) -> Path:
     path = tmp_path / "judge.json"
     path.write_text(json.dumps(body), encoding="utf-8")

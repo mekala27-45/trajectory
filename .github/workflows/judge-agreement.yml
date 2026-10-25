@@ -61,8 +61,12 @@ jobs:
         env:
           # LiteLLM reads NVIDIA_NIM_API_KEY; the repository secret is NVIDIA_API_KEY.
           NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        # The script stops sending new runs at 85 minutes, so a slow provider shortens the
+        # measurement, says by how much, and still leaves a report for the next step, where
+        # the step's own 100 minute limit would end it with nothing written.
         run: |
-          uv run python scripts/judge_agreement.py fixtures/model-runs --out judge-agreement.json
+          uv run python scripts/judge_agreement.py fixtures/model-runs --out judge-agreement.json \
+            --deadline-minutes 85
           # One annotation with the result, which the checks API serves without the log.
           uv run python - <<'PY'
           import json
@@ -72,6 +76,7 @@ jobs:
               kappa = "n/a" if e["cohens_kappa"] is None else f"{e['cohens_kappa']:.2f}"
               rows.append(f"{mode} agreement {e['raw_agreement']:.2f} kappa {kappa}")
           rows.append(f"drift mean difference {r['drift_mean_absolute_difference']:.3f}")
+          rows.append(f"left out {len(r.get('left_out') or {})}")
           print("::notice title=judge-agreement::" + "%0A".join(rows))
           PY
 

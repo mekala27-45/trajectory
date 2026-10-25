@@ -163,6 +163,35 @@ def test_a_committed_judge_agreement_is_rendered_and_held(workspace: tuple[Path,
     assert gate.main([]) == 1
 
 
+def test_runs_left_out_of_the_comparison_are_counted_by_reason(workspace: tuple[Path, Path]):
+    fixtures, document = workspace
+    ids = sorted(path.stem for path in fixtures.glob("*.json"))[:4]
+    report = _agreement(ids)
+    report["left_out"] = {
+        "a": "the second judge failed: timed out",
+        "b": "not reached before the deadline",
+        "c": "not reached before the deadline",
+    }
+    gate.AGREEMENT.write_text(json.dumps(report), encoding="utf-8")
+    assert gate.main(["--write"]) == 0
+    body = document.read_text(encoding="utf-8")
+    assert (
+        "- Left out of the comparison: 1 run(s) the second judge returned no valid verdict "
+        "on and 2 run(s) not reached before the workflow's deadline"
+    ) in body
+    assert gate.main([]) == 0
+
+
+def test_a_report_with_nothing_left_out_says_nothing_about_it(workspace: tuple[Path, Path]):
+    fixtures, document = workspace
+    ids = sorted(path.stem for path in fixtures.glob("*.json"))[:4]
+    report = _agreement(ids)
+    report["left_out"] = {}
+    gate.AGREEMENT.write_text(json.dumps(report), encoding="utf-8")
+    assert gate.main(["--write"]) == 0
+    assert "Left out of the comparison" not in document.read_text(encoding="utf-8")
+
+
 def test_an_agreement_on_runs_no_longer_committed_fails(workspace: tuple[Path, Path]):
     _, document = workspace
     gate.AGREEMENT.write_text(json.dumps(_agreement(["not-a-committed-run"])), encoding="utf-8")

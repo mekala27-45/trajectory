@@ -62,6 +62,7 @@ SUMMARY_PREFIXES = (
     "- Total wall clock:",
     "- Judges compared:",
     "- Drift, between the judges:",
+    "- Left out of the comparison:",
 )
 
 
@@ -163,6 +164,18 @@ def judge_lines(report: dict[str, Any], runs: list[Run]) -> list[str]:
         f"{report['drift_mean_absolute_difference']:.3f}, largest "
         f"{report['drift_max_absolute_difference']:.3f}",
     ]
+    # Older reports carry no reasons, and every run they read was compared.
+    left_out: dict[str, str] = report.get("left_out") or {}
+    if left_out:
+        unreached = sum(1 for reason in left_out.values() if reason.startswith("not reached"))
+        failed = len(left_out) - unreached
+        parts = [
+            f"{failed} run(s) the second judge returned no valid verdict on" if failed else "",
+            f"{unreached} run(s) not reached before the workflow's deadline" if unreached else "",
+        ]
+        lines.append(
+            "- Left out of the comparison: " + " and ".join(part for part in parts if part)
+        )
     return lines
 
 
