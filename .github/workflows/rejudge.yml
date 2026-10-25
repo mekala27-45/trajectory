@@ -1,0 +1,76 @@
+name: rejudge
+
+# Reads again, with the panel's own judge, the unsolved runs whose judging failed when the
+# panel ran, and only those. A fix to how the judge's reply is read does not reach a sealed
+# run on its own, and a run judged the first time is never asked about twice.
+#
+# The request lives in model-requests/rejudge.json and has to name the judge the promoted
+# panel ran, which scripts/rejudge.py checks against the provenance file before any call.
+# It shares the panel's concurrency group: one free key, one rate limit.
+#
+# Every record, read again or not, reaches a branch named for this run beside a summary.
+# `scripts/rejudge.py promote` is the reviewed step that puts the new verdicts in
+# fixtures/model-runs, after checking that nothing but the judge's output changed.
+
+on:
+  push:
+    branches: [main]
+    paths: ["model-requests/rejudge.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: model-panel
+  cancel-in-progress: false
+
+jobs:
+  rejudge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: skip without the key
+        id: guard
+        run: |
+          if [ -z "${{ secrets.NVIDIA_API_KEY }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "NVIDIA_API_KEY is not set in this repository, skipping."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.run == 'true'
+
+      - uses: astral-sh/setup-uv@v5
+        if: steps.guard.outputs.run == 'true'
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+        if: steps.guard.outputs.run == 'true'
+
+      - name: read the unjudged runs again
+        if: steps.guard.outputs.run == 'true'
+        timeout-minutes: 100
+        env:
+          # LiteLLM reads NVIDIA_NIM_API_KEY; the repository secret is NVIDIA_API_KEY.
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: uv run python scripts/rejudge.py run fixtures/model-runs --out rejudged
+
+      - name: push the records to a branch for this run
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          mkdir -p fixtures
+          rm -rf fixtures/model-runs-rejudged
+          cp -r rejudged fixtures/model-runs-rejudged
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="rejudge-${{ github.run_id }}"
+          git checkout -b "$branch"
+          git add -f fixtures/model-runs-rejudged
+          git commit -m "data: runs read again by the panel judge, run ${{ github.run_id }}"
+          git push --force origin "HEAD:refs/heads/$branch"
+          echo "::notice title=records-branch::$branch"

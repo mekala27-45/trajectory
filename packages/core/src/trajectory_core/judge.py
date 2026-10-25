@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 import structlog
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from trajectory_core.failure_modes import TAXONOMY
 from trajectory_core.models import (
@@ -121,6 +121,29 @@ class JudgeVerdict(StrictModel):
             "project, a tool the image does not have when an equivalent one is installed."
         )
     )
+
+    @field_validator(
+        "ignored_test_output", "long_horizon_context_loss", "environment_mismatch", mode="before"
+    )
+    @classmethod
+    def _decode_a_nested_object_sent_as_text(cls, value: object) -> object:
+        """Accept a mode judgement that arrived as a JSON string rather than an object.
+
+        Some models fill a nested object in a tool call by encoding it a second time, so
+        `{"present": false, ...}` arrives as text. The content is the judgement the schema
+        asks for, and refusing it threw away whole verdicts: the judge on the first five
+        model panel did this, and the runs it happened on were recorded with no verdict.
+        Only a string that decodes to an object is accepted; anything else still fails
+        validation, and the judge is asked again.
+        """
+        if isinstance(value, str):
+            try:
+                decoded = json.loads(value)
+            except ValueError:
+                return value
+            if isinstance(decoded, dict):
+                return decoded
+        return value
 
     def mode_map(self) -> dict[FailureModeId, ModeJudgement]:
         """Map the named fields back to taxonomy identifiers."""

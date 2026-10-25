@@ -102,6 +102,21 @@ class TestVerdictSchema:
             FailureModeId.ENVIRONMENT_MISMATCH,
         }
 
+    def test_a_mode_sent_as_json_text_is_read_as_the_object_it_encodes(self):
+        """What the first panel's judge sent on most calls: each mode encoded a second time."""
+        payload = json.loads(verdict(f06=True).model_dump_json())
+        for field in ("ignored_test_output", "long_horizon_context_loss", "environment_mismatch"):
+            payload[field] = json.dumps(payload[field])
+        decoded = JudgeVerdict.model_validate(payload)
+        assert decoded == verdict(f06=True)
+
+    @pytest.mark.parametrize("text", ["present", "[1, 2]", '"a string"', "{not json"])
+    def test_text_that_does_not_decode_to_an_object_is_still_refused(self, text: str):
+        payload = json.loads(verdict().model_dump_json())
+        payload["ignored_test_output"] = text
+        with pytest.raises(ValidationError):
+            JudgeVerdict.model_validate(payload)
+
     def test_the_schema_the_model_sees_has_a_description_on_every_mode(self):
         schema = JudgeVerdict.model_json_schema()
         for field in ("ignored_test_output", "long_horizon_context_loss", "environment_mismatch"):

@@ -7,10 +7,11 @@ and under which caps, sits in the same history as the code that produced it.
 | --- | --- |
 | `panel.json` | starts [`model-panel.yml`](../.github/workflows/model-panel.yml): one probe call per model, then one job per model that passed |
 | `probe.json` | starts [`model-probe.yml`](../.github/workflows/model-probe.yml): one probe call per candidate, and no task runs |
+| `rejudge.json` | starts [`rejudge.yml`](../.github/workflows/rejudge.yml): the panel's own judge reads again the unsolved runs whose judging failed, and only those |
 | `judge.json` | starts [`judge-agreement.yml`](../.github/workflows/judge-agreement.yml): a second judge from another family reads a fixed sample of the runs the first judge read, after any running panel |
 
-`scripts/plan_panel.py` validates the first two, and `scripts/judge_agreement.py` the
-third, before anything is spent. A panel that has run is
+`scripts/plan_panel.py` validates the first two, `scripts/rejudge.py` the third and
+`scripts/judge_agreement.py` the fourth, before anything is spent. A panel that has run is
 copied into `history/` under the date it ran, so the request behind every promoted record
 stays readable without digging through commits.
 
