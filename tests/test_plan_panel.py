@@ -208,3 +208,39 @@ def test_an_unscaled_entry_passes_no_scale():
     request = panel.parse_request(body(), TASKS)
     (job,) = panel.plan(request, list(request.entries), None)
     assert "--timeout-scale" not in job["args"]
+
+
+def test_an_entry_can_name_exact_runs():
+    """A rerun of what the provider ended: exactly those runs, and a ceiling for them alone."""
+    runs = [["py-perf-01", 1], ["go-race-01", 0]]
+    request = panel.parse_request(body(models=[{"model": "nvidia_nim/v/m", "runs": runs}]), TASKS)
+    (entry,) = request.entries
+    assert entry.runs == (("go-race-01", 0), ("py-perf-01", 1))
+    steps = {loaded.id: loaded.task.max_steps for loaded in TASKS}
+    assert entry.max_calls == steps["py-perf-01"] + steps["go-race-01"]
+    (job,) = panel.plan(request, list(request.entries), None)
+    args = shlex.split(job["args"])
+    named = [args[i + 1] for i, arg in enumerate(args) if arg == "--only"]
+    assert named == ["go-race-01:0", "py-perf-01:1"]
+    assert "--seed" not in args and "--task" not in args
+
+
+@pytest.mark.parametrize(
+    ("runs", "message"),
+    [
+        ([], "non-empty"),
+        ([["py-perf-01"]], "pair"),
+        ([["py-perf-01", -1]], "pair"),
+        ([["nope-01", 0]], "not in the suite"),
+        ([["py-perf-01", 0], ["py-perf-01", 0]], "twice"),
+    ],
+)
+def test_bad_runs_are_refused(runs: list[list[object]], message: str):
+    with pytest.raises(panel.RequestError, match=message):
+        panel.parse_request(body(models=[{"model": "nvidia_nim/v/m", "runs": runs}]), TASKS)
+
+
+def test_runs_and_a_task_slice_cannot_be_mixed():
+    entry = {"model": "nvidia_nim/v/m", "runs": [["py-perf-01", 0]], "seeds": [1]}
+    with pytest.raises(panel.RequestError, match="not both"):
+        panel.parse_request(body(models=[entry]), TASKS)

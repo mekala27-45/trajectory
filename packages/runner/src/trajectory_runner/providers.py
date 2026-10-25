@@ -32,6 +32,8 @@ STUB_PREFIX = "stub:"
 
 _RETRYABLE_SUBSTRINGS = (
     "rate limit",
+    "too many requests",
+    "error code: 429",
     "overloaded",
     "timeout",
     "timed out",
@@ -286,7 +288,9 @@ class LiteLLMProvider:
             kwargs["api_base"] = self.api_base
 
         last_error: Exception | None = None
+        attempts = 0
         for attempt in range(1, self.max_attempts + 1):
+            attempts = attempt
             try:
                 response = litellm.completion(**kwargs)
                 return self._parse(response)
@@ -294,7 +298,7 @@ class LiteLLMProvider:
                 last_error = exc
                 if attempt == self.max_attempts or not _is_retryable(exc):
                     break
-                delay = min(2.0 ** (attempt - 1), 16.0) * (0.5 + random.random())  # noqa: S311
+                delay = retry_delay(exc, attempt)
                 log.warning(
                     "provider.retry",
                     model=self.model,
@@ -305,7 +309,7 @@ class LiteLLMProvider:
                 time.sleep(delay)
 
         raise ProviderError(
-            f"{self.model} failed after {self.max_attempts} attempt(s): {last_error}"
+            f"{self.model} failed after {attempts} attempt(s): {last_error}"
         ) from last_error
 
     def _parse(self, response: Any) -> ModelReply:  # noqa: ANN401  litellm response is untyped
@@ -359,6 +363,29 @@ class LiteLLMProvider:
             finish_reason=getattr(choice, "finish_reason", None),
             reasoning=reasoning if isinstance(reasoning, str) and reasoning.strip() else None,
         )
+
+
+def _is_rate_limit(exc: Exception) -> bool:
+    """A refusal for asking too often, as opposed to a slow or broken reply."""
+    text = f"{type(exc).__name__} {exc}".lower()
+    return any(
+        token in text
+        for token in ("ratelimit", "rate limit", "error code: 429", "too many requests")
+    )
+
+
+def retry_delay(exc: Exception, attempt: int) -> float:
+    """How long to wait before the next attempt, with jitter so workers do not re-collide.
+
+    A rate limit gets a far longer wait than a timeout. A free tier counts requests over a
+    minute, so a retry a second or two later lands in the same window and is refused again:
+    the first five model panel lost runs to exactly that, four quick retries inside one
+    window. Waiting a good part of a minute lets the window turn over.
+    """
+    jitter = 0.5 + random.random()  # noqa: S311  spreading retries, not security
+    if _is_rate_limit(exc):
+        return min(10.0 * 2.0 ** (attempt - 1), 60.0) * jitter
+    return min(2.0 ** (attempt - 1), 16.0) * jitter
 
 
 def _is_retryable(exc: Exception) -> bool:

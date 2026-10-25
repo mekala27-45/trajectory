@@ -61,7 +61,16 @@ TOP_LEVEL = {
     "judge_model",
     "models",
 }
-ENTRY_KEYS = {"model", "tasks", "seeds", "max_calls", "parallel", "timeout_scale", "note"}
+ENTRY_KEYS = {
+    "model",
+    "tasks",
+    "seeds",
+    "runs",
+    "max_calls",
+    "parallel",
+    "timeout_scale",
+    "note",
+}
 # How far a wall clock ceiling may be stretched for a model whose provider queues requests.
 MAX_TIMEOUT_SCALE = 6.0
 
@@ -81,6 +90,8 @@ class Entry:
     note: str = ""
     parallel: int | None = None
     timeout_scale: float = 1.0
+    # Exact task and seed pairs. When set, the entry runs these and nothing else.
+    runs: tuple[tuple[str, int], ...] = ()
 
     @property
     def slug(self) -> str:
@@ -118,10 +129,14 @@ class Entry:
         ]
         if self.timeout_scale != 1.0:
             args += ["--timeout-scale", f"{self.timeout_scale:g}"]
-        for seed in self.seeds:
-            args += ["--seed", str(seed)]
-        for task in self.tasks:
-            args += ["--task", task]
+        if self.runs:
+            for task, seed in self.runs:
+                args += ["--only", f"{task}:{seed}"]
+        else:
+            for seed in self.seeds:
+                args += ["--seed", str(seed)]
+            for task in self.tasks:
+                args += ["--task", task]
         if judge_model:
             args += ["--judge-model", judge_model]
         return args
@@ -144,6 +159,29 @@ class Request:
 def worst_case_calls(tasks: list[LoadedTask], seeds: tuple[int, ...]) -> int:
     """The most model calls these runs could make: every run taken to its step ceiling."""
     return len(seeds) * sum(loaded.task.max_steps for loaded in tasks)
+
+
+def _runs(value: Any, where: str, by_id: dict[str, LoadedTask]) -> tuple[tuple[str, int], ...]:  # noqa: ANN401  parsed JSON
+    """Exact runs as [task, seed] pairs, each named once and each in the suite."""
+    if not isinstance(value, list) or not value:
+        raise RequestError(f"{where}: runs must be a non-empty list of [task, seed] pairs")
+    pairs: list[tuple[str, int]] = []
+    for pair in value:
+        if (
+            not isinstance(pair, list)
+            or len(pair) != 2
+            or not isinstance(pair[0], str)
+            or isinstance(pair[1], bool)
+            or not isinstance(pair[1], int)
+            or pair[1] < 0
+        ):
+            raise RequestError(f"{where}: each run is a [task, seed] pair, not {pair!r}")
+        if pair[0] not in by_id:
+            raise RequestError(f"{where}: not in the suite: {pair[0]}")
+        pairs.append((pair[0], pair[1]))
+    if len(set(pairs)) != len(pairs):
+        raise RequestError(f"{where}: a run is named twice")
+    return tuple(sorted(pairs))
 
 
 def _seeds(value: Any, where: str) -> tuple[int, ...]:  # noqa: ANN401  parsed JSON
@@ -214,7 +252,14 @@ def parse_request(body: Any, tasks: list[LoadedTask]) -> Request:  # noqa: ANN40
             raise RequestError(f"{where}: not in {suite}: {', '.join(missing)}")
         chosen = [by_id[task] for task in sorted(set(wanted))] or list(tasks)
         seeds = _seeds(item["seeds"], where) if "seeds" in item else default_seeds
-        ceiling = worst_case_calls(chosen, seeds)
+        runs: tuple[tuple[str, int], ...] = ()
+        if "runs" in item:
+            if "tasks" in item or "seeds" in item:
+                raise RequestError(f"{where}: name runs, or tasks and seeds, not both")
+            runs = _runs(item["runs"], where, by_id)
+            ceiling = sum(by_id[task].task.max_steps for task, _ in runs)
+        else:
+            ceiling = worst_case_calls(chosen, seeds)
         max_calls = item.get("max_calls", ceiling)
         if isinstance(max_calls, bool) or not isinstance(max_calls, int) or max_calls < 1:
             raise RequestError(f"{where}: max_calls must be a positive integer")
@@ -246,6 +291,7 @@ def parse_request(body: Any, tasks: list[LoadedTask]) -> Request:  # noqa: ANN40
                 note=note,
                 parallel=own_parallel,
                 timeout_scale=float(scale),
+                runs=runs,
             )
         )
 
@@ -374,8 +420,12 @@ def plan_summary(
     ]
     for entry, ok, detail in outcomes:
         status = "not probed" if ok is None else ("ok" if ok else "left out")
-        tasks = ", ".join(entry.tasks) if entry.tasks else "all"
-        seeds = ", ".join(str(seed) for seed in entry.seeds)
+        if entry.runs:
+            tasks = ", ".join(f"{task} seed {seed}" for task, seed in entry.runs)
+            seeds = "as named"
+        else:
+            tasks = ", ".join(entry.tasks) if entry.tasks else "all"
+            seeds = ", ".join(str(seed) for seed in entry.seeds)
         clock = "as set" if entry.timeout_scale == 1.0 else f"x{entry.timeout_scale:g}"
         lines.append(
             f"| `{entry.model}` | {tasks} | {seeds} | {entry.max_calls} | {clock} "

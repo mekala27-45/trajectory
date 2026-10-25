@@ -34,7 +34,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from trajectory_core.models import Run, Task
+from trajectory_core.models import Run, RunStatus, Task
 from trajectory_core.scoring import rescore
 from trajectory_runner.loader import discover
 
@@ -67,6 +67,62 @@ def load(directory: Path) -> list[Run]:
     if len(set(ids)) != len(ids):
         raise PromotionError("two records share an identifier")
     return sorted(runs, key=lambda run: run.id)
+
+
+def provider_ended(run: Run) -> bool:
+    """A run the model provider ended: its calls kept failing until the retries ran out.
+
+    That is a measurement of the provider on that afternoon, not of the model, and it is the
+    only kind of run a rerun is allowed to replace.
+    """
+    return (
+        run.status is RunStatus.ERROR
+        and run.error is not None
+        and run.error.startswith(f"{run.config.model} failed after ")
+    )
+
+
+def _key(run: Run) -> tuple[str, str, int]:
+    return run.config.model, run.task_id, run.config.seed
+
+
+def merge_reruns(runs: list[Run], reruns: list[Run]) -> tuple[list[Run], list[dict[str, object]]]:
+    """Put each rerun in the place of the provider ended run it repeats.
+
+    The rule is fixed before the reruns are read: a rerun replaces the run with the same
+    model, task and seed, that run has to be one the provider ended, and the rerun stands
+    whatever it scored, so nothing is chosen by its outcome. A rerun of a run the agent
+    itself finished is refused: replacing an agent's failure would be cherry picking.
+    """
+    by_key = {_key(run): run for run in runs}
+    seen: set[tuple[str, str, int]] = set()
+    replaced: list[dict[str, object]] = []
+    for rerun in sorted(reruns, key=_key):
+        key = _key(rerun)
+        if key in seen:
+            raise PromotionError(f"two reruns of {key}")
+        seen.add(key)
+        original = by_key.get(key)
+        if original is None:
+            raise PromotionError(f"a rerun of {key} has no run to replace")
+        if not provider_ended(original):
+            raise PromotionError(
+                f"{key} was not ended by the provider ({original.status.value}), so it stands"
+            )
+        by_key[key] = rerun
+        replaced.append(
+            {
+                "model": key[0],
+                "task": key[1],
+                "seed": key[2],
+                "original_run": original.id,
+                "original_steps": len(original.steps),
+                "original_error": (original.error or "")[:300],
+                "rerun": rerun.id,
+                "rerun_provider_ended": provider_ended(rerun),
+            }
+        )
+    return sorted(by_key.values(), key=lambda run: run.id), replaced
 
 
 def rescored(runs: list[Run], tasks: dict[str, Task]) -> list[Run]:
@@ -148,16 +204,45 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--run-id", required=True, help="The model-panel workflow run.")
     parser.add_argument("--request", type=Path, default=REQUEST, help="The request it ran.")
     parser.add_argument("--tasks-root", type=Path, default=ROOT / "tasks")
+    parser.add_argument(
+        "--rerun", type=Path, help="Records of a panel that reran provider ended runs."
+    )
+    parser.add_argument("--rerun-id", help="The model-panel workflow run of the rerun.")
+    parser.add_argument("--rerun-request", type=Path, help="The request the rerun ran.")
     args = parser.parse_args(argv)
+    if bool(args.rerun) != bool(args.rerun_id):
+        parser.error("--rerun and --rerun-id go together")
 
     tasks = {loaded.id: loaded.task for loaded in discover(args.tasks_root)}
+    replaced: list[dict[str, object]] = []
     try:
-        runs = rescored(load(args.records), tasks)
+        runs = load(args.records)
+        if args.rerun:
+            reruns = load(args.rerun)
+            if {run.harness_version for run in reruns} != {runs[0].harness_version}:
+                raise PromotionError("the rerun ran a different harness version")
+            runs, replaced = merge_reruns(runs, reruns)
+        runs = rescored(runs, tasks)
     except PromotionError as exc:
         print(f"cannot promote: {exc}", file=sys.stderr)
         return 2
     request = json.loads(args.request.read_text(encoding="utf-8"))
     meta = provenance(runs, run_id=args.run_id, request=request, scored_at_commit=_head())
+    if args.rerun:
+        rerun_request = (
+            json.loads(args.rerun_request.read_text(encoding="utf-8"))
+            if args.rerun_request
+            else None
+        )
+        meta["reruns"] = {
+            "panel_run_id": args.rerun_id,
+            "request": rerun_request,
+            "rule": (
+                "a rerun replaces the run with the same model, task and seed, only when the "
+                "provider ended that run, and stands whatever it scored"
+            ),
+            "replaced": replaced,
+        }
     if promote(runs, meta, FIXTURES, PROVENANCE, AGREEMENT):
         print(f"removed {AGREEMENT.name}: it was measured on the records this replaces")
     print(f"promoted {len(runs)} records from panel run {args.run_id} into {FIXTURES.name}")

@@ -82,3 +82,47 @@ def test_a_record_for_an_unknown_task_is_refused(tmp_path: Path):
     runs = promotion.load(_copy(MODEL_RUNS, tmp_path / "panel", 1))
     with pytest.raises(promotion.PromotionError, match="no task definition"):
         promotion.rescored(runs, {})
+
+
+def _provider_ended_and_other() -> tuple[list, object, object]:
+    runs = promotion.load(MODEL_RUNS)
+    ended = next(run for run in runs if promotion.provider_ended(run))
+    finished = next(run for run in runs if not promotion.provider_ended(run))
+    return runs, ended, finished
+
+
+def _rerun_of(run, run_id: str):
+    from trajectory_core.models import RunStatus
+
+    return run.model_copy(update={"id": run_id, "status": RunStatus.COMPLETED, "error": None})
+
+
+def test_a_rerun_replaces_only_a_run_the_provider_ended():
+    runs, ended, _ = _provider_ended_and_other()
+    rerun = _rerun_of(ended, "01a1ffff-0000-7000-8000-000000000001")
+    merged, replaced = promotion.merge_reruns(runs, [rerun])
+    assert len(merged) == len(runs)
+    assert rerun.id in {run.id for run in merged}
+    assert ended.id not in {run.id for run in merged}
+    assert replaced[0]["original_run"] == ended.id
+    assert replaced[0]["rerun_provider_ended"] is False
+
+
+def test_a_rerun_of_a_run_the_agent_finished_is_refused():
+    """Replacing an agent's own failure with a second try would be choosing by outcome."""
+    runs, _, finished = _provider_ended_and_other()
+    rerun = _rerun_of(finished, "01a1ffff-0000-7000-8000-000000000002")
+    with pytest.raises(promotion.PromotionError, match="it stands"):
+        promotion.merge_reruns(runs, [rerun])
+
+
+def test_two_reruns_of_one_run_or_a_rerun_of_nothing_are_refused():
+    runs, ended, _ = _provider_ended_and_other()
+    first = _rerun_of(ended, "01a1ffff-0000-7000-8000-000000000003")
+    second = _rerun_of(ended, "01a1ffff-0000-7000-8000-000000000004")
+    with pytest.raises(promotion.PromotionError, match="two reruns"):
+        promotion.merge_reruns(runs, [first, second])
+    stray = first.model_copy(update={"task_id": "py-perf-01"})
+    others = [run for run in runs if run.task_id != "py-perf-01"]
+    with pytest.raises(promotion.PromotionError, match="no run to replace"):
+        promotion.merge_reruns(others, [stray])

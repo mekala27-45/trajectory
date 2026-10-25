@@ -242,9 +242,29 @@ class TestLiteLLMProvider:
         monkeypatch.setattr("trajectory_runner.providers.time.sleep", lambda _s: None)
         fake = _FakeLiteLLM(error=ValueError("model does not support tool use"))
         provider = _provider_with(fake, max_attempts=4)
-        with pytest.raises(ProviderError):
+        with pytest.raises(ProviderError, match="failed after 1 attempt"):
             provider.reply(_messages(), TOOLS)
         assert fake.calls == 1
+
+    def test_a_rate_limit_waits_out_the_window(self, monkeypatch):
+        """A retry inside the same minute is refused again, so a 429 waits far longer."""
+        waits: list[float] = []
+        monkeypatch.setattr("trajectory_runner.providers.time.sleep", waits.append)
+        fake = _FakeLiteLLM(error=RuntimeError("Error code: 429 - Too Many Requests"))
+        provider = _provider_with(fake, max_attempts=3)
+        with pytest.raises(ProviderError, match="failed after 3 attempt"):
+            provider.reply(_messages(), TOOLS)
+        assert len(waits) == 2
+        assert all(wait >= 5.0 for wait in waits)
+
+    def test_a_timeout_retries_quickly(self, monkeypatch):
+        waits: list[float] = []
+        monkeypatch.setattr("trajectory_runner.providers.time.sleep", waits.append)
+        fake = _FakeLiteLLM(error=RuntimeError("Request timed out"))
+        provider = _provider_with(fake, max_attempts=2)
+        with pytest.raises(ProviderError):
+            provider.reply(_messages(), TOOLS)
+        assert waits and waits[0] < 2.0
 
     def test_context_window_comes_from_the_registry(self):
         assert _provider_with(_FakeLiteLLM()).context_window() == 200_000

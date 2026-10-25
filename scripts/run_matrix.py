@@ -60,6 +60,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="A task identifier, repeatable. Defaults to every task in the suite.",
     )
+    parser.add_argument(
+        "--only",
+        action="append",
+        default=None,
+        metavar="TASK:SEED",
+        help="Run only this task at this seed, repeatable. Narrows the task by seed grid to "
+        "exactly the runs named, so a run the provider ended can be run again on its own.",
+    )
     parser.add_argument("--parallel", type=int, default=2)
     parser.add_argument("--budget-usd", type=float, default=None)
     parser.add_argument(
@@ -116,6 +124,22 @@ def select_tasks(tasks: list[LoadedTask], wanted: list[str] | None) -> list[Load
     return [loaded for loaded in tasks if loaded.id in keep]
 
 
+def only_pairs(values: list[str] | None, tasks: list[LoadedTask]) -> set[tuple[str, int]] | None:
+    """The task and seed pairs named with --only, checked against the suite."""
+    if not values:
+        return None
+    known = {loaded.id for loaded in tasks}
+    pairs: set[tuple[str, int]] = set()
+    for value in values:
+        task, sep, seed = value.rpartition(":")
+        if not sep or not task or not seed.isdigit():
+            raise ValueError(f"--only takes TASK:SEED, not {value!r}")
+        if task not in known:
+            raise ValueError(f"not in the suite: {task}")
+        pairs.add((task, int(seed)))
+    return pairs
+
+
 def seed_list(count: int, explicit: list[int] | None) -> list[int]:
     """The seeds to run: the explicit ones when given, else 0 up to the count."""
     if explicit:
@@ -149,7 +173,12 @@ def main(argv: list[str]) -> int:
 
     try:
         tasks = select_tasks(discover(args.tasks_root, suite=args.suite), args.task)
+        only = only_pairs(args.only, tasks)
         seeds = seed_list(args.seeds, args.seed)
+        if only is not None:
+            # The named runs fix the tasks and seeds; nothing outside them is planned.
+            tasks = [loaded for loaded in tasks if loaded.id in {task for task, _ in only}]
+            seeds = sorted({seed for _, seed in only})
     except ValueError as exc:
         print(f"cannot plan the matrix: {exc}", file=sys.stderr)
         return 2
@@ -176,7 +205,7 @@ def main(argv: list[str]) -> int:
             f"{args.rpm if args.rpm is not None else 'no'} rpm, order {order}"
         )
 
-    total = len(tasks) * len(models) * len(seeds)
+    total = len(models) * (len(only) if only is not None else len(tasks) * len(seeds))
     print(
         f"matrix: {len(models)} model(s) x {len(tasks)} task(s) x {len(seeds)} seed(s) "
         f"= {total} runs on the {backend.value} backend, parallel {args.parallel}"
@@ -197,6 +226,8 @@ def main(argv: list[str]) -> int:
             order=order,
             timeout_scale=args.timeout_scale,
         )
+        if only is not None:
+            jobs = [job for job in jobs if (job.loaded.id, job.config.seed) in only]
         image_tags = prebuild_images(jobs) if backend is SandboxBackend.DOCKER else {}
 
         def progress(job: object, run: object, state: str) -> None:
