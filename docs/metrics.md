@@ -295,10 +295,12 @@ fixed sample of the same runs. The first judge's verdicts are read back from the
 rather than asked for again: a judged mode is present when the record carries its judge
 hit, and the record's drift is the first judge's drift. The settings come from a
 committed request, `model-requests/judge.json`, and run in the `judge-agreement` workflow
-once a panel's judged records are promoted. Three choices of second judge are refused
-before any call: the first judge itself, another model from the first judge's publisher,
-and any of the agents whose runs it would read, which would be grading its own work. It
-does not run at all until the promotion has named the first judge.
+once a panel's judged records are promoted. A second judge is refused before any call
+when it comes from the first judge's publisher, which shares too much training to count as
+a second opinion, or from the family of any agent whose runs it would read, which could
+favour its sibling's work. It does not run at all until the promotion has named the first
+judge. The request lists candidates in order, and the first one the free tier actually
+serves judges the whole sample; any passed over are named in the report.
 
 Both report per mode the two by two table, raw agreement and Cohen's kappa, and the mean
 and largest absolute difference in the drift score. A committed cross family result

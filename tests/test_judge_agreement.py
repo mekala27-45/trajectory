@@ -138,18 +138,30 @@ def _request(tmp_path: Path, **body: object) -> Path:
 
 def test_a_request_is_checked_before_any_call(tmp_path: Path):
     good = agreement.read_request(
-        _request(tmp_path, second_judge="nvidia_nim/deepseek-ai/deepseek-v4.1-flash", sample=1.0)
+        _request(
+            tmp_path,
+            second_judges=["nvidia_nim/deepseek-ai/deepseek-v4.1-flash", "nvidia_nim/g/gemma"],
+            sample=1.0,
+        )
+    )
+    assert good.second_judges == (
+        "nvidia_nim/deepseek-ai/deepseek-v4.1-flash",
+        "nvidia_nim/g/gemma",
     )
     assert good.sample == 1.0
     assert good.rpm == 15.0
     with pytest.raises(agreement.RequestError, match="unknown key"):
-        agreement.read_request(_request(tmp_path, second_judge="a/b/c", judge="a/b/c"))
+        agreement.read_request(_request(tmp_path, second_judges=["a/b/c"], judge="a/b/c"))
     with pytest.raises(agreement.RequestError, match="free tier"):
-        agreement.read_request(_request(tmp_path, second_judge="a/b/c", rpm=60))
+        agreement.read_request(_request(tmp_path, second_judges=["a/b/c"], rpm=60))
     with pytest.raises(agreement.RequestError, match="fraction"):
-        agreement.read_request(_request(tmp_path, second_judge="a/b/c", sample=0))
-    with pytest.raises(agreement.RequestError, match="identifier"):
-        agreement.read_request(_request(tmp_path, second_judge="no spaces allowed"))
+        agreement.read_request(_request(tmp_path, second_judges=["a/b/c"], sample=0))
+    with pytest.raises(agreement.RequestError, match="identifiers"):
+        agreement.read_request(_request(tmp_path, second_judges=["no spaces allowed"]))
+    with pytest.raises(agreement.RequestError, match="identifiers"):
+        agreement.read_request(_request(tmp_path, second_judges=[]))
+    with pytest.raises(agreement.RequestError, match="twice"):
+        agreement.read_request(_request(tmp_path, second_judges=["a/b/c", "a/b/c"]))
 
 
 def test_an_unnamed_first_judge_is_refused():
@@ -161,8 +173,9 @@ def test_an_unnamed_first_judge_is_refused():
     ("second", "reason"),
     [
         ("nvidia_nim/stepfun-ai/step-5-preview", "is the first judge"),
-        ("nvidia_nim/stepfun-ai/step-5-mini", "family"),
-        ("nvidia_nim/openai/gpt-oss-20b", "agents"),
+        ("nvidia_nim/stepfun-ai/step-5-mini", "first judge's family"),
+        ("nvidia_nim/openai/gpt-oss-20b", "family of an agent"),
+        ("nvidia_nim/openai/gpt-oss-120b", "family of an agent"),
     ],
 )
 def test_the_second_judge_has_to_come_from_somewhere_else(second: str, reason: str):
@@ -171,3 +184,34 @@ def test_the_second_judge_has_to_come_from_somewhere_else(second: str, reason: s
     with pytest.raises(agreement.RequestError, match=reason):
         agreement.check_independence(second, first, agents)
     agreement.check_independence("nvidia_nim/deepseek-ai/deepseek-v4.1-flash", first, agents)
+
+
+def test_a_candidate_that_cannot_judge_is_passed_over():
+    tasks = {loaded.id: loaded.task for loaded in discover(ROOT / "tasks")}
+    run = _judged(_unsolved()[0], drift=0.2, hits=[])
+    clients = {
+        "nvidia_nim/a/broken": ScriptedJudge([]),  # raises: it has no verdict to give
+        "nvidia_nim/b/works": ScriptedJudge([_verdict(0.1)]),
+    }
+    model, _, verdict = agreement.pick_judge(
+        ("nvidia_nim/a/broken", "nvidia_nim/b/works"),
+        run,
+        tasks[run.task_id],
+        temperature=0.0,
+        client_for=clients.__getitem__,
+    )
+    assert model == "nvidia_nim/b/works"
+    assert verdict.context_drift == 0.1
+
+
+def test_no_working_candidate_is_an_error_that_names_each_reason():
+    tasks = {loaded.id: loaded.task for loaded in discover(ROOT / "tasks")}
+    run = _judged(_unsolved()[0], drift=0.2, hits=[])
+    with pytest.raises(agreement.RequestError, match="nvidia_nim/a/broken"):
+        agreement.pick_judge(
+            ("nvidia_nim/a/broken",),
+            run,
+            tasks[run.task_id],
+            temperature=0.0,
+            client_for=lambda _: ScriptedJudge([]),
+        )

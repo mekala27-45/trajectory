@@ -17,9 +17,10 @@ verdict to compare against.
 
 The settings come from model-requests/judge.json, so the measurement has a reviewable
 record of what was asked for, and the first judge comes from the provenance file a panel
-promotion writes. A second judge from the first judge's family, or one of the agents under
-test, is refused before any call is made. Writes a JSON report; MODEL-RESULTS.md renders
-it once it is committed as fixtures/judge-agreement.json.
+promotion writes. A candidate from the first judge's family, or from the family of any
+agent under test, is refused before any call is made. The request lists candidates in
+order, and the first that returns a valid verdict judges the sample. Writes a JSON report;
+MODEL-RESULTS.md renders it once it is committed as fixtures/judge-agreement.json.
 """
 
 from __future__ import annotations
@@ -28,10 +29,14 @@ import argparse
 import json
 import re
 import sys
+import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
+from plan_panel import annotate
 
 from trajectory_core.judge import (
     JudgeClient,
@@ -50,9 +55,11 @@ from trajectory_runner.store import read_runs
 ROOT = Path(__file__).resolve().parent.parent
 REQUEST = ROOT / "model-requests" / "judge.json"
 PROVENANCE = ROOT / "fixtures" / "model-runs.provenance.json"
-REQUEST_KEYS = {"purpose", "second_judge", "sample", "parallel", "rpm", "temperature"}
+REQUEST_KEYS = {"purpose", "second_judges", "sample", "parallel", "rpm", "temperature"}
+MAX_CANDIDATES = 4
 MODEL_RE = re.compile(r"^[a-z0-9_]+(/[A-Za-z0-9._:-]+)+$")
 RPM_CEILING = 40.0
+ANNOTATED_FAILURES = 5
 JUDGED = (
     FailureModeId.IGNORED_TEST_OUTPUT,
     FailureModeId.LONG_HORIZON_CONTEXT_LOSS,
@@ -122,6 +129,8 @@ def second_opinions(
     requests per key and a thread pool is a burst by construction.
     """
     limiter = RateLimiter(rpm)
+    failed: list[str] = []
+    lock = threading.Lock()
 
     def second(run: Run) -> JudgeVerdict | None:
         limiter.acquire()
@@ -129,6 +138,12 @@ def second_opinions(
             return judge_run(client, run, tasks[run.task_id], temperature=temperature)
         except JudgeError as exc:
             print(f"  second judge failed on {run.id}: {str(exc)[:200]}", file=sys.stderr)
+            with lock:
+                failed.append(run.id)
+                first_few = len(failed) <= ANNOTATED_FAILURES
+            if first_few:
+                # The checks API serves annotations when the log is out of reach.
+                annotate("warning", f"second judge failed on {run.id}", str(exc)[:600])
             return None
 
     with ThreadPoolExecutor(max_workers=max(1, parallel)) as pool:
@@ -185,9 +200,15 @@ def _family(model: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class JudgeRequest:
-    """What model-requests/judge.json asks for."""
+    """What model-requests/judge.json asks for.
 
-    second_judge: str
+    `second_judges` is an ordered list of candidates. The first one that returns a valid
+    verdict on the first sampled run judges them all, and the ones before it are reported
+    with the reason they were passed over. A free tier serves a model one week and not the
+    next, so a request that names a fallback costs one call instead of one more workflow.
+    """
+
+    second_judges: tuple[str, ...]
     sample: float = 0.5
     parallel: int = 4
     rpm: float = 15.0
@@ -202,11 +223,19 @@ def read_request(path: Path) -> JudgeRequest:
     unknown = sorted(set(body) - REQUEST_KEYS)
     if unknown:
         raise RequestError(f"unknown key(s): {', '.join(unknown)}")
-    second = body.get("second_judge")
-    if not isinstance(second, str) or not MODEL_RE.match(second):
-        raise RequestError("second_judge is a provider/publisher/model identifier")
+    candidates = body.get("second_judges")
+    if (
+        not isinstance(candidates, list)
+        or not 1 <= len(candidates) <= MAX_CANDIDATES
+        or not all(isinstance(model, str) and MODEL_RE.match(model) for model in candidates)
+    ):
+        raise RequestError(
+            f"second_judges lists 1 to {MAX_CANDIDATES} provider/publisher/model identifiers"
+        )
+    if len(set(candidates)) != len(candidates):
+        raise RequestError("second_judges names a model twice")
     request = JudgeRequest(
-        second_judge=second,
+        second_judges=tuple(candidates),
         sample=float(body.get("sample", 0.5)),
         parallel=int(body.get("parallel", 4)),
         rpm=float(body.get("rpm", 15.0)),
@@ -226,11 +255,12 @@ def read_request(path: Path) -> JudgeRequest:
 def check_independence(second: str, first: str | None, agents: set[str]) -> None:
     """Refuse a second judge that could not give an independent reading.
 
-    The point is a reading from somewhere else. The same model, or another model from the
-    same publisher, shares too much training to count as a second opinion, and a model that
-    is one of the agents under test would be grading its own runs. A first judge nobody
-    named is refused too: two of these checks would pass by default, and the report would
-    compare against a judge it cannot name.
+    The point is a reading from somewhere else. Another model from the first judge's
+    publisher shares too much training to count as a second opinion, and a model from the
+    family of one of the agents under test could favour its sibling's trajectory, which is
+    the bias a second reading exists to rule out. A first judge nobody named is refused
+    too: the family check would pass by default, and the report would compare against a
+    judge it cannot name.
     """
     if first is None:
         raise RequestError(
@@ -238,13 +268,40 @@ def check_independence(second: str, first: str | None, agents: set[str]) -> None
             "fixtures/model-runs.provenance.json with the judge it ran"
         )
     if second == first:
-        raise RequestError("the second judge is the first judge")
+        raise RequestError(f"{second} is the first judge")
     if _family(second) == _family(first):
+        raise RequestError(f"{second} comes from the first judge's family, {_family(first)}")
+    sibling = sorted(agent for agent in agents if _family(agent) == _family(second))
+    if sibling:
         raise RequestError(
-            f"the second judge comes from the first judge's family, {_family(first)}"
+            f"{second} comes from the family of an agent it would judge, {sibling[0]}"
         )
-    if second in agents:
-        raise RequestError("the second judge is one of the agents whose runs it would judge")
+
+
+def pick_judge(
+    candidates: tuple[str, ...],
+    run: Run,
+    task: Task,
+    *,
+    temperature: float,
+    client_for: Callable[[str], JudgeClient] = LiteLLMJudge,
+) -> tuple[str, JudgeClient, JudgeVerdict]:
+    """The first candidate that returns a valid verdict on `run`, with that verdict.
+
+    Raises:
+        RequestError: When no candidate returns one.
+    """
+    reasons: list[str] = []
+    for model in candidates:
+        client = client_for(model)
+        try:
+            verdict = judge_run(client, run, task, temperature=temperature)
+        except JudgeError as exc:
+            reasons.append(f"{model}: {str(exc)[:300]}")
+            annotate("warning", f"passed over {model}", str(exc)[:600])
+            continue
+        return model, client, verdict
+    raise RequestError("no candidate returned a valid verdict. " + " | ".join(reasons))
 
 
 def main(argv: list[str]) -> int:
@@ -261,39 +318,54 @@ def main(argv: list[str]) -> int:
     first_judge: str | None = None
     if args.provenance.is_file():
         first_judge = json.loads(args.provenance.read_text(encoding="utf-8")).get("judge_model")
+    agents = {run.config.model for run in runs}
     try:
         request = read_request(args.request)
-        check_independence(request.second_judge, first_judge, {run.config.model for run in runs})
+        for candidate in request.second_judges:
+            check_independence(candidate, first_judge, agents)
     except (RequestError, ValueError, OSError) as exc:
         print(f"cannot run the request: {exc}", file=sys.stderr)
+        annotate("error", "judge request refused", str(exc))
         return 2
 
     tasks = {loaded.id: loaded.task for loaded in discover(args.tasks_root)}
     eligible = [run for run in judged_runs(runs) if run.task_id in tasks]
     if not eligible:
         print("no run in these records was judged, so there is nothing to compare", file=sys.stderr)
+        annotate("error", "nothing to compare", "no run in these records was judged")
         return 1
     chosen = sample_runs(eligible, request.sample)
     print(f"{len(eligible)} judged run(s); the second judge reads {len(chosen)}")
-    pairs = second_opinions(
-        chosen,
+    try:
+        model, client, opening = pick_judge(
+            request.second_judges,
+            chosen[0],
+            tasks[chosen[0].task_id],
+            temperature=request.temperature,
+        )
+    except RequestError as exc:
+        print(str(exc), file=sys.stderr)
+        annotate("error", "no second judge", str(exc)[:900])
+        return 1
+    print(f"second judge: {model}")
+    rest = second_opinions(
+        chosen[1:],
         tasks,
-        LiteLLMJudge(request.second_judge),
+        client,
         parallel=request.parallel,
         temperature=request.temperature,
         rpm=request.rpm,
     )
-    if not pairs:
-        print("the second judge returned no verdict", file=sys.stderr)
-        return 1
+    pairs = [(chosen[0], opening), *rest]
     report = agreement_report(
         pairs,
         first_judge=first_judge,
-        second_judge=request.second_judge,
+        second_judge=model,
         temperature=request.temperature,
         eligible=len(eligible),
         sampled=len(chosen),
     )
+    report["passed_over"] = list(request.second_judges[: request.second_judges.index(model)])
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(f"compared {report['compared_runs']} run(s); wrote {args.out}")
