@@ -613,6 +613,7 @@ class TestDockerSandbox:
                 timeout_s=30,
                 cap_bytes=4096,
             )
+            owner = sandbox.exec("stat -c %U src/app.py", timeout_s=30, cap_bytes=1024)
             before = sandbox._require().id
             sandbox.isolate_for_verify()
             after = sandbox._require().id
@@ -629,11 +630,38 @@ class TestDockerSandbox:
             assert run("test -e /tmp/left_in_tmp && echo present || echo absent") == "absent"
             assert run("test -e ~/left_in_home && echo present || echo absent") == "absent"
             assert run("pgrep -x sleep -a | grep -c 600 || true") == "0"
-            assert run("stat -c %U src/app.py") == "agent"
+            # Ownership travels with the copy, so the agent can still edit what it could before.
+            assert run("stat -c %U src/app.py") == owner.stdout.strip() == "agent"
+            assert run("stat -c %U .") == "agent"
 
             sandbox.install_verify()
             result = sandbox.exec(sample_task.verify_cmd, timeout_s=180, cap_bytes=16384)
             assert "2 passed" in result.combined
+
+    def test_a_written_file_belongs_to_the_agent_and_can_be_edited_in_place(
+        self, sample_task, task_dir
+    ):
+        """The go-race-01 failure: go fmt and appends hit permission denied on a root file."""
+        with DockerSandbox(sample_task, task_dir) as sandbox:
+            sandbox.write_file("src/new_module.py", "VALUE = 1\n")
+            sandbox.write_file("src/app.py", "def add(a, b):\n    return a + b\n")
+            owners = sandbox.exec(
+                "stat -c %U src/new_module.py src/app.py", timeout_s=30, cap_bytes=1024
+            )
+            assert owners.stdout.split() == ["agent", "agent"]
+            appended = sandbox.exec(
+                "echo 'VALUE = 2' >> src/new_module.py && cat src/new_module.py",
+                timeout_s=30,
+                cap_bytes=4096,
+            )
+            assert appended.exit_code == 0, appended.combined
+            assert "VALUE = 2" in appended.stdout
+            rewritten = sandbox.exec(
+                "python -c \"open('src/app.py', 'w').write('x = 1\\n')\"",
+                timeout_s=30,
+                cap_bytes=4096,
+            )
+            assert rewritten.exit_code == 0, rewritten.combined
 
     def test_isolation_is_done_once(self, sample_task, task_dir):
         with DockerSandbox(sample_task, task_dir) as sandbox:

@@ -557,6 +557,7 @@ class DockerSandbox:
         self._tag: str = image_tag or ""
         self._verify_installed = False
         self._isolated = False
+        self._ids: tuple[int, int] | None = None
 
     def __enter__(self) -> Self:
         """Build the image if needed and start the container."""
@@ -745,16 +746,39 @@ class DockerSandbox:
         truncated = len(lines) > max_lines or result.truncated
         return "\n".join(lines[:max_lines]), truncated
 
+    def _agent_ids(self) -> tuple[int, int]:
+        """The agent user's uid and gid inside the image, asked once and remembered."""
+        if self._ids is None:
+            container = self._require()
+            found: list[int] = []
+            for flag in ("-u", "-g"):
+                code, raw = container.exec_run(["id", flag], user=AGENT_USER)
+                if code != 0:
+                    raise SandboxError(f"could not read the agent user's id: {raw!r}")
+                found.append(int(raw.decode().strip()))
+            self._ids = (found[0], found[1])
+        return self._ids
+
     def write_file(self, path: str, content: str) -> None:
-        """Write a workspace file, creating parent directories."""
+        """Write a workspace file as the agent user, creating parent directories.
+
+        Owned by the agent, not by whoever unpacked the archive. An archive member with no
+        owner unpacks as root, and a root owned file is one the agent cannot change in
+        place afterwards: go fmt, an append, or a script that rewrites the file all fail
+        with permission denied, and the agent spends its steps fighting the sandbox rather
+        than the task. That happened, on go-race-01, in the first real model run.
+        """
         rel = _normalise_path(path)
         container = self._require()
+        uid, gid = self._agent_ids()
         buffer = io.BytesIO()
         data = content.encode()
         with tarfile.open(fileobj=buffer, mode="w") as tar:
             info = tarfile.TarInfo(name=rel)
             info.size = len(data)
             info.mode = 0o644
+            info.uid, info.gid = uid, gid
+            info.uname = info.gname = AGENT_USER
             tar.addfile(info, io.BytesIO(data))
         parent = str(Path(rel).parent)
         if parent not in (".", ""):

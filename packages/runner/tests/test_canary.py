@@ -49,6 +49,13 @@ class TestRecognisingTheReport:
         assert not canary.reported_failed(f"FAILED ../verify/x.py::{canary.name}_other - x")
         assert not canary.reported_passed("3 passed")
 
+    def test_colour_codes_do_not_hide_the_report(self, tmp_path: Path):
+        """CI forces colour, and a coloured FAILED is still a failure."""
+        canary = plant(VerifyParser.PYTEST, tmp_path)
+        assert canary is not None
+        coloured = f"\x1b[31mFAILED\x1b[0m ../verify/{canary.filename}::{canary.name} - x"
+        assert canary.reported_failed(coloured)
+
     def test_go_lines(self, tmp_path: Path):
         (tmp_path / "x_test.go").write_text("package zz\n")
         canary = plant(VerifyParser.GO_TEST, tmp_path)

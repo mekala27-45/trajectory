@@ -43,6 +43,8 @@ _WORDS = (
 )
 
 _GO_PACKAGE = re.compile(r"^package\s+(\w+)\s*$", re.MULTILINE)
+# A runner told to colour its output wraps the words this module reads in escape codes.
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 # The exit code a runner gives when at least one test failed and nothing else went wrong.
 # With the planted test in the set that is the only clean outcome: zero means the runner
@@ -75,7 +77,7 @@ class Canary:
             pattern = rf"^\s*not ok \d+ - {name}\s*$"
         else:
             return False
-        return re.search(pattern, output, re.MULTILINE) is not None
+        return re.search(pattern, _ANSI.sub("", output), re.MULTILINE) is not None
 
     def reported_passed(self, output: str) -> bool:
         """True when the runner's report names the planted test as passed.
@@ -90,7 +92,7 @@ class Canary:
             pattern = rf"^\s*ok \d+ - {name}\s*$"
         else:
             return False
-        return re.search(pattern, output, re.MULTILINE) is not None
+        return re.search(pattern, _ANSI.sub("", output), re.MULTILINE) is not None
 
 
 def _go_package(verify_dir: Path) -> str | None:
