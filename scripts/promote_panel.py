@@ -15,6 +15,12 @@ nothing: every record a promotion leaves behind comes from one panel, one reques
 harness version, which the provenance file states and this script checks. Git keeps the
 records it replaced.
 
+Every record is rescored with the scoring code at the commit doing the promotion, which the
+provenance file names beside the commits the runs came from. A metric fixed after a panel
+started is then applied to its records the same way it was applied to everything already
+published. Rescoring is offline: the trajectories, the judge's output and the failure modes
+are carried over unchanged.
+
 Refuses to run when a record is a scripted policy, when the records disagree about the
 harness version, or when two records share an identifier.
 """
@@ -28,7 +34,9 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from trajectory_core.models import Run
+from trajectory_core.models import Run, Task
+from trajectory_core.scoring import rescore
+from trajectory_runner.loader import discover
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "fixtures" / "model-runs"
@@ -61,7 +69,29 @@ def load(directory: Path) -> list[Run]:
     return sorted(runs, key=lambda run: run.id)
 
 
-def provenance(runs: list[Run], *, run_id: str, request: dict[str, object]) -> dict[str, object]:
+def rescored(runs: list[Run], tasks: dict[str, Task]) -> list[Run]:
+    """Every record scored by the current scoring code, its trajectory untouched."""
+    missing = sorted({run.task_id for run in runs} - set(tasks))
+    if missing:
+        raise PromotionError(f"no task definition for {', '.join(missing)}")
+    return [rescore(run, tasks[run.task_id]) for run in runs]
+
+
+def _head() -> str:
+    """The commit doing the promotion, which is the scoring code the records now carry."""
+    done = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False
+    )
+    return done.stdout.strip() or "not recorded"
+
+
+def provenance(
+    runs: list[Run],
+    *,
+    run_id: str,
+    request: dict[str, object],
+    scored_at_commit: str = "not recorded",
+) -> dict[str, object]:
     """Where these records came from, stated once beside them."""
     models = sorted({run.config.model for run in runs})
     return {
@@ -73,6 +103,7 @@ def provenance(runs: list[Run], *, run_id: str, request: dict[str, object]) -> d
         "source_commits": sorted(
             {run.runner_fingerprint.source_commit or "not recorded" for run in runs}
         ),
+        "scored_at_commit": scored_at_commit,
         "models": {
             model: {
                 "runs": sum(1 for run in runs if run.config.model == model),
@@ -116,15 +147,17 @@ def main(argv: list[str]) -> int:
     parser.add_argument("records", type=Path, help="Directory holding the panel's records.")
     parser.add_argument("--run-id", required=True, help="The model-panel workflow run.")
     parser.add_argument("--request", type=Path, default=REQUEST, help="The request it ran.")
+    parser.add_argument("--tasks-root", type=Path, default=ROOT / "tasks")
     args = parser.parse_args(argv)
 
+    tasks = {loaded.id: loaded.task for loaded in discover(args.tasks_root)}
     try:
-        runs = load(args.records)
+        runs = rescored(load(args.records), tasks)
     except PromotionError as exc:
         print(f"cannot promote: {exc}", file=sys.stderr)
         return 2
     request = json.loads(args.request.read_text(encoding="utf-8"))
-    meta = provenance(runs, run_id=args.run_id, request=request)
+    meta = provenance(runs, run_id=args.run_id, request=request, scored_at_commit=_head())
     if promote(runs, meta, FIXTURES, PROVENANCE, AGREEMENT):
         print(f"removed {AGREEMENT.name}: it was measured on the records this replaces")
     print(f"promoted {len(runs)} records from panel run {args.run_id} into {FIXTURES.name}")

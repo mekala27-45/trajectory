@@ -60,3 +60,25 @@ def test_promotion_replaces_the_records_and_states_where_they_came_from(tmp_path
     assert written["harness_version"] == runs[0].harness_version
     (counts,) = written["models"].values()
     assert counts["runs"] == 4
+
+
+def test_promotion_rescores_with_the_current_rules(tmp_path: Path):
+    """A metric fixed after a panel started reaches its records at promotion."""
+    from trajectory_runner.loader import discover
+
+    tasks = {loaded.id: loaded.task for loaded in discover(ROOT / "tasks")}
+    runs = promotion.load(_copy(MODEL_RUNS, tmp_path / "panel", 3))
+    stale = [
+        run.model_copy(update={"score": run.score.model_copy(update={"recovery_rate": 0.123})})
+        for run in runs
+        if run.score is not None
+    ]
+    fresh = promotion.rescored(stale, tasks)
+    assert all(run.score is not None and run.score.recovery_rate != 0.123 for run in fresh)
+    assert [run.steps for run in fresh] == [run.steps for run in stale]
+
+
+def test_a_record_for_an_unknown_task_is_refused(tmp_path: Path):
+    runs = promotion.load(_copy(MODEL_RUNS, tmp_path / "panel", 1))
+    with pytest.raises(promotion.PromotionError, match="no task definition"):
+        promotion.rescored(runs, {})
