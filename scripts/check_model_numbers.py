@@ -23,9 +23,11 @@ With no committed model records there is nothing to hold, and the check passes s
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 from trajectory_core.aggregate import failure_mode_counts, leaderboard
 from trajectory_core.models import Run
@@ -36,6 +38,13 @@ from trajectory_runner.store import read_runs
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "fixtures" / "model-runs"
 DOCUMENT = ROOT / "MODEL-RESULTS.md"
+# Written by scripts/judge_agreement.py and committed by hand once reviewed.
+AGREEMENT = ROOT / "fixtures" / "judge-agreement.json"
+MODE_NAMES = {
+    "F06": "ignored test output",
+    "F07": "long horizon context loss",
+    "F10": "environment mismatch",
+}
 
 BEGIN = "<!-- measured: rendered from fixtures/model-runs by scripts/check_model_numbers.py -->"
 END = "<!-- end measured -->"
@@ -50,7 +59,13 @@ SUMMARY_PREFIXES = (
     "- Backends:",
     "- Total provider spend:",
     "- Total wall clock:",
+    "- Judges compared:",
+    "- Drift, between the judges:",
 )
+
+
+class StaleAgreementError(ValueError):
+    """The judge agreement was measured on runs that are no longer committed."""
 
 
 def render(fixtures: Path) -> str:
@@ -68,7 +83,51 @@ def render(fixtures: Path) -> str:
     if lines and lines[0].startswith("# "):
         lines = lines[1:]
     lines = ["#" + line if line.startswith(("## ", "### ")) else line for line in lines]
-    return "\n".join([*lines, "", *signal_lines(runs)]).strip("\n")
+    agreement: list[str] = []
+    if AGREEMENT.is_file():
+        agreement = ["", *judge_lines(json.loads(AGREEMENT.read_text(encoding="utf-8")), runs)]
+    return "\n".join([*lines, "", *signal_lines(runs), *agreement]).strip("\n")
+
+
+def judge_lines(report: dict[str, Any], runs: list[Run]) -> list[str]:
+    """Two judges compared on the same runs, mode by mode.
+
+    Refuses a report measured on runs that are no longer committed, because an agreement
+    figure printed beside records it was not measured on would be a claim about nothing.
+    """
+    stale = sorted(set(report["runs"]) - {run.id for run in runs})
+    if stale:
+        raise StaleAgreementError(
+            f"{AGREEMENT.name} was measured on {len(stale)} run(s) that are no longer "
+            "committed. Measure it again or remove it."
+        )
+
+    def kappa(value: float | None) -> str:
+        return "not computable" if value is None else f"{value:.2f}"
+
+    lines = [
+        "### Two judges compared",
+        "",
+        f"- Judges compared: `{report['first_judge']}` and `{report['second_judge']}`, on "
+        f"{report['compared_runs']} of the {report['eligible_runs']} runs the first judged, "
+        f"temperature {report['temperature']:g}",
+        "",
+        "| mode | both present | first only | second only | neither | raw agreement | kappa |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for mode, entry in sorted(report["per_mode"].items()):
+        lines.append(
+            f"| {mode} {MODE_NAMES.get(mode, '')} | {entry['both_present']} "
+            f"| {entry['first_only']} | {entry['second_only']} | {entry['neither_present']} "
+            f"| {entry['raw_agreement']:.2f} | {kappa(entry['cohens_kappa'])} |"
+        )
+    lines += [
+        "",
+        f"- Drift, between the judges: mean absolute difference "
+        f"{report['drift_mean_absolute_difference']:.3f}, largest "
+        f"{report['drift_max_absolute_difference']:.3f}",
+    ]
+    return lines
 
 
 def _variance(values: list[float]) -> float:
@@ -225,7 +284,11 @@ def main(argv: list[str]) -> int:
         print("no model run records are committed under fixtures/model-runs; nothing to check")
         return 0
 
-    rendered = render(FIXTURES)
+    try:
+        rendered = render(FIXTURES)
+    except StaleAgreementError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     if args.write:
         write_block(DOCUMENT, rendered)
         print(f"wrote the measured block of {DOCUMENT.name} from {FIXTURES.name}")

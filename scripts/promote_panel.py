@@ -34,6 +34,8 @@ ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "fixtures" / "model-runs"
 # Beside the records, never among them: every tool that reads the records globs *.json.
 PROVENANCE = ROOT / "fixtures" / "model-runs.provenance.json"
+# Measured on the records a promotion replaces, so it goes with them.
+AGREEMENT = ROOT / "fixtures" / "judge-agreement.json"
 REQUEST = ROOT / "model-requests" / "panel.json"
 
 
@@ -85,15 +87,27 @@ def provenance(runs: list[Run], *, run_id: str, request: dict[str, object]) -> d
 
 
 def promote(
-    runs: list[Run], meta: dict[str, object], fixtures: Path, provenance_path: Path
-) -> None:
-    """Replace the committed records with these, and write the provenance beside them."""
+    runs: list[Run],
+    meta: dict[str, object],
+    fixtures: Path,
+    provenance_path: Path,
+    agreement_path: Path | None = None,
+) -> bool:
+    """Replace the committed records with these, and write the provenance beside them.
+
+    A judge agreement measured on the records being replaced is removed with them, since
+    it says nothing about the new ones. Returns whether one was removed.
+    """
     fixtures.mkdir(parents=True, exist_ok=True)
     for old in fixtures.glob("*.json"):
         old.unlink()
     for run in runs:
         (fixtures / f"{run.id}.json").write_text(run.model_dump_json(indent=2), encoding="utf-8")
     provenance_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    if agreement_path is not None and agreement_path.exists():
+        agreement_path.unlink()
+        return True
+    return False
 
 
 def main(argv: list[str]) -> int:
@@ -111,7 +125,8 @@ def main(argv: list[str]) -> int:
         return 2
     request = json.loads(args.request.read_text(encoding="utf-8"))
     meta = provenance(runs, run_id=args.run_id, request=request)
-    promote(runs, meta, FIXTURES, PROVENANCE)
+    if promote(runs, meta, FIXTURES, PROVENANCE, AGREEMENT):
+        print(f"removed {AGREEMENT.name}: it was measured on the records this replaces")
     print(f"promoted {len(runs)} records from panel run {args.run_id} into {FIXTURES.name}")
     for model, counts in meta["models"].items():  # type: ignore[attr-defined]
         print(f"  {model}: {counts['solved']} of {counts['runs']} solved")

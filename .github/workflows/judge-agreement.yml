@@ -1,0 +1,90 @@
+name: judge-agreement
+
+# A second judge, from another model family, reads a fixed sample of the runs the first
+# judge read, and the two are compared mode by mode with raw agreement and Cohen's kappa.
+#
+# The request lives in model-requests/judge.json; changing it on main starts a measurement.
+# The first judge's verdicts are read back from the committed records, so the only model
+# called here is the second judge. scripts/judge_agreement.py refuses a second judge from
+# the first judge's family, or one of the agents whose runs it would judge, before any call.
+#
+# It shares the panel's concurrency group on purpose: one free key, one rate limit, so a
+# measurement waits for a running panel instead of competing with it.
+#
+# The report reaches a branch named for this run. Committing it as
+# fixtures/judge-agreement.json is a reviewed step, and MODEL-RESULTS.md then renders it
+# under the same gate as every other model figure.
+
+on:
+  push:
+    branches: [main]
+    paths: ["model-requests/judge.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: model-panel
+  cancel-in-progress: false
+
+jobs:
+  judge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: skip without the key
+        id: guard
+        run: |
+          if [ -z "${{ secrets.NVIDIA_API_KEY }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "NVIDIA_API_KEY is not set in this repository, skipping."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.run == 'true'
+
+      - uses: astral-sh/setup-uv@v5
+        if: steps.guard.outputs.run == 'true'
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+        if: steps.guard.outputs.run == 'true'
+
+      - name: run the second judge
+        if: steps.guard.outputs.run == 'true'
+        timeout-minutes: 100
+        env:
+          # LiteLLM reads NVIDIA_NIM_API_KEY; the repository secret is NVIDIA_API_KEY.
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          uv run python scripts/judge_agreement.py fixtures/model-runs --out judge-agreement.json
+          # One annotation with the result, which the checks API serves without the log.
+          uv run python - <<'PY'
+          import json
+          r = json.load(open("judge-agreement.json"))
+          rows = [f"{r['compared_runs']} of {r['eligible_runs']} judged runs compared"]
+          for mode, e in sorted(r["per_mode"].items()):
+              kappa = "n/a" if e["cohens_kappa"] is None else f"{e['cohens_kappa']:.2f}"
+              rows.append(f"{mode} agreement {e['raw_agreement']:.2f} kappa {kappa}")
+          rows.append(f"drift mean difference {r['drift_mean_absolute_difference']:.3f}")
+          print("::notice title=judge-agreement::" + "%0A".join(rows))
+          PY
+
+      - name: push the report to a branch for this run
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          mkdir -p fixtures
+          cp judge-agreement.json fixtures/judge-agreement.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="judge-agreement-${{ github.run_id }}"
+          git checkout -b "$branch"
+          git add -f fixtures/judge-agreement.json
+          git commit -m "data: judge agreement from run ${{ github.run_id }}"
+          git push --force origin "HEAD:refs/heads/$branch"
+          echo "::notice title=report-branch::$branch"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
@@ -22,7 +23,38 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Pa
     document = tmp_path / "MODEL-RESULTS.md"
     monkeypatch.setattr(gate, "FIXTURES", fixtures)
     monkeypatch.setattr(gate, "DOCUMENT", document)
+    monkeypatch.setattr(gate, "AGREEMENT", tmp_path / "judge-agreement.json")
     return fixtures, document
+
+
+def _agreement(run_ids: list[str]) -> dict[str, object]:
+    def mode(both: int, first: int, second: int, neither: int, kappa: float | None):
+        total = both + first + second + neither
+        return {
+            "both_present": both,
+            "first_only": first,
+            "second_only": second,
+            "neither_present": neither,
+            "raw_agreement": (both + neither) / total,
+            "cohens_kappa": kappa,
+        }
+
+    return {
+        "first_judge": "nvidia_nim/stepfun-ai/step-5-preview",
+        "second_judge": "nvidia_nim/deepseek-ai/deepseek-v4.1-flash",
+        "temperature": 0.0,
+        "eligible_runs": len(run_ids),
+        "sampled_runs": len(run_ids),
+        "compared_runs": len(run_ids),
+        "per_mode": {
+            "F06": mode(1, 1, 0, 2, 0.5),
+            "F07": mode(0, 0, 1, 3, 0.0),
+            "F10": mode(0, 0, 0, 4, None),
+        },
+        "drift_mean_absolute_difference": 0.125,
+        "drift_max_absolute_difference": 0.4,
+        "runs": run_ids,
+    }
 
 
 def test_no_records_means_nothing_to_check(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -111,3 +143,28 @@ def test_the_worked_group_has_advantages_that_sum_to_zero():
     binary = [float(row.strip("|").split("|")[3]) for row in rows]
     assert abs(sum(binary)) < 0.02  # each cell is rounded to two places
     assert any(value > 0 for value in binary) and any(value < 0 for value in binary)
+
+
+def test_a_committed_judge_agreement_is_rendered_and_held(workspace: tuple[Path, Path]):
+    fixtures, document = workspace
+    ids = sorted(path.stem for path in fixtures.glob("*.json"))[:4]
+    gate.AGREEMENT.write_text(json.dumps(_agreement(ids)), encoding="utf-8")
+    assert gate.main(["--write"]) == 0
+    body = document.read_text(encoding="utf-8")
+    assert "#### Two judges compared" in body or "### Two judges compared" in body
+    assert "| F06 ignored test output | 1 | 1 | 0 | 2 | 0.75 | 0.50 |" in body
+    assert "| F10 environment mismatch | 0 | 0 | 0 | 4 | 1.00 | not computable |" in body
+    assert "mean absolute difference 0.125, largest 0.400" in body
+    assert gate.main([]) == 0
+
+    changed = _agreement(ids)
+    changed["drift_max_absolute_difference"] = 0.5
+    gate.AGREEMENT.write_text(json.dumps(changed), encoding="utf-8")
+    assert gate.main([]) == 1
+
+
+def test_an_agreement_on_runs_no_longer_committed_fails(workspace: tuple[Path, Path]):
+    _, document = workspace
+    gate.AGREEMENT.write_text(json.dumps(_agreement(["not-a-committed-run"])), encoding="utf-8")
+    assert gate.main(["--write"]) == 1
+    assert not document.exists()
