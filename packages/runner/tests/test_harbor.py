@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import subprocess
 import sys
 import tomllib
@@ -238,7 +239,9 @@ class TestThePlantedTestInTheExport:
             check=False,
         )
         assert ran.returncode == 1
-        assert f"::{name}" in ran.stdout
+        # CI forces colour, and an escape code can sit between the file and the test name,
+        # so read the report the way score.py does: with the escapes stripped.
+        assert f"::{name}" in re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", ran.stdout)
 
 
 class TestGuards:
