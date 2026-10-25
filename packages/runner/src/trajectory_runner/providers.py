@@ -405,7 +405,8 @@ def retry_delay(exc: Exception, attempt: int) -> float:
     A rate limit gets a far longer wait than a timeout. A free tier counts requests over a
     minute, so a retry a second or two later lands in the same window and is refused again:
     the first five model panel lost runs to exactly that, four quick retries inside one
-    window. Waiting a good part of a minute lets the window turn over.
+    window. Backing off about 10 seconds, then 20, then 40, spreads the retries across the
+    window and the next one.
     """
     jitter = 0.5 + random.random()  # noqa: S311  spreading retries, not security
     if _is_rate_limit(exc):

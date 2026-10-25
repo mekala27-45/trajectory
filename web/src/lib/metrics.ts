@@ -42,7 +42,7 @@ export const STAT_COLUMNS: readonly MetricColumn[] = [
     header: "Partial credit",
     title: "Metric 2: partial credit",
     description:
-      "Hidden tests passed divided by hidden tests discovered. Four failing tests taken down to one is progress, and a benchmark that reports that identically to no change at all has thrown away the only signal in the run.",
+      "Hidden tests passed divided by the hidden tests the task declares, so a test that never ran counts as not passed. Four failing tests taken down to one is progress, and a benchmark that reports that identically to no change at all has thrown away the only signal in the run.",
     percent: true,
     digits: 1,
     direction: "higher",
@@ -72,7 +72,7 @@ export const STAT_COLUMNS: readonly MetricColumn[] = [
     header: "Redundancy",
     title: "Metric 5: redundant action rate",
     description:
-      "Byte identical repeat commands divided by total commands. Read this against the reference solution, not against zero: running a test suite again after changing the code is a repeat command and exactly the right thing to do. The signal is the gap between the agent's rate and the reference's.",
+      "Repeated commands divided by total commands, two commands counting as the same when they match once runs of whitespace are collapsed. Read this against the reference solution, not against zero: running a test suite again after changing the code is a repeat command and exactly the right thing to do. The signal is the gap between the agent's rate and the reference's.",
     percent: true,
     digits: 1,
     direction: "lower",
@@ -82,7 +82,7 @@ export const STAT_COLUMNS: readonly MetricColumn[] = [
     header: "Recovery",
     title: "Metric 6: recovery rate",
     description:
-      "Of the commands that failed, the fraction the agent adapted after. A failure counts as recovered when at least one of the next two steps is something other than a re-issue of the same command. Measured over runs where something failed, so a row with nothing failing reads n/a.",
+      "Of the commands that failed, the fraction the agent adapted after. A failure counts as recovered when at least one of the next two steps is something other than a re-issue of the same command, and a finish before that closes the window, because walking away from a failure is not adapting to it. Measured over runs where something failed, so a row with nothing failing reads n/a.",
     percent: true,
     digits: 1,
     direction: "higher",

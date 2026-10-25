@@ -35,6 +35,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
  * holds a forty thousand line log can produce a step far larger than anyone will read, so
  * it is cut here as well as in the pane that renders it.
  */
+/**
+ * Whether the provider ended this run: a model call kept failing until its retries ran out.
+ * The same test as `ended_by_provider` in the runner, read off the same message, so the
+ * banner says who stopped the run rather than charging the harness with it.
+ */
+function endedByProvider(run: Run): boolean {
+  return (
+    run.status === "error" && (run.error ?? "").startsWith(`${run.config.model} failed after `)
+  );
+}
+
 function trimForDisplay(run: Run): { run: Run; cutSteps: number } {
   let cutSteps = 0;
   const steps: Step[] = run.steps.map((step) => {
@@ -90,7 +101,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
           {verification && !verification.parse_ok ? (
             <Chip
               tone="warn"
-              title="The verification output could not be parsed into a passed and total count, so the run fell back to the exit code and partial credit is not meaningful."
+              title="The verification output could not be parsed into a passed and total count, so no test counts as reported: the run cannot pass and scores zero, whatever the exit code."
             >
               verification output not parsed
             </Chip>
@@ -172,7 +183,8 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
 
       {run.error ? (
         <p className="rounded-md border border-bad/40 bg-bad-bg px-3 py-2 text-[13px] text-bad">
-          The harness ended this run: {run.error}
+          {endedByProvider(run) ? "The provider ended this run" : "The harness ended this run"}:{" "}
+          {run.error}
         </p>
       ) : null}
 
@@ -192,7 +204,10 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
         {score ? (
           <Panel className="px-4 py-3">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
-              <Field label="Partial credit" title="Metric 2: hidden tests passed over discovered.">
+              <Field
+                label="Partial credit"
+                title="Metric 2: hidden tests passed over the hidden tests the task declares."
+              >
                 {percent(score.partial_credit, 1)}
               </Field>
               <Field
@@ -209,13 +224,13 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
               </Field>
               <Field
                 label="Redundancy"
-                title="Metric 5: byte identical repeat commands over total commands. A correct trajectory has a non-zero rate, because running the suite again after a change is the right thing to do."
+                title="Metric 5: repeated commands, compared with whitespace collapsed, over total commands. A correct trajectory has a non-zero rate, because running the suite again after a change is the right thing to do."
               >
                 {percent(score.redundant_action_rate, 1)}
               </Field>
               <Field
                 label="Recovery"
-                title="Metric 6: of the commands that failed, the fraction followed within two steps by a materially different command. Null when nothing failed."
+                title="Metric 6: of the commands that failed, the fraction followed within two steps by a different step, a finish closing the window. Null when nothing failed."
               >
                 {score.recovery_rate == null ? "n/a" : percent(score.recovery_rate, 1)}
               </Field>

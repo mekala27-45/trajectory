@@ -66,7 +66,7 @@ LOCAL_NOTE = (
     "backend cannot guarantee the agent did not see the hidden tests."
 )
 STUB_NOTE = (
-    "Models whose identifier starts with stub: are scripted offline policies, not language "
+    "Agents whose identifier starts with stub: are scripted offline policies, not language "
     "models. They validate the harness and give this demo real trajectories to replay."
 )
 REAL_NOTE = (

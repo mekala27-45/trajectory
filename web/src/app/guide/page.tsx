@@ -324,11 +324,11 @@ export default function GuidePage() {
               fix. Finding your own bugs is the point of a measurement tool, not an embarrassment.
             </p>
             <p>
-              A free service also has bad hours. On the first panel it dropped about two runs in
-              five partway through, and a run cut off like that says nothing about the model. So the
-              harness counts those runs separately from the model&rsquo;s own failures, and can run
-              exactly those again under a rule written down before anyone sees the result: the new
-              run replaces the old one whatever it scores.
+              A free service also has bad hours. On the first panel it ended about two runs in five
+              early, some before the model had taken a single step, and a run cut off like that says
+              nothing about the model. So the harness counts those runs separately from the
+              model&rsquo;s own failures, and can run exactly those again under a rule written down
+              before anyone sees the result: the new run replaces the old one whatever it scores.
             </p>
           </div>
           <div className="flex flex-col gap-2">

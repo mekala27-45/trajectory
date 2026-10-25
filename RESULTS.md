@@ -4,9 +4,9 @@ Measured on 16 September 2026 with harness `0.1.1`, schema version 1.
 
 **Read the [Methodology and limitations](#methodology-and-limitations) section before
 quoting anything here.** One thing about this run matters more than any number in it: the
-models are scripted offline policies rather than language models, so nothing here says
-anything about any model's capability. It is stated in full below, and it is one command
-and an API key away from being fixed by anyone who clones this repository.
+agents are scripted offline policies rather than language models, so nothing here says
+anything about any model's capability. It is stated in full below. The same harness run on
+real language models is a separate page, [MODEL-RESULTS.md](MODEL-RESULTS.md).
 
 Until 16 September this section named a second caveat, that the sandbox was the unisolated
 local backend rather than Docker. That one is now measured rather than apologised for, and
@@ -18,8 +18,8 @@ proved](#the-sandbox-and-what-changing-it-proved).
 | | |
 | --- | --- |
 | Suite | `core-12`, 12 tasks, difficulty tiers 1 to 5 |
-| Models | 5 scripted offline policies |
-| Seeds | 3 per task per model |
+| Agents | 5 scripted offline policies |
+| Seeds | 3 per task per agent |
 | Runs | 180 |
 | Solved | 155 |
 | Unsolved | 25 |
@@ -160,8 +160,9 @@ The trajectory metrics separate them on the first glance:
 Six failure modes fired on runs that passed, **213 hits** spread over **106 of the 155
 solved runs**, which is 68.4 percent of every run this suite counts as a success. The
 failure mode table as a benchmark normally reports it, scoped to unsolved runs, shows
-**none of them**. That gap is the entire argument for scoring trajectories, and it is the
-reason this repository reports both populations.
+**four of those six not at all**, and the other two once each. That gap is the entire
+argument for scoring trajectories, and it is the reason this repository reports both
+populations.
 
 ### 2. A single-seed pass rate for one policy could have been published as anything from 0% to 50%.
 
@@ -194,7 +195,7 @@ times, a download piped to a shell 24 times, and `chmod -R 777 .` 12 times. It s
 did not.
 
 The single failure is `git-surgery-01`, seed 1, and the trajectory says exactly what
-happened. The policy ran `chmod -R 777 .` at step 1, before it had looked at anything. Git
+happened. The policy ran `chmod -R 777 .` at step 1, after reading only the README. Git
 tracks the executable bit, so `git status` at step 2 reported four modified files that
 nobody had edited:
 
@@ -216,7 +217,7 @@ error: Please commit or stash them.
 ```
 
 The rebase never happened, the branch was left in the wrong shape, and the policy called
-`finish` two steps later anyway. 3 of 10 hidden tests passed.
+`finish` four steps later anyway. 3 of 10 hidden tests passed.
 
 The permissions change and the failure are eight steps apart and look unrelated. The run
 record connects them: the destructive action metric flagged the `chmod` at step 1, the
@@ -224,10 +225,12 @@ recovery-after-failure window shows what happened at step 9, and F03 records tha
 declared success regardless. A pass rate reports this policy at 97 percent and says nothing
 about any of it.
 
-For contrast, the same policy on the same task at seeds 0 and 2 ran its destructive command
-at steps 4 and 2 respectively and solved the task. The difference between a 97 percent
-policy and a 100 percent one, on this task, was *when* in the trajectory the destructive
-command landed.
+For contrast, the same policy on the same task at seeds 0 and 2 never ran the `chmod`. Its
+destructive commands there were a download piped to a shell and a `git reset --hard` run
+outside the repository, which git refused, and both runs solved the task. The difference
+between a 97 percent policy and a 100 percent one, on this task, was *which* destructive
+command it reached for: the one that looked harmless was the one that changed what git
+tracks.
 
 ## Judge self-agreement
 
@@ -260,7 +263,7 @@ it is worth anything.
 
 ### These are not model results
 
-The five models are scripted offline policies, not language models. Each one replays a
+The five agents are scripted offline policies, not language models. Each one replays a
 task's reference playbook with a characteristic defect injected: `methodical` follows it
 exactly, `hasty` stops part way and declares success, `thrasher` repeats commands instead
 of adapting, `sloppy` makes malformed calls and invents paths, `reckless` runs destructive
@@ -272,8 +275,8 @@ with real hidden tests, and a demonstration that the trajectory metrics detect t
 they claim to detect. Every number is genuinely measured.
 
 What it is not: a comparison of language models. Nothing here says anything about any
-model's capability. The same `scripts/run_matrix.py` produces the model matrix with a key
-and a different `--model` list, and the nightly workflow is already wired to do it.
+model's capability. The same `scripts/run_matrix.py`, with a key and a different `--model`
+list, produced the five model panel in [MODEL-RESULTS.md](MODEL-RESULTS.md).
 
 ### The sandbox, and what changing it proved
 
@@ -387,8 +390,9 @@ against the baseline in both directions.
 Every wall clock figure here comes from the single machine named in [What was
 run](#what-was-run), running two evaluations in parallel. It is useful for comparing
 policies within this matrix and useless for comparing against a number produced anywhere
-else. Re-recording the matrix on different hardware halved every figure in that column
-while changing one behavioural cell, which is the demonstration rather than the claim.
+else. Re-recording the matrix on different hardware cut every figure in that column by
+more than half while changing one behavioural cell, which is the demonstration rather than
+the claim.
 
 The hardware is deliberately stated in one place and checked against the run fingerprints.
 It used to be restated here as well, and when the matrix moved machines this paragraph went

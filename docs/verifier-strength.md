@@ -123,10 +123,11 @@ the fix is a fixture rather than a test.
 - `log-forensics-01` `analyse.py:23`, `>= -> >` and `500 -> 501`. Both stop counting a
   status of exactly 500 as a server error. The log has 502s and 503s and not one 500, so
   the count does not move. A single 500 in the log would catch both.
-- `sql-migration-01` `up.sql:35`, `> -> >=` and `0 -> 1`. Both move the edge of a refund
-  at zero cents. Every seeded order totals at least 500 cents and every refund is 0, 100
-  or the whole total, so no row sits on the edge. One zero total order in the seed would
-  catch both.
+- `sql-migration-01` `up.sql:35`, `> -> >=` and `0 -> 1`. Both move the edge of the
+  refunded rule near zero cents. Every seeded order totals at least 500 cents and every
+  refund is 0, 100 or the whole total, so no row sits on either edge. An order that totals
+  zero with nothing refunded would catch the first, and a one cent order refunded in full
+  the second.
 - `py-flaky-test-01` `core.py:142`, `6 -> 7`. A delay rounded to seven places instead of
   six. The tests compare a schedule with itself and with a range, never with a stored
   value.
@@ -148,8 +149,8 @@ the fix is a fixture rather than a test.
   longer be hashed. No test tries either.
 
 Leaving the six equivalent mutants out, the hidden tests caught 75 of 88 near misses,
-85.2%. Every gap sits at an edge: an empty input, the two ends of a range, a property no
-caller in the task uses. That is the usual shape of a hand written suite, which tests the
+85.2%. Every gap sits at an edge of the input or off the path the tests walk: an empty
+input, the two ends of a range, a property no caller in the task uses. That is the usual shape of a hand written suite, which tests the
 cases the task is about, and it says where a policy could be paid for a near miss: code
 that is right on the common path and wrong at the edges.
 

@@ -104,7 +104,7 @@ export function LeaderboardTable({
     () => [
       helper.display({
         id: "model",
-        header: "Model",
+        header: "Agent",
         cell: (info) => <ModelCell row={info.row.original} />,
       }),
       helper.accessor("backend", {

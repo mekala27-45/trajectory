@@ -668,8 +668,10 @@ class DockerSandbox:
         write. None of that is the solution, and all of it would be present while the
         hidden tests ran. So the processes are stopped, gently first so a database inside
         the workspace closes its files cleanly, the workspace is copied out, and a new
-        container from the same clean image takes it in. The old container is removed. The
-        first command the new container ever runs is the verification.
+        container from the same clean image takes it in. The old container is removed.
+        Before the verification the new container runs only this method's own command,
+        which empties the image's copy of the workspace so the agent's copy replaces it file
+        for file.
         """
         if self._isolated:
             return

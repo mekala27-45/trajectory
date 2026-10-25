@@ -51,13 +51,15 @@ verification no longer happens in the agent's container at all.
 **A clean container, so nothing but the workspace is graded.** When the agent stops, every
 process it left running is stopped, gently first so a database inside the workspace closes
 its files cleanly, and the workspace, and only the workspace, is copied into a new container
-from the same clean image. The agent's container is removed. The first command the new
-container ever runs is the verification, so a background process, a file under the home
-directory or `/tmp`, or anything else written outside the workspace is simply not there. A
-file the agent deleted stays deleted, so the copy is the workspace as the agent left it, not
-the image's copy with the agent's changes laid over it. All twelve reference solutions still
-start broken and are solved through it. The local backend has no clean environment to move
-into, which is one more reason its rows are never mixed with container rows.
+from the same clean image. The agent's container is removed. Before the verification the new
+container runs nothing but the harness's own housekeeping, which empties the image's copy of
+the workspace so the agent's copy replaces it file for file. A background process, a file
+under the home directory or `/tmp`, or anything else written outside the workspace is simply
+not there. A file the agent deleted stays deleted, so the copy is the workspace as the agent
+left it, not the image's copy with the agent's changes laid over it. All twelve reference
+solutions still start broken and are solved through it. The local backend has no clean
+environment to move into, which is one more reason its rows are never mixed with container
+rows.
 
 **A planted test, so a report of success can be checked.** Every report that comes out of a
 test process the solution ran in is only as trustworthy as everything that ran in it, and
@@ -117,9 +119,9 @@ passed, the run scores zero, and F11 says why.
 ## Why this is an RL signal, not a lint rule
 
 The reason to surface F11 rather than quietly discard the run is the use the data is put
-to. These trajectories exist to train and evaluate models, and a reward computed from the
-pass rate alone will, given enough optimisation pressure, reward whatever correlates with
-passing. If gaming the grader correlates with passing and is never measured, the reward
+to. Trajectories like these are used to train and evaluate models, and a reward computed
+from the pass rate alone will, given enough optimisation pressure, reward whatever
+correlates with passing. If gaming the grader correlates with passing and is never measured, the reward
 model learns to game the grader. F11 is the term that lets a reward exclude it: a run that
 passed and carries F11 is not a success to be reinforced, it is a hole in the grader that
 was caught before it became a lesson.

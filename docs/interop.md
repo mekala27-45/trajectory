@@ -51,7 +51,8 @@ trajectory import atif trial/agent/trajectory.json \
 call and its output, becomes one agent turn holding both, because ATIF only lets an
 observation refer to a tool call in its own step. What ATIF has no field for travels in its
 `extra` objects: exit codes, timings, the workspace manifests and the full verification
-record. All 200 committed runs export, and a CI step installs Harbor itself and validates
+record. All 300 committed runs export, the 180 scripted and the 120 from real models, and a
+CI step installs Harbor itself and validates
 every one against Harbor's `Trajectory` model, with every exported `task.toml` validated
 against Harbor's `TaskConfig`. The check imports nothing from this repository, so it cannot
 be satisfied by a local reimplementation of Harbor's rules.

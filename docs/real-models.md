@@ -89,7 +89,9 @@ How the workflow spends a free key:
   ceiling. The default ceiling is the most calls the requested runs could ever make, every
   run taken to its step ceiling, so no seed is cut part way through.
 - **One rate limit, shared.** The free key is limited across every model it calls, so the
-  request's total rate is divided evenly between the jobs that run at once.
+  request's total rate is divided evenly between the jobs that run at once. The ceiling and
+  the limit count the agent's calls. The judge's calls, and the provider's own retries of a
+  call that failed, fall outside both.
 - **A slice when a run was cut.** An entry can name tasks and seeds, so a seed a ceiling cut
   short is completed on its own instead of repeating what already finished, or exact task
   and seed pairs, so a run the provider ended can be run once more and nothing else.
@@ -117,9 +119,10 @@ it as its own ending:
   ended. At promotion each rerun replaces the run with the same model, task and seed, only a
   provider ended run can be replaced, and the rerun stands whatever it scores, so nothing is
   chosen by outcome. A rerun of a run the agent finished is refused.
-- **Retries that fit the failure.** A 429 now waits most of a minute, because a retry inside
-  the same rate window is refused again, and a refusal with no reason in it, which the
-  gpt-oss endpoint gave about one call in thirty, is retried as a fresh sample.
+- **Retries that fit the failure.** A 429 now backs off for about 10 seconds, then 20, then
+  40, each with jitter, where it used to retry within a second or two and land in the same
+  rate window, and a refusal with no reason in it, which the gpt-oss endpoint gave about one
+  call in thirty, is retried as a fresh sample.
 
 The panel's results, the rerun, and the runs the provider ended again are in
 [MODEL-RESULTS.md](../MODEL-RESULTS.md).

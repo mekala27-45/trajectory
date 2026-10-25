@@ -33,8 +33,8 @@ them.
    Ten metrics computed from the run record and the task, which is why a metric added later
    can be applied to results published earlier.
 4. **[Real model results](MODEL-RESULTS.md)**. Five free hosted models from four publishers
-   on the same twelve tasks, on the Docker backend, with every figure gated against the run
-   records and every run the provider ended counted apart.
+   on the same twelve tasks, on the Docker backend, with every line of the measured results
+   gated against the run records and every run the provider ended counted apart.
 5. **[Limitations](#limitations)**. Read before quoting anything above. The published matrix
    comes from scripted offline policies rather than language models, which is stated in full.
    The real model results are a separate, smaller measurement with their own limitations.
@@ -278,8 +278,9 @@ Not buried, because they decide whether the rest is worth reading.
   anything a front-end engineer would recognise as their job.
 - **The published matrix is scripted policies, not models.** It validates the harness. It
   says nothing about any language model. [MODEL-RESULTS.md](MODEL-RESULTS.md) is five real
-  models at two seeds on a free tier: one model is clearly ahead, and most pairs are not
-  separated by twelve tasks, which makes it a first panel, not a ranking.
+  models at two seeds on a free tier: one model is ahead of three of the other four, and
+  most pairs are not separated by twelve tasks, which makes it a first panel, not a
+  ranking.
 - **The grader is hardened, not unbeatable.** The cheap exploits are closed: a planted
   import-path module cannot shadow the hidden tests, a verifier run that reports no test
   scores zero, and nothing the agent left outside its workspace is present when the tests
