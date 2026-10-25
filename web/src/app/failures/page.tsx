@@ -139,7 +139,7 @@ export default async function FailuresPage() {
                   </Chip>
                   <span className="tnum ml-auto font-mono text-[11px] text-dim">
                     {overall
-                      ? `${overall.count} runs, ${percent(overall.share_of_failed_runs, 0)} of unsolved`
+                      ? `${overall.count} ${overall.count === 1 ? "run" : "runs"}, ${percent(overall.share_of_failed_runs, 0)} of unsolved`
                       : "0 runs"}
                   </span>
                 </div>
