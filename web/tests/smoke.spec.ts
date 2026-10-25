@@ -4,6 +4,7 @@ import {
   failures,
   firstFailureStep,
   index,
+  judgeAgreement,
   leaderboard,
   longestRun,
   runWithAFailure,
@@ -168,6 +169,14 @@ test.describe("failure modes", () => {
         page.getByRole("heading", { name: new RegExp(`${spec.id}\\s+${spec.name}`) }),
       ).toBeVisible();
     }
+  });
+
+  test("a judged mode says how far a second judge agreed", async ({ page }) => {
+    const agreement = judgeAgreement();
+    test.skip(agreement == null, "no second judge measurement ships with this bundle");
+    await page.goto("/failures/");
+    const lines = page.getByText(/^A second judge, .+, agreed on \d+ of \d+ runs;/);
+    await expect(lines).toHaveCount(Object.keys(agreement!.per_mode).length);
   });
 
   test("selecting a mode filters the run list", async ({ page }) => {

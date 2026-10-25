@@ -19,6 +19,7 @@ import path from "node:path";
 import type {
   DatasetIndex,
   FailureModeBreakdown,
+  JudgeAgreementReport,
   LeaderboardResponse,
   MutationReport,
   Run,
@@ -255,6 +256,12 @@ export async function getStats(): Promise<StatsBundle | null> {
 export async function getMutation(): Promise<MutationReport | null> {
   if (usingLiveApi) return null;
   return readJsonOrNull<MutationReport>("mutation.json");
+}
+
+/** Two judges compared on the same runs, when a measurement has been committed. */
+export async function getJudgeAgreement(): Promise<JudgeAgreementReport | null> {
+  if (usingLiveApi) return null;
+  return readJsonOrNull<JudgeAgreementReport>("judge-agreement.json");
 }
 
 export async function getFailures(): Promise<FailureModeBreakdown> {

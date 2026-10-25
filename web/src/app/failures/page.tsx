@@ -1,8 +1,25 @@
 import { FailureCharts } from "@/components/failure-charts";
 import { Chip, Field, Panel, PlainNote } from "@/components/ui";
-import { getFailures, getIndex, getTasks, listRuns } from "@/lib/api";
+import { getFailures, getIndex, getJudgeAgreement, getTasks, listRuns } from "@/lib/api";
 import { count, percent } from "@/lib/format";
 import { failureColor } from "@/lib/colors";
+import type { ModeAgreementEntry } from "@/lib/types";
+
+/** The model's own name, without the provider and publisher in front of it. */
+function shortModel(model: string): string {
+  return model.split("/").pop() ?? model;
+}
+
+/** One line on how far a second reader agreed about a judged mode. */
+function agreementLine(second: string, entry: ModeAgreementEntry): string {
+  const total = entry.both_present + entry.first_only + entry.second_only + entry.neither_present;
+  const agreed = entry.both_present + entry.neither_present;
+  const kappa =
+    entry.cohens_kappa == null
+      ? "kappa not computable, since neither judge found it"
+      : `kappa ${entry.cohens_kappa.toFixed(2)}`;
+  return `A second judge, ${shortModel(second)}, agreed on ${agreed} of ${total} runs; ${kappa}.`;
+}
 
 export const metadata = {
   title: "Failure modes",
@@ -11,11 +28,12 @@ export const metadata = {
 };
 
 export default async function FailuresPage() {
-  const [breakdown, runs, tasks, index] = await Promise.all([
+  const [breakdown, runs, tasks, index, agreement] = await Promise.all([
     getFailures(),
     listRuns(),
     getTasks(),
     getIndex(),
+    getJudgeAgreement(),
   ]);
 
   const difficultyByTask = Object.fromEntries(tasks.map((task) => [task.id, task.difficulty]));
@@ -57,6 +75,14 @@ export default async function FailuresPage() {
             {count(breakdown.unsolved_runs)}
           </Field>
           <Field label="Judge">{index.judge_model ?? "did not run"}</Field>
+          {agreement ? (
+            <Field
+              label="Second judge"
+              title="A model from another family read a fixed sample of the runs the first judge read. Agreement for each judged mode is on its card below."
+            >
+              {shortModel(agreement.second_judge)}, {agreement.compared_runs} runs
+            </Field>
+          ) : null}
         </dl>
       </Panel>
 
@@ -121,6 +147,11 @@ export default async function FailuresPage() {
                   Example
                 </p>
                 <p className="max-w-[70ch] text-[12.5px] text-muted">{spec.example}</p>
+                {agreement && agreement.per_mode[spec.id] ? (
+                  <p className="mt-2 max-w-[70ch] border-t border-line pt-2 text-[12.5px] text-muted">
+                    {agreementLine(agreement.second_judge, agreement.per_mode[spec.id]!)}
+                  </p>
+                ) : null}
               </li>
             );
           })}

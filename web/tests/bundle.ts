@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -41,6 +41,12 @@ export const leaderboard = () => read<{ rows: unknown[]; note: string }>("leader
 export const tasks = () => read<Array<{ id: string; title: string }>>("tasks.json");
 
 export const runSummaries = () => read<BundleRunSummary[]>("runs.json");
+
+/** The second judge's agreement, or null when no measurement ships with this bundle. */
+export const judgeAgreement = () =>
+  existsSync(path.join(DATA, "judge-agreement.json"))
+    ? read<{ second_judge: string; per_mode: Record<string, unknown> }>("judge-agreement.json")
+    : null;
 
 export const failures = () =>
   read<{

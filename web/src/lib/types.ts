@@ -469,3 +469,29 @@ export interface MutationReport {
   score: number | null;
   tasks: TaskMutationRecord[];
 }
+
+/** One judged mode, read by two judges over the same runs. */
+export interface ModeAgreementEntry {
+  both_present: number;
+  first_only: number;
+  second_only: number;
+  neither_present: number;
+  raw_agreement: number;
+  /** Null when neither judge ever said the mode was present. */
+  cohens_kappa: number | null;
+}
+
+/** `judge-agreement.json`. A second judge from another family, on the first judge's runs. */
+export interface JudgeAgreementReport {
+  first_judge: string | null;
+  second_judge: string;
+  temperature: number;
+  eligible_runs: number;
+  sampled_runs: number;
+  compared_runs: number;
+  per_mode: Record<string, ModeAgreementEntry>;
+  drift_mean_absolute_difference: number;
+  drift_max_absolute_difference: number;
+  runs: string[];
+  generated_at: string;
+}

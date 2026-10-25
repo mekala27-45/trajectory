@@ -177,7 +177,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   </p>
                   <ul className="flex flex-col gap-1">
                     {survivors.map((mutant) => (
-                      <li key={mutant.label} className="font-mono text-[12px] break-all text-fg">
+                      <li key={mutant.label} className="font-mono text-[12px] break-words text-fg">
                         {mutant.label}
                         {mutant.outcome === "unstable" ? (
                           <span className="ml-2 text-dim">unstable: failed once, passed once</span>

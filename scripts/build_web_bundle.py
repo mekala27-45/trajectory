@@ -76,6 +76,7 @@ REAL_NOTE = (
 DEFAULT_FIXTURES = (Path("fixtures/recorded-runs"), Path("fixtures/model-runs"))
 MUTATION_REPORT = Path("fixtures/mutation/core-12.json")
 MODEL_PROVENANCE = Path("fixtures/model-runs.provenance.json")
+JUDGE_AGREEMENT = Path("fixtures/judge-agreement.json")
 
 
 def _interval(value: Interval) -> dict[str, float]:
@@ -249,6 +250,12 @@ def build(runs: list[Run], tasks_root: Path, out: Path) -> DatasetIndex:
     write_json(out / "stats.json", stats_payload(runs))
     if MUTATION_REPORT.is_file():
         shutil.copyfile(MUTATION_REPORT, out / "mutation.json")
+    # Only beside the records it was measured on: an agreement about other runs says
+    # nothing about these, and check_model_numbers.py refuses the same mismatch.
+    if JUDGE_AGREEMENT.is_file():
+        agreement = json.loads(JUDGE_AGREEMENT.read_text(encoding="utf-8"))
+        if set(agreement.get("runs", [])) <= {run.id for run in runs}:
+            write_json(out / "judge-agreement.json", agreement)
 
     # The judge is named by the provenance a promotion writes beside the records. A run
     # record does not carry it, and the agent's own model is never the judge's name.
