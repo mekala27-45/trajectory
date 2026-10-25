@@ -8,50 +8,50 @@
 :root {
   color-scheme: dark;
 
-  --bg: #0a0c10;
-  --bg-raised: #11151b;
-  --bg-sunken: #070910;
-  --bg-hover: #171d25;
-  --fg: #e7ebf0;
-  --fg-muted: #9aa6b5;
-  --fg-dim: #6c7887;
-  --line: #222a35;
-  --line-strong: #313c4a;
-  --accent: #62a9ff;
-  --accent-bg: #12233c;
-  --accent-line: #24446e;
-  --ok: #46b26a;
-  --ok-bg: #0f2418;
-  --warn: #cf9a2c;
+  --bg: #0c1215;
+  --bg-raised: #141c20;
+  --bg-sunken: #0a1013;
+  --bg-hover: #18242a;
+  --fg: #e6ecee;
+  --fg-muted: #8f9ba2;
+  --fg-dim: #5d6b72;
+  --line: #202d33;
+  --line-strong: #2c3b42;
+  --accent: #2eb4a7;
+  --accent-bg: #0f2c29;
+  --accent-line: #265049;
+  --ok: #47b67a;
+  --ok-bg: #11271b;
+  --warn: #d4a23f;
   --warn-bg: #2a2110;
-  --bad: #e35d6a;
+  --bad: #e06a76;
   --bad-bg: #2c1418;
-  --focus: #7cb8ff;
+  --focus: #2eb4a7;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.45);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f7f8fa;
+  --bg: #f3f6f6;
   --bg-raised: #ffffff;
-  --bg-sunken: #f0f2f5;
-  --bg-hover: #eef1f5;
-  --fg: #12171d;
-  --fg-muted: #57626f;
-  --fg-dim: #78828f;
-  --line: #dde2e9;
-  --line-strong: #c3ccd7;
-  --accent: #1b5fbd;
-  --accent-bg: #e8f0fc;
-  --accent-line: #b6cdf0;
-  --ok: #197742;
+  --bg-sunken: #e9eeee;
+  --bg-hover: #eef2f2;
+  --fg: #121a1d;
+  --fg-muted: #556169;
+  --fg-dim: #7b868c;
+  --line: #d9e0e1;
+  --line-strong: #c3cdce;
+  --accent: #0b8f84;
+  --accent-bg: #e3f3f1;
+  --accent-line: #a9d8d2;
+  --ok: #2c8a56;
   --ok-bg: #e6f4ec;
-  --warn: #8a5f06;
+  --warn: #a8720f;
   --warn-bg: #fbf1dc;
-  --bad: #b4262f;
+  --bad: #bc3a46;
   --bad-bg: #fbeaec;
-  --focus: #1b5fbd;
+  --focus: #0b8f84;
   --shadow: 0 1px 2px rgb(16 24 40 / 0.08);
 }
 
@@ -77,9 +77,10 @@
   --color-bad-bg: var(--bad-bg);
 
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono:
-    ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-display: "Newsreader", Georgia, "Times New Roman", serif;
 }
 
 * {
@@ -104,7 +105,14 @@ body {
 
 h1,
 h2,
-h3,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.16;
+  letter-spacing: -0.012em;
+  margin: 0;
+}
+
 h4 {
   line-height: 1.25;
   letter-spacing: -0.01em;
