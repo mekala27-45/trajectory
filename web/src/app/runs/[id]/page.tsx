@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { CodePane } from "@/components/code-pane";
 import { TrajectoryReplay } from "@/components/trajectory-replay";
-import { BackendChip, Chip, Field, Panel, StatusChip } from "@/components/ui";
+import { BackendChip, Chip, Field, Panel, PlainNote, StatusChip } from "@/components/ui";
 import { getFailures, getRun, getTasks, listRuns } from "@/lib/api";
 import { millis, percent, ratio, seconds, timestamp, usd } from "@/lib/format";
 import { OUTPUT_DISPLAY_CAP } from "@/lib/highlight";
@@ -97,6 +97,13 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
           ) : null}
         </div>
       </header>
+
+      <PlainNote>
+        This is one attempt, start to finish. Each card further down is a single step: what the
+        program was thinking, what it ran, and what came back. Where a step went wrong it is flagged
+        in place. Reading down the steps is how you see where an attempt succeeded or went off the
+        rails.
+      </PlainNote>
 
       <Panel className="px-4 py-3">
         <h2 className="sr-only">Run record</h2>

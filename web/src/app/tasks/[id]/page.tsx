@@ -8,6 +8,7 @@ import {
   EmptyState,
   Field,
   Panel,
+  PlainNote,
   SolveRateBar,
   StatSpread,
   StatusChip,
@@ -92,6 +93,12 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           ))}
         </div>
       </header>
+
+      <PlainNote>
+        This is one test. A small project with a bug in it, hidden checks the program never sees
+        until it stops, and a known-good answer kept off to the side to keep the test fair. Below:
+        what is broken, then how each program did on it, with every attempt replayable step by step.
+      </PlainNote>
 
       <Panel className="px-4 py-3">
         <h2 className="sr-only">Task parameters</h2>
