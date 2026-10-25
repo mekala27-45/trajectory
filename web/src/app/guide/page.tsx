@@ -246,8 +246,14 @@ export default function GuidePage() {
               <Term>35.4% +/- 2.1</Term>, which says how much the result wobbled between runs, so a
               fluke cannot pass for a finding. And there are two kinds of agent, clearly labeled.
               Most rows are <Term>scripted policies</Term>, small hand-written stand-ins that each
-              imitate one bad habit on purpose, used to check the harness itself. Only the row
-              without a <Term>stub:</Term> prefix, tagged a real model, is an actual AI model.
+              imitate one bad habit on purpose, used to check the harness itself. Only the rows
+              without a <Term>stub:</Term> prefix, tagged real model, are actual AI models.
+            </p>
+            <p>
+              Below the table, <Term>How sure these numbers are</Term> draws each real model as a
+              dot inside a band: the range its score could land in on a different set of similar
+              tasks. A head to head table then says, for every pair, whether these twelve tasks can
+              tell the two apart at all.
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -270,13 +276,15 @@ export default function GuidePage() {
             <h3 className="text-[16px] text-fg">The tasks</h3>
             <p>
               Each task has a page describing what is broken and what counts as fixed. This is where
-              you see the actual problems the agents are asked to solve.
+              you see the actual problems the agents are asked to solve. It also says how strong the
+              hidden tests are: how many small deliberate mistakes in the correct solution they
+              caught, and which ones slipped through.
             </p>
           </div>
         </div>
       </Section>
 
-      <Section n="09" title="Three bigger ideas">
+      <Section n="09" title="Five bigger ideas">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <h3 className="text-[16px] text-fg">Running the tasks in other systems</h3>
@@ -293,21 +301,47 @@ export default function GuidePage() {
             <p>
               The scorer runs the hidden tests against whatever the agent left behind, which makes
               the scorer a target. A clever agent might try to raise its score without solving the
-              problem, for example by planting a file that quietly tells the scorer everything
-              passed. In the field this is called <Term>reward hacking</Term>. trajectory closes the
-              cheapest tricks and flags the attempt with F11, and it is honest about the limits: one
-              harder route is left open on purpose and named in the documentation, with a plan to
-              close it. Saying what is not yet solved is part of doing this well.
+              problem. In the field this is called <Term>reward hacking</Term>. Picture an exam.
+              trajectory marks the work in a <Term>fresh room</Term>: only the finished work is
+              carried in, and anything else the agent left lying around stays behind. It slips in a{" "}
+              <Term>trap question</Term> that must come back wrong: a marking sheet that says every
+              question was right, that one included, has been tampered with and is thrown out. And
+              it locks the doors the cheapest tricks would use. The trap catches a sheet changed as
+              a whole, not one changed answer by answer, and the documentation says so plainly.
             </p>
           </div>
           <div className="flex flex-col gap-2">
-            <h3 className="text-[16px] text-fg">Running a real model for free</h3>
+            <h3 className="text-[16px] text-fg">Running real models for free</h3>
             <p>
-              Running real AI models normally costs money. This project runs one at no cost, on a
-              free tier, with limits so it cannot overrun. That produced the single real-model row
-              on the leaderboard, and it did something useful: it surfaced two measurement bugs in
-              the harness itself, which were then fixed. Finding your own bugs is the point of a
-              measurement tool, not an embarrassment.
+              Running real AI models normally costs money. This project runs a whole{" "}
+              <Term>panel</Term> of them at no cost, on a free tier, with limits so it cannot
+              overrun. Each model is first sent one tiny test message, so a model that is offline or
+              too slow costs one message, not an afternoon. Running real models also found a real
+              bug in the harness: files the agent wrote were locked so it could not edit them
+              afterwards. It was fixed, and every published model result was run again after the
+              fix. Finding your own bugs is the point of a measurement tool, not an embarrassment.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <h3 className="text-[16px] text-fg">How sure are the numbers?</h3>
+            <p>
+              Twelve tasks is a small exam. Sit the same students in front of twelve other questions
+              of the same kind and their scores would move. So every real model on the site comes
+              with a <Term>range</Term>: the band its score could plausibly land in on a different
+              set of similar tasks. Two programs whose ranges overlap a lot are ones this exam
+              cannot honestly rank. The site also shows <Term>pass@k</Term>, the chance that at
+              least one of k attempts at a task succeeds.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <h3 className="text-[16px] text-fg">How strong are the hidden tests?</h3>
+            <p>
+              A test is only useful if it can tell a right answer from an almost right one. So the
+              project takes each correct solution, makes one tiny mistake in it, the kind a program
+              makes, and runs the hidden tests. If they notice, good. If not, that{" "}
+              <Term>near miss</Term> would have been marked correct, and an AI trained on these
+              tests would be rewarded for it. This is <Term>mutation testing</Term>, and every near
+              miss that slipped through is listed by name on its task page.
             </p>
           </div>
         </div>
@@ -318,9 +352,10 @@ export default function GuidePage() {
           Building trajectory means designing a fair test, running untrusted code safely in
           sandboxes, defining and computing meaningful measurements, building a site to explore the
           results, making the work portable across other labs tools, thinking like an attacker about
-          how a scorer could be cheated, and being honest about what is measured and what is not. It
-          is, in miniature, the job of evaluating AI systems carefully. That is the field this
-          project belongs to.
+          how a scorer could be cheated, measuring how sure each number is and how strong the tests
+          behind it are, and being honest about what is measured and what is not. It is, in
+          miniature, the job of evaluating AI systems carefully. That is the field this project
+          belongs to.
         </p>
         <p className="pt-1 text-[14px] text-muted">
           Ready to look? Start with the{" "}

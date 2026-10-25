@@ -169,9 +169,14 @@ Two things to notice:
   policies**, tagged as such. These are not real AI models. They are small hand-written programs
   that each imitate one bad habit on purpose, so that every metric had a known answer before any
   real model was ever scored. They are how the harness itself was checked for correctness. Only
-  the row without a `stub:` prefix, tagged **real model**, is an actual AI model. Keeping these
+  the rows without a `stub:` prefix, tagged **real model**, are actual AI models. Keeping these
   two clearly separate is deliberate and important: the scripted rows prove the tool works, the
-  real row is the actual finding.
+  real rows are the actual finding.
+
+Below the table, **How sure these numbers are** draws each real model's solve rate as a dot
+inside a band. The band is the range from section 9: where the score could land on a different
+set of similar tasks. A head to head table then says, for every pair of models, whether these
+twelve tasks can actually tell them apart.
 
 ### A run replay
 
@@ -189,13 +194,14 @@ how hard the task was. It is the high-level view of what tends to go wrong, acro
 
 Each task has its own page describing what is broken and what counts as fixed, along with how
 many steps the reference solution needed. This is where you see the actual problems the agents
-are being asked to solve.
+are being asked to solve. It also says **how strong the hidden tests are**: how many small
+deliberate mistakes in the correct solution the tests caught, and which ones slipped through.
 
 ---
 
-## 9. Three bigger ideas
+## 9. Five bigger ideas
 
-Beyond the leaderboard, the project does three things that are worth understanding, because they
+Beyond the leaderboard, the project does five things that are worth understanding, because they
 are what make it more than a scoreboard.
 
 ### Running the tasks in other systems (Harbor and ATIF)
@@ -210,24 +216,53 @@ Codex, and score it with the same measurements. In short: the work is portable, 
 
 This is a subtle and important idea. The scorer runs the hidden tests against whatever the agent
 left behind. That makes the scorer a target. A clever agent might try to make the score go up
-without actually solving the problem, for example by planting a file that quietly tells the scorer
-that everything passed. In the field this is called **reward hacking**, and it matters because an
-agent that learns to game the scorer learns the wrong lesson.
+without actually solving the problem. In the field this is called **reward hacking**, and it
+matters because an agent that learns to game the scorer learns the wrong lesson.
 
-trajectory takes this seriously. It closes the cheapest tricks, so a planted file cannot fool the
-scorer the easy way, and a run that reports no real test result is treated as a failure rather than
-a success. It also flags the attempt with failure mode F11, so you can see that the agent tried.
-Just as important, the project is honest about the limits: one harder trick is left open on purpose
-and named in the documentation, rather than hidden, with a plan for how to close it. Saying what is
-not yet solved is part of doing this well.
+trajectory guards against it in three ways, and an exam is a good way to picture them.
 
-### Running a real model for free
+- **A fresh room.** When the agent stops, only its finished work is carried into a clean, new room
+  to be marked. Anything else it left lying around in the old room, a program still running or a
+  note hidden in a drawer, is simply not there when the marking happens.
+- **A trap question.** Every time the work is marked, one extra question is slipped in that has
+  no right answer: it must come back wrong. If the marking sheet says every question was right,
+  including that one, the sheet has been tampered with, and the result is thrown out.
+- **Locked doors.** The cheapest tricks, like dropping a file where the scorer would load it by
+  mistake, are blocked outright.
 
-Running real AI models normally costs money. This project is built to run one at no cost, using a
-free tier, with safety limits so it cannot overrun. That is how the single real-model result on the
-leaderboard was produced. And running a real model for real did something useful: it surfaced two
-measurement bugs in the harness itself, which were then fixed. Finding your own bugs is the point of
-a measurement tool, not an embarrassment.
+The project is also honest about the limit. The trap question catches a sheet that has been
+changed as a whole, not one changed answer by answer. That remaining gap is named in the
+documentation rather than hidden. Saying what is not yet solved is part of doing this well.
+
+### Running real models for free
+
+Running real AI models normally costs money. This project runs them at no cost, using a free
+tier, with safety limits so it cannot overrun. Each model is first sent one tiny test message,
+so a model that is offline or too slow costs one message, not an afternoon. Then a whole
+**panel** of models runs the same twelve tasks, so you can compare them side by side. Running
+real models also found a real bug in the harness itself: files the agent wrote were locked so the
+agent could not edit them afterwards. It was fixed, and every published model result was run
+again after the fix. Finding your own bugs is the point of a measurement tool, not an
+embarrassment.
+
+### How sure are the numbers?
+
+Twelve tasks is a small exam. Imagine the same students sitting a different exam with twelve
+other questions of the same kind. Their scores would move. So every solve rate on the site comes
+with a **range**: the band of scores the program could plausibly get on a different set of
+similar tasks. If two programs have ranges that overlap a lot, this exam cannot honestly say
+which one is better, however different their headline numbers look. The site also shows
+**pass@k**: the chance that at least one of k attempts at a task succeeds.
+
+### How strong are the hidden tests?
+
+A test is only useful if it can tell a right answer from an almost right one. To check that, the
+project takes the known correct solution for each task and makes one tiny mistake in it, the
+kind a program makes: a less than swapped for a less than or equal, a plus turned into a minus,
+a number nudged by one. Then it runs the hidden tests. If they notice the mistake, good. If they
+do not, that **near miss** would have been marked as correct, and an AI being trained on these
+tests would be rewarded for it. This is called **mutation testing**, and every near miss that
+slipped through is listed by name, so the gaps are visible rather than hidden.
 
 ---
 
@@ -238,7 +273,8 @@ If you are looking at this to understand what the builder can do, here is the pl
 Building trajectory means designing a fair test, running untrusted code safely in sandboxes,
 defining and computing meaningful measurements, building a website to explore the results,
 making the work portable across other labs' tools, thinking like an attacker about how a scorer
-could be cheated, and being honest about what is measured and what is not. It is, in miniature,
+could be cheated, measuring how sure each number is and how strong the tests behind it are, and
+being honest about what is measured and what is not. It is, in miniature,
 the job of evaluating AI systems carefully. That is the field this project belongs to.
 
 ---
@@ -259,3 +295,10 @@ the job of evaluating AI systems carefully. That is the field this project belon
 - **Scripted policy.** A hand-written stand-in, not a real model, used to check the harness.
 - **Reward hacking.** Making the score go up without really solving the task.
 - **Harbor, ATIF.** Shared formats that let the tasks and the recorded runs work across different tools.
+- **Mutation testing.** Making one small deliberate mistake in a correct solution to check that
+  the tests notice it.
+- **Interval (range).** The band a number could plausibly fall in if the test had been a
+  different set of similar tasks.
+- **pass@k.** The chance that at least one of k attempts at a task succeeds.
+- **Planted test.** An extra test, slipped in at marking time, that must fail. If the report says
+  it passed, the report has been tampered with.
