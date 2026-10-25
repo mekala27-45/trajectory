@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { TrajectoryFigure } from "@/components/trajectory-figure";
+import { HeadToHead, IntervalChart } from "@/components/uncertainty";
 import {
   DifficultyMeter,
   EmptyState,
@@ -11,7 +12,15 @@ import {
   PlainNote,
   Tag,
 } from "@/components/ui";
-import { getIndex, getLeaderboard, getRun, getTasks, listRuns } from "@/lib/api";
+import {
+  getIndex,
+  getLeaderboard,
+  getMutation,
+  getRun,
+  getStats,
+  getTasks,
+  listRuns,
+} from "@/lib/api";
 import { count, isStubModel, percent, seconds, splitModel, timestamp, usd } from "@/lib/format";
 import type { RunSummary } from "@/lib/types";
 
@@ -41,12 +50,20 @@ export const metadata = {
 };
 
 export default async function LeaderboardPage() {
-  const [index, board, tasks, runs] = await Promise.all([
+  const [index, board, tasks, runs, stats, mutation] = await Promise.all([
     getIndex(),
     getLeaderboard(),
     getTasks(),
     listRuns(),
+    getStats(),
+    getMutation(),
   ]);
+  const mutationByTask = new Map((mutation?.tasks ?? []).map((task) => [task.task_id, task]));
+  const realStats = (stats?.models ?? []).filter((entry) => !isStubModel(entry.model));
+  const shownStats = realStats.length > 0 ? realStats : (stats?.models ?? []);
+  const realPairs = (stats?.pairs ?? []).filter(
+    (pair) => !isStubModel(pair.first) && !isStubModel(pair.second),
+  );
 
   const byTask = new Map<string, { total: number; solved: number; models: Set<string> }>();
   for (const run of runs) {
@@ -166,6 +183,42 @@ export default async function LeaderboardPage() {
         )}
       </section>
 
+      {shownStats.length > 0 ? (
+        <section aria-labelledby="how-sure">
+          <h2 id="how-sure" className="mb-1 text-[19px] sm:text-[21px]">
+            How sure these numbers are
+          </h2>
+          <p className="mb-3 max-w-[78ch] text-[13.5px] text-muted">
+            The spread in the table says whether running the same tasks again would move a number.
+            This says whether the number would hold on tasks the suite does not have: each band is a
+            95% interval from resampling the twelve tasks, then the seeds of each task, with every
+            task weighing the same. pass@k is the chance that at least one of k attempts at a task
+            solves it.
+            {realStats.length === 0
+              ? " No real model is in this dataset, so these are the scripted policies."
+              : ""}
+          </p>
+          <div className="mb-3">
+            <PlainNote>
+              Twelve tasks is a small exam. If the exam had twelve different questions of the same
+              kind, a score could land anywhere in its band. Two programs whose bands overlap a lot
+              are ones this exam cannot tell apart, however different their headline numbers look.
+            </PlainNote>
+          </div>
+          <IntervalChart entries={shownStats} />
+          {realPairs.length > 0 ? (
+            <div className="mt-4 flex flex-col gap-2">
+              <h3 className="text-[15px]">Head to head</h3>
+              <p className="max-w-[78ch] text-[13px] text-muted">
+                Each pair compared on the tasks both attempted, resampled as pairs. A pair is
+                separated only when its whole interval sits on one side of zero.
+              </p>
+              <HeadToHead pairs={realPairs} />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <section aria-labelledby="beyond">
         <h2 id="beyond" className="mb-1 text-[19px] sm:text-[21px]">
           Beyond the leaderboard
@@ -243,7 +296,7 @@ export default async function LeaderboardPage() {
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {tasks.map((task) => {
-              const stats = byTask.get(task.id);
+              const taskStats = byTask.get(task.id);
               return (
                 <li key={task.id}>
                   <Link
@@ -261,10 +314,22 @@ export default async function LeaderboardPage() {
                       <Tag>max {task.max_steps}</Tag>
                     </span>
                     <span className="tnum font-mono text-[11px] text-muted">
-                      {stats
-                        ? `${stats.total} runs, ${percent(stats.solved / stats.total, 0)} solved, ${stats.models.size} ${stats.models.size === 1 ? "agent" : "agents"}`
+                      {taskStats
+                        ? `${taskStats.total} runs, ${percent(taskStats.solved / taskStats.total, 0)} solved, ${taskStats.models.size} ${taskStats.models.size === 1 ? "agent" : "agents"}`
                         : "no runs yet"}
                     </span>
+                    {(() => {
+                      const strength = mutationByTask.get(task.id);
+                      if (!strength || strength.scored === 0) return null;
+                      return (
+                        <span
+                          className="tnum font-mono text-[11px] text-dim"
+                          title="Mutation testing: near misses of the reference the hidden tests failed."
+                        >
+                          tests caught {strength.killed} of {strength.scored} near misses
+                        </span>
+                      );
+                    })()}
                   </Link>
                 </li>
               );

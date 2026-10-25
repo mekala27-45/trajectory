@@ -15,7 +15,7 @@ import {
   Tag,
   VerdictChip,
 } from "@/components/ui";
-import { getTaskResults, getTasks } from "@/lib/api";
+import { getMutation, getTaskResults, getTasks } from "@/lib/api";
 import { count, percent, ratio, seconds, timestamp, usd } from "@/lib/format";
 import type { MetricStat, RunSummary } from "@/lib/types";
 
@@ -66,6 +66,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   if (!results) notFound();
 
   const { task, runs, solve_rate_by_model: byModel } = results;
+  const mutation = await getMutation();
+  const strength = mutation?.tasks.find((entry) => entry.task_id === task.id) ?? null;
+  const survivors = strength?.mutants.filter((mutant) => mutant.outcome === "survived") ?? [];
   const groups = groupByModel(runs);
   const solved = runs.filter((run) => run.solved).length;
 
@@ -126,6 +129,58 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           {task.description.trim()}
         </div>
       </section>
+
+      {strength ? (
+        <section aria-labelledby="strength">
+          <h2 id="strength" className="mb-1 text-[16px] font-semibold">
+            How strong the hidden tests are
+          </h2>
+          <p className="mb-3 max-w-[80ch] text-[13px] text-muted">
+            Mutation testing: the reference replayed with one small change in a file it writes, the
+            slip a model makes, and the hidden tests run on the result. A change the tests pass is a
+            near miss this reward would pay in full.
+          </p>
+          {strength.scored === 0 ? (
+            <p className="rounded-lg border border-dashed border-line-strong bg-raised px-4 py-3 text-[13px] text-muted">
+              Not measured: {strength.control_detail || "no mutant could be scored"}.
+            </p>
+          ) : (
+            <Panel className="px-4 py-3">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                <Field label="Near misses caught">
+                  {strength.killed} of {strength.scored}
+                </Field>
+                <Field
+                  label="By an assertion"
+                  title="A hidden test failed while the rest of the suite still ran: the tests noticed a wrong answer, not just a crash."
+                >
+                  {strength.killed_by_assertion}
+                </Field>
+                <Field label="Got through">{strength.survived}</Field>
+                <Field label="Mutation sites">{strength.sites}</Field>
+              </dl>
+              {survivors.length > 0 ? (
+                <div className="mt-3 border-t border-line pt-2">
+                  <p className="mb-1 font-mono text-[10px] tracking-wide text-dim uppercase">
+                    Changes the hidden tests did not notice
+                  </p>
+                  <ul className="flex flex-col gap-1">
+                    {survivors.map((mutant) => (
+                      <li key={mutant.label} className="font-mono text-[12px] break-all text-fg">
+                        {mutant.label}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 max-w-[80ch] text-[12px] text-muted">
+                    Some of these may be equivalent to the original, so no test could notice them.
+                    The rest are gaps a reward model would be paid for.
+                  </p>
+                </div>
+              ) : null}
+            </Panel>
+          )}
+        </section>
+      ) : null}
 
       <section aria-labelledby="per-model">
         <h2 id="per-model" className="mb-1 text-[16px] font-semibold">

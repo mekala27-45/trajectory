@@ -563,7 +563,11 @@ def mutate_task(
         sites=len(found),
     )
     if not found:
-        report.control_detail = "the reference writes no source file to mutate"
+        report.control_detail = (
+            "the reference changes its source with commands, not by writing a file"
+            if not report.files
+            else "no operator applies to the source the reference writes"
+        )
         return report
 
     control = _attempt(

@@ -49,6 +49,14 @@ from trajectory_core.models import (
     TaskResults,
     TaskSummary,
 )
+from trajectory_core.stats import (
+    DEFAULT_CONFIDENCE,
+    DEFAULT_RESAMPLES,
+    Interval,
+    model_statistics,
+    outcomes_by_task,
+    paired_difference,
+)
 from trajectory_runner.loader import discover
 from trajectory_runner.store import read_runs
 
@@ -66,6 +74,56 @@ REAL_NOTE = (
     "runs in full, with their limitations."
 )
 DEFAULT_FIXTURES = (Path("fixtures/recorded-runs"), Path("fixtures/model-runs"))
+MUTATION_REPORT = Path("fixtures/mutation/core-12.json")
+MODEL_PROVENANCE = Path("fixtures/model-runs/provenance.json")
+
+
+def _interval(value: Interval) -> dict[str, float]:
+    return {"estimate": value.estimate, "low": value.low, "high": value.high}
+
+
+def stats_payload(runs: list[Run]) -> dict[str, Any]:
+    """Intervals over tasks, pass@k and every pair head to head, for the web app."""
+    models = sorted({run.config.model for run in runs if run.score is not None})
+    by_model = {
+        model: outcomes_by_task([run for run in runs if run.config.model == model])
+        for model in models
+    }
+    entries = []
+    for model in models:
+        stats = model_statistics(runs, model)
+        entries.append(
+            {
+                "model": model,
+                "tasks": stats.tasks,
+                "samples": stats.samples,
+                "solve_rate": _interval(stats.solve_rate),
+                "partial_credit": _interval(stats.partial_credit),
+                "pass_at": {str(k): value for k, value in stats.pass_at.items()},
+            }
+        )
+    pairs = []
+    for index, first in enumerate(models):
+        for second in models[index + 1 :]:
+            try:
+                difference, ahead, shared = paired_difference(by_model[first], by_model[second])
+            except ValueError:
+                continue
+            pairs.append(
+                {
+                    "first": first,
+                    "second": second,
+                    "shared_tasks": shared,
+                    "difference": _interval(difference),
+                    "first_ahead": ahead,
+                }
+            )
+    return {
+        "confidence": DEFAULT_CONFIDENCE,
+        "resamples": DEFAULT_RESAMPLES,
+        "models": entries,
+        "pairs": pairs,
+    }
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -188,6 +246,20 @@ def build(runs: list[Run], tasks_root: Path, out: Path) -> DatasetIndex:
         ),
     )
 
+    write_json(out / "stats.json", stats_payload(runs))
+    if MUTATION_REPORT.is_file():
+        shutil.copyfile(MUTATION_REPORT, out / "mutation.json")
+
+    # The judge is named by the provenance a promotion writes beside the records. A run
+    # record does not carry it, and the agent's own model is never the judge's name.
+    judge_model = None
+    if any(hit.detector.value == "judge" for run in runs for hit in run.failure_modes):
+        if MODEL_PROVENANCE.is_file():
+            judge_model = json.loads(MODEL_PROVENANCE.read_text(encoding="utf-8")).get(
+                "judge_model"
+            )
+        judge_model = judge_model or "a rubric judge"
+
     index = DatasetIndex(
         generated_at=datetime.now(UTC),
         harness_version=HARNESS_VERSION,
@@ -199,14 +271,7 @@ def build(runs: list[Run], tasks_root: Path, out: Path) -> DatasetIndex:
         solved_count=sum(1 for run in runs if run.solved),
         total_cost_usd=round(sum(run.total_cost_usd for run in runs), 6),
         total_wall_clock_s=round(sum(run.wall_clock_s for run in runs), 1),
-        judge_model=next(
-            (
-                run.config.model
-                for run in runs
-                if any(hit.detector.value == "judge" for hit in run.failure_modes)
-            ),
-            None,
-        ),
+        judge_model=judge_model,
         note=note,
     )
     write_json(out / "index.json", index)

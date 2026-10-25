@@ -20,9 +20,11 @@ import type {
   DatasetIndex,
   FailureModeBreakdown,
   LeaderboardResponse,
+  MutationReport,
   Run,
   RunSummary,
   SandboxBackend,
+  StatsBundle,
   Step,
   TaskResults,
   TaskSummary,
@@ -240,6 +242,21 @@ export async function getRun(id: string): Promise<Run | null> {
 // ------------------------------------------------------------------- failure modes
 
 /** The taxonomy plus counts by model and by difficulty tier. */
+/**
+ * Intervals over tasks, pass@k and the head to head comparisons. Computed by the bundle
+ * builder, so a site served from the live API has none and the section says so.
+ */
+export async function getStats(): Promise<StatsBundle | null> {
+  if (usingLiveApi) return null;
+  return readJsonOrNull<StatsBundle>("stats.json");
+}
+
+/** The mutation report, when one has been committed. */
+export async function getMutation(): Promise<MutationReport | null> {
+  if (usingLiveApi) return null;
+  return readJsonOrNull<MutationReport>("mutation.json");
+}
+
 export async function getFailures(): Promise<FailureModeBreakdown> {
   if (usingLiveApi) {
     return fetchJson<FailureModeBreakdown>("/v1/failure-modes");

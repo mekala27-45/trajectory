@@ -167,7 +167,7 @@ class TestEndToEnd:
         )
         assert report.sites == 0
         assert report.score is None
-        assert "no source file" in report.control_detail
+        assert "with commands" in report.control_detail
 
     def test_a_reference_that_does_not_pass_is_not_scored(self, task_dir, sample_task, allow_local):
         loaded = LoadedTask(

@@ -57,6 +57,13 @@ test.describe("leaderboard", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   });
 
+  test("says how sure each solve rate is, over tasks", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 2, name: /how sure/i })).toBeVisible();
+    const bands = page.getByRole("img", { name: /95% interval over tasks/i });
+    expect(await bands.count()).toBeGreaterThan(0);
+  });
+
   test("sorts when a header is clicked", async ({ page }) => {
     await page.goto("/");
     const header = page.getByRole("columnheader", { name: /step efficiency/i });

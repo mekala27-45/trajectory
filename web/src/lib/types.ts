@@ -378,3 +378,88 @@ export interface TrajectoryPage {
   limit: number;
   steps: Step[];
 }
+
+// -------------------------------------------------------------------- uncertainty
+
+/** A point estimate with a percentile interval around it. */
+export interface IntervalEstimate {
+  estimate: number;
+  low: number;
+  high: number;
+}
+
+/** One model's solve rate and partial credit with intervals over tasks, and its pass@k. */
+export interface ModelStatisticsEntry {
+  model: string;
+  tasks: number;
+  samples: number;
+  solve_rate: IntervalEstimate;
+  partial_credit: IntervalEstimate;
+  /** pass@k keyed by k, for every k up to the most samples a task has. */
+  pass_at: Record<string, number>;
+}
+
+/** Two models compared on the tasks both attempted, resampled as pairs. */
+export interface PairComparison {
+  first: string;
+  second: string;
+  shared_tasks: number;
+  /** First minus second, in solve rate. */
+  difference: IntervalEstimate;
+  /** Share of resamples in which the first came out ahead, ties counted half. */
+  first_ahead: number;
+}
+
+/** `stats.json`. Written by the bundle builder from `trajectory_core.stats`. */
+export interface StatsBundle {
+  confidence: number;
+  resamples: number;
+  models: ModelStatisticsEntry[];
+  pairs: PairComparison[];
+}
+
+// ----------------------------------------------------------------------- mutation
+
+/** One mutant: a small change to a file the reference writes, and what the tests made of it. */
+export interface MutantRecord {
+  label: string;
+  path: string;
+  line: number;
+  operator: string;
+  before: string;
+  after: string;
+  outcome: "killed" | "killed by a crash" | "survived" | "not run";
+  tests_passed: number;
+  tests_total: number;
+  detail: string;
+}
+
+/** One task's mutation result. */
+export interface TaskMutationRecord {
+  task_id: string;
+  files: string[];
+  sites: number;
+  control_passed: boolean;
+  control_detail: string;
+  scored: number;
+  killed: number;
+  killed_by_assertion: number;
+  survived: number;
+  score: number | null;
+  mutants: MutantRecord[];
+}
+
+/** `mutation.json`. The report `trajectory tasks mutate` writes. */
+export interface MutationReport {
+  suite: string;
+  backend: SandboxBackend;
+  per_task: number;
+  harness_version: string;
+  generated_at: string;
+  scored: number;
+  killed: number;
+  killed_by_assertion: number;
+  survived: number;
+  score: number | null;
+  tasks: TaskMutationRecord[];
+}
