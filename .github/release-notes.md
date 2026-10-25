@@ -14,6 +14,25 @@ branch named for its run before a reviewed commit promotes them. `model-probe.ym
 candidates without running a task, and every probe result is raised as an annotation, so it
 can be read without the logs.
 
+The first panel: five free hosted models from four publishers, all twelve tasks at seeds 0
+and 1. `nemotron-3-ultra` solved 21 of 24, `minimax-m3.1-flash` 16, `nemotron-3.5-lightning`
+12, `gpt-oss-20b` 11 and `glm-5.3` 10. The leader is separated from the bottom three by
+intervals that sit entirely above zero; most other pairs are not separated by twelve tasks,
+and `MODEL-RESULTS.md` says which. No model solved `sql-migration-01`, and five of its ten
+runs ended below the score the untouched workspace already has.
+
+### When the provider ends a run
+
+The free tier ended 48 of the panel's first 120 runs: a timeout or a 429 through every
+retry, or an HTTP 400. Those records measure the provider, not the model, so the model
+figures now count them in a column of their own, and a panel can rerun exactly those runs.
+At promotion each rerun replaces the run with the same model, task and seed under a rule
+fixed before any rerun was read: only a run the provider ended can be replaced, and the
+rerun stands whatever it scores. The provider ended 23 reruns too; they stand, and the
+provenance file lists every replacement. A 429 now waits out the rate window, and a refusal
+with no reason in it, which `gpt-oss-20b`'s endpoint gave about one call in thirty, is
+retried.
+
 ### A bug in the harness, found by the first real run
 
 Files the agent wrote with `write_file` were unpacked as root inside the container. The

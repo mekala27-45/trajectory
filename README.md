@@ -32,8 +32,9 @@ them.
 3. **[What gets measured](docs/metrics.md)**, if you want the formulas rather than the prose.
    Ten metrics computed from the run record and the task, which is why a metric added later
    can be applied to results published earlier.
-4. **[Real model results](MODEL-RESULTS.md)**. A real model on the same twelve tasks, on the
-   Docker backend, for free, with the table figures gated against its run records.
+4. **[Real model results](MODEL-RESULTS.md)**. Five free hosted models from four publishers
+   on the same twelve tasks, on the Docker backend, with every figure gated against the run
+   records and every run the provider ended counted apart.
 5. **[Limitations](#limitations)**. Read before quoting anything above. The published matrix
    comes from scripted offline policies rather than language models, which is stated in full.
    The real model results are a separate, smaller measurement with their own limitations.
@@ -68,8 +69,9 @@ document away:
   show. [docs/grader-audit.md](docs/grader-audit.md).
 - **It runs a panel of real models for free.** A committed request names the models, and one
   workflow probes each with a single call, then runs every model that answered in its own job,
-  under its own call ceiling and a share of one rate limit, on a no-card tier.
-  [docs/real-models.md](docs/real-models.md).
+  under its own call ceiling and a share of one rate limit, on a no-card tier. A run the
+  provider ended is counted apart from the agent's own endings, and can be rerun under a
+  rule fixed before the rerun is read. [docs/real-models.md](docs/real-models.md).
 - **It says how sure each number is.** Every model's solve rate carries a 95% interval from
   resampling the tasks, then their seeds, with every task weighing the same; pass@k; and every
   pair of models compared head to head on the tasks both attempted. With twelve tasks the
@@ -275,9 +277,9 @@ Not buried, because they decide whether the rest is worth reading.
   hard. Nothing here covers reading an unfamiliar large codebase, or API design, or
   anything a front-end engineer would recognise as their job.
 - **The published matrix is scripted policies, not models.** It validates the harness. It
-  says nothing about any language model. [MODEL-RESULTS.md](MODEL-RESULTS.md) is one real
-  model at two seeds, the second seed cut short by the call ceiling, which makes it a
-  first measurement, not a ranking.
+  says nothing about any language model. [MODEL-RESULTS.md](MODEL-RESULTS.md) is five real
+  models at two seeds on a free tier: one model is clearly ahead, and most pairs are not
+  separated by twelve tasks, which makes it a first panel, not a ranking.
 - **The grader is hardened, not unbeatable.** The cheap exploits are closed: a planted
   import-path module cannot shadow the hidden tests, a verifier run that reports no test
   scores zero, and nothing the agent left outside its workspace is present when the tests

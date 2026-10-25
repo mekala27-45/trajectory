@@ -91,7 +91,8 @@ How the workflow spends a free key:
 - **One rate limit, shared.** The free key is limited across every model it calls, so the
   request's total rate is divided evenly between the jobs that run at once.
 - **A slice when a run was cut.** An entry can name tasks and seeds, so a seed a ceiling cut
-  short is completed on its own instead of repeating what already finished.
+  short is completed on its own instead of repeating what already finished, or exact task
+  and seed pairs, so a run the provider ended can be run once more and nothing else.
 - **Records survive a failure.** Each run is sealed to disk the moment it ends, so a job
   that fails or runs out of time still delivers what it finished. Everything arrives on a
   branch named for the workflow run, and promoting it onto the leaderboard is a separate,
@@ -100,3 +101,25 @@ How the workflow spends a free key:
 Provider latency on a shared free tier counts against each task's wall clock ceiling, the
 same as the model's own time. A slow hour on the free tier can show up as timeouts, so
 compare models from the same panel rather than across days.
+
+## When the provider ends a run
+
+The first five model panel showed how much of a free tier's behaviour lands in the
+results. Of 120 runs, the provider ended 48: a call failed with a timeout or a 429 through
+every retry, or the provider refused it with HTTP 400, 13 of them before the first step. A
+record like that measures the provider at the time, not the model, so the harness treats
+it as its own ending:
+
+- **Counted apart.** The model figures carry a table of how every run ended, and a run the
+  provider ended has its own column, apart from the agent finishing, a ceiling, or another
+  error. The test is one function beside the provider message it reads.
+- **Rerun under a rule fixed in advance.** A panel can rerun exactly the runs the provider
+  ended. At promotion each rerun replaces the run with the same model, task and seed, only a
+  provider ended run can be replaced, and the rerun stands whatever it scores, so nothing is
+  chosen by outcome. A rerun of a run the agent finished is refused.
+- **Retries that fit the failure.** A 429 now waits most of a minute, because a retry inside
+  the same rate window is refused again, and a refusal with no reason in it, which the
+  gpt-oss endpoint gave about one call in thirty, is retried as a fresh sample.
+
+The panel's results, the rerun, and the runs the provider ended again are in
+[MODEL-RESULTS.md](../MODEL-RESULTS.md).

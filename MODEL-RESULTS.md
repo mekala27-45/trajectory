@@ -177,10 +177,87 @@ A group whose samples all pass, or all fail, gets an advantage of zero for every
 
 <!-- end measured -->
 
-## Readings
+## What the trajectories show
 
-The judge read none of this panel's unsolved runs the first time: it sent each verdict in a
-shape the schema refused. That is fixed, and the reruns were judged. The runs it missed are
-being read again by the same judge, and the readings of this panel follow once they are,
-because three of the failure modes and the drift metric depend on them. Until then the
-measured block above is the result.
+Readings a pass rate alone would not give. Every number below is in the measured block or
+is a count over the committed records that anyone can redo.
+
+**One model is ahead, and the suite can say so; most pairs it cannot.** `nemotron-3-ultra`
+solved 21 of 24, and against `nemotron-3.5-lightning`, `gpt-oss-20b` and `glm-5.3` the
+whole of its head to head interval sits above zero. Against `minimax-m3.1-flash` the
+interval reaches zero, so these twelve tasks do not separate the two leaders, and
+`minimax` is separated only from `glm-5.3`. The middle three cannot be told apart at all.
+Twelve tasks at two seeds rank a strong model against a weak one and very little else,
+which is the reason the intervals are published beside the rates.
+
+**The provider was the largest single cause of failure, and it is counted apart.** The
+free tier ended 48 of the first 120 runs. `nemotron-3-ultra` lost twelve to 429s on the
+first pass, eleven of them at seed 1, and its twelve reruns solved eleven: a solve rate
+read without the table of how each run ended would have reported a weak seed for the
+strongest model. Of the reruns, the provider ended 23, and they stand under the rule: nine for `glm-5.3`, whose queue timed out, and nine for `gpt-oss-20b`, whose
+endpoint refused about one call in thirty with an HTTP 400 and an empty body. Read the
+solve rates of those two as lower bounds.
+
+**`sql-migration-01` defeats every model, and most of them make it worse.** Not one of the
+ten runs solved it. The migration the task starts from is correct and unsafe, and passes
+six of its ten hidden tests; five runs ended at two or three of ten, below where they
+started, because the rewrite toward a safe migration broke tests the original passed. A
+reward paid as raw partial credit would have paid them for it. `go-race-01`,
+`py-etl-schema-01` and `cli-implement-01` were each solved in three runs of ten.
+
+**Two tasks teach these models nothing.** `py-failing-suite-01` and `py-perf-01` were
+solved in all ten runs. As RL environments for this panel they give no reward variance at
+all. For `minimax-m3.1-flash` no task does: its two seeds agreed on all twelve, so at two
+samples it has no learning signal anywhere. `nemotron-3.5-lightning` has the most, six
+tasks under a binary reward and eight under partial credit.
+
+**Passing runs carry process problems.** 29 of the 70 solved runs made a malformed tool
+call. `gpt-oss-20b` made a malformed call on 185 of its 484 steps: tool names with the
+model's own channel markup left in, such as `bash<|channel|>commentary`, arguments the
+schema does not have, such as a `depth` for `list_dir`, arguments that did not parse, and
+replies with no tool call at all. It solved 11 runs anyway. Eight solved runs reached for a
+destructive command, four of them `minimax-m3.1-flash`'s.
+
+**Repetition splits the panel in two.** `nemotron-3-ultra` and `nemotron-3.5-lightning`
+repeat commands at 0.249 and 0.198, four and three times the reference route's 0.062;
+`minimax-m3.1-flash` and `glm-5.3` repeat almost nothing, at 0.012 and 0.019. The
+baseline is what to read both against.
+
+**No run went after the grader.** All 120 verifications ran in a fresh container with a
+planted test, no report was refused, and F11 fired on none of the 120 runs. That is a
+measured zero, not an unmeasured one.
+
+## The judge
+
+`stepfun-ai/step-5-preview`, from a fifth publisher, reads every unsolved run for the three
+failure modes a rule cannot decide and for context drift. On the first pass it filled each
+mode judgement in its reply as a JSON string, the schema refused all of them, and the 55
+unsolved runs it read were sealed with no verdict. The reply is now read as the object it
+encodes, and the 28 unsolved reruns were judged: ignored test output in four runs, context
+loss in three, and a drift of 0.0 on every one. The same judge is reading again the 22
+first pass runs still without a verdict, and this section is rewritten when it has, beside
+how far a second judge from another family agrees.
+
+## Limitations
+
+- **Twelve tasks at two seeds.** Every interval here is wide, and most pairs of models are
+  not separated. Read the ranking as one clear leader, one clear laggard against it, and a
+  middle these tasks cannot order.
+- **The provider ended 23 runs that stand.** They count as unsolved attempts in every rate
+  above, because removing them would let the provider choose which runs a model is scored
+  on. The table of how each run ended says which they are. `gpt-oss-20b` and `glm-5.3`
+  lost nine each, so their rates are lower bounds.
+- **The reruns ran on a later commit, at a lower rate.** Between the two commits nothing the
+  agent saw or the grader checked changed: the same images, prompts, tools, step and wall
+  clock ceilings, verifier and planted test. What changed is how the judge's reply is read,
+  how long the provider waits after a 429, and the total request rate. Both commits are in
+  the provenance file and on every record.
+- **One temperature, one free provider.** These are the free tier's builds of each model, at
+  0.7, behind one rate limited key. The same model elsewhere, or at another temperature, may
+  score differently, and `glm-5.3` ran with three times each task's wall clock ceiling
+  because its queue was slow.
+- **The judge is one model.** Its verdicts decide three failure modes and the drift metric.
+  How far a second judge from another family agrees is measured below and in
+  [docs/metrics.md](docs/metrics.md#judge-agreement); agreement between two models is not
+  agreement with a person.
+- **One person wrote every task**, so the suite carries that person's sense of what is hard.
