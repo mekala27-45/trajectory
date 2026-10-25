@@ -56,10 +56,20 @@ from trajectory_runner.store import read_runs
 ROOT = Path(__file__).resolve().parent.parent
 REQUEST = ROOT / "model-requests" / "judge.json"
 PROVENANCE = ROOT / "fixtures" / "model-runs.provenance.json"
-REQUEST_KEYS = {"purpose", "second_judges", "sample", "parallel", "rpm", "temperature"}
+REQUEST_KEYS = {
+    "purpose",
+    "second_judges",
+    "sample",
+    "parallel",
+    "rpm",
+    "temperature",
+    "timeout_s",
+}
 MAX_CANDIDATES = 4
 MODEL_RE = re.compile(r"^[a-z0-9_]+(/[A-Za-z0-9._:-]+)+$")
 RPM_CEILING = 40.0
+# Seconds one judge call may take. A free tier can hold a reply in its queue for minutes.
+TIMEOUT_RANGE = (30.0, 900.0)
 ANNOTATED_FAILURES = 5
 NOT_REACHED = "not reached before the deadline"
 JUDGED = (
@@ -230,6 +240,7 @@ class JudgeRequest:
     parallel: int = 4
     rpm: float = 15.0
     temperature: float = 0.0
+    timeout_s: float = 180.0
 
 
 def read_request(path: Path) -> JudgeRequest:
@@ -257,6 +268,7 @@ def read_request(path: Path) -> JudgeRequest:
         parallel=int(body.get("parallel", 4)),
         rpm=float(body.get("rpm", 15.0)),
         temperature=float(body.get("temperature", 0.0)),
+        timeout_s=float(body.get("timeout_s", 180.0)),
     )
     if not 0.0 < request.sample <= 1.0:
         raise RequestError("sample is a fraction in (0, 1]")
@@ -266,6 +278,9 @@ def read_request(path: Path) -> JudgeRequest:
         raise RequestError(f"rpm is above 0 and at most {RPM_CEILING:g}, the free tier's limit")
     if not 0.0 <= request.temperature <= 1.0:
         raise RequestError("temperature is between 0 and 1")
+    low, high = TIMEOUT_RANGE
+    if not low <= request.timeout_s <= high:
+        raise RequestError(f"timeout_s is between {low:g} and {high:g} seconds")
     return request
 
 
@@ -361,12 +376,17 @@ def main(argv: list[str]) -> int:
         return 1
     chosen = sample_runs(eligible, request.sample)
     print(f"{len(eligible)} judged run(s); the second judge reads {len(chosen)}")
+
+    def client_for(model: str) -> JudgeClient:
+        return LiteLLMJudge(model, request_timeout_s=request.timeout_s)
+
     try:
         model, client, opening = pick_judge(
             request.second_judges,
             chosen[0],
             tasks[chosen[0].task_id],
             temperature=request.temperature,
+            client_for=client_for,
         )
     except RequestError as exc:
         print(str(exc), file=sys.stderr)

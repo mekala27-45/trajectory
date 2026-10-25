@@ -195,6 +195,16 @@ def test_a_request_is_checked_before_any_call(tmp_path: Path):
         agreement.read_request(_request(tmp_path, second_judges=["a/b/c", "a/b/c"]))
 
 
+def test_a_call_may_wait_as_long_as_the_request_allows(tmp_path: Path):
+    """A free tier can hold a reply for minutes, so the wait is the request's to set."""
+    assert agreement.read_request(_request(tmp_path, second_judges=["a/b/c"])).timeout_s == 180.0
+    slow = agreement.read_request(_request(tmp_path, second_judges=["a/b/c"], timeout_s=420))
+    assert slow.timeout_s == 420.0
+    for bad in (5, 3600):
+        with pytest.raises(agreement.RequestError, match="timeout_s"):
+            agreement.read_request(_request(tmp_path, second_judges=["a/b/c"], timeout_s=bad))
+
+
 def test_an_unnamed_first_judge_is_refused():
     with pytest.raises(agreement.RequestError, match="not named"):
         agreement.check_independence("nvidia_nim/deepseek-ai/deepseek-v4.1-flash", None, set())

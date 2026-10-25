@@ -31,7 +31,7 @@ concurrency:
 jobs:
   judge:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 135
     steps:
       - name: skip without the key
         id: guard
@@ -57,16 +57,17 @@ jobs:
 
       - name: run the second judge
         if: steps.guard.outputs.run == 'true'
-        timeout-minutes: 100
+        timeout-minutes: 115
         env:
           # LiteLLM reads NVIDIA_NIM_API_KEY; the repository secret is NVIDIA_API_KEY.
           NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-        # The script stops sending new runs at 85 minutes, so a slow provider shortens the
+        # The script stops sending new runs at 80 minutes, so a slow provider shortens the
         # measurement, says by how much, and still leaves a report for the next step, where
-        # the step's own 100 minute limit would end it with nothing written.
+        # the step's own limit would end it with nothing written. The 35 minutes between
+        # them cover a call already in flight: three attempts at the request's timeout_s.
         run: |
           uv run python scripts/judge_agreement.py fixtures/model-runs --out judge-agreement.json \
-            --deadline-minutes 85
+            --deadline-minutes 80
           # One annotation with the result, which the checks API serves without the log.
           uv run python - <<'PY'
           import json
