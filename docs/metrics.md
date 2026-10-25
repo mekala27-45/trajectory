@@ -268,16 +268,31 @@ failure table showed none of them.
 
 ## Judge agreement
 
-Three modes and one metric come from a language model, so the harness measures how much
-that model agrees with itself and publishes the number:
+Three modes and one metric come from a language model, so the harness measures how far
+that model can be trusted, two ways.
+
+**With itself.** `trajectory judge` judges every unsolved run at temperature 0, judges a
+sample again at a higher temperature, and reports how often the two passes agree:
 
 ```
 trajectory judge <run-dir> --model <model> --sample 0.2
 ```
 
-It judges every unsolved run at temperature 0, judges a sample again at a higher
-temperature, and reports per-mode raw agreement, Cohen's kappa, and the mean and worst
-absolute difference in the drift score.
+**With another reader.** A model can be consistent and consistently wrong, so
+`scripts/judge_agreement.py` asks a second judge from a different model family to read a
+fixed sample of the same runs. The first judge's verdicts are read back from the records
+rather than asked for again: a judged mode is present when the record carries its judge
+hit, and the record's drift is the first judge's drift. The settings come from a
+committed request, `model-requests/judge.json`, and run in the `judge-agreement` workflow
+once a panel's judged records are promoted, and three choices of second judge are refused
+before any call:
+the first judge itself, another model from the first judge's publisher, and any of the
+agents whose runs it would read, which would be grading its own work.
+
+Both report per mode the two by two table, raw agreement and Cohen's kappa, and the mean
+and largest absolute difference in the drift score. A committed cross family result
+renders in [MODEL-RESULTS.md](../MODEL-RESULTS.md) under the same gate as every other
+model figure, and the gate refuses one measured on runs that are no longer committed.
 
 Kappa is reported alongside raw agreement because raw agreement flatters a rare mode: two
 passes that both say "absent" every time agree perfectly and have told you nothing. When a
