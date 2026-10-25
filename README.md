@@ -298,8 +298,10 @@ Not buried, because they decide whether the rest is worth reading.
   exists, so this is the next measurement rather than a blocked one.
 - **Step efficiency divides by a reference solution one person wrote**, which may not be
   optimal. Read it as a ratio against one competent route.
-- **Redundant action rate has a floor above zero**, 0.062 on this suite, because re-running
-  the tests after a fix is a repeat command and the right thing to do.
+- **Redundant action rate has a baseline above zero**, 0.062 on this suite, the rate of the
+  reference route, because re-running the tests after a fix is a repeat command and the
+  right thing to do. It is not a floor: a policy that skips that second run, or pads its
+  trajectory with commands of its own, scores below it.
 
 [RESULTS.md](RESULTS.md) states each of these with the specific number affected.
 

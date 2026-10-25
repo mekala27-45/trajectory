@@ -371,11 +371,15 @@ And it did not run here at all. See [Judge self-agreement](#judge-self-agreement
 does run, its self-agreement is reported alongside its verdicts, because a harness that
 does not measure the reliability of its own judge has no business grading anyone else.
 
-### Redundant action rate has a floor above zero
+### Redundant action rate has a baseline above zero
 
-Re-running a test suite after changing the code is a byte-identical repeat command and
-exactly the right thing to do. The reference policy's rate on this suite is **0.062**, which
-is the floor for `core-12`, not zero. Read an agent's rate against that floor.
+Re-running a test suite after changing the code is a repeat command and exactly the right
+thing to do. The reference policy's rate on this suite is **0.062**, the baseline for
+`core-12`, not zero. It is not a floor: `stub:sloppy`, `stub:reckless` and `stub:hasty` all
+score below it. `hasty` skips the second test run, so it repeats less. `sloppy` and
+`reckless` repeat exactly as often as the reference, a third of a command per run, but their
+planted habits add commands of their own, which dilutes the rate. Read an agent's rate
+against the baseline in both directions.
 
 ### Wall clock is not comparable across machines
 
