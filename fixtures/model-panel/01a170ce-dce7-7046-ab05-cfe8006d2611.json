@@ -1,0 +1,103 @@
+{
+  "id": "01a170ce-dce7-7046-ab05-cfe8006d2611",
+  "schema_version": 1,
+  "task_id": "ts-api-contract-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+    "temperature": 0.7,
+    "max_steps": 45,
+    "seed": 1,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 900,
+    "command_timeout_seconds": 240,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-25T02:06:07.578022Z",
+  "finished_at": "2026-10-25T02:06:21.734909Z",
+  "status": "error",
+  "steps": [],
+  "verification": {
+    "passed": false,
+    "tests_passed": 3,
+    "tests_total": 9,
+    "stderr_tail": "e reads the field the schema now carries\nnot ok 6 - the order line reads the field the schema now carries\n  ---\n  duration_ms: 0.330546\n  location: '/verify/contract.test.mjs:236:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    sh build.sh failed, so the call sites cannot be exercised:\n    src/generated/client.ts(22,14): error TS2304: Cannot find name 'Iso8601'.\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: true\n  actual: false\n  operator: '=='\n  stack: |-\n    load (file:///verify/contract.test.mjs:122:10)\n    TestContext.<anonymous> (file:///verify/contract.test.mjs:237:36)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n# Subtest: every create request carries an idempotency key\nnot ok 7 - every create request carries an idempotency key\n  ---\n  duration_ms: 1.141178\n  location: '/verify/contract.test.mjs:253:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    sh build.sh failed, so the call sites cannot be exercised:\n    src/generated/client.ts(22,14): error TS2304: Cannot find name 'Iso8601'.\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: true\n  actual: false\n  operator: '=='\n  stack: |-\n    load (file:///verify/contract.test.mjs:122:10)\n    TestContext.<anonymous> (file:///verify/contract.test.mjs:254:32)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n# Subtest: the status the schema gained has a label\nnot ok 8 - the status the schema gained has a label\n  ---\n  duration_ms: 0.223156\n  location: '/verify/contract.test.mjs:282:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    sh build.sh failed, so the call sites cannot be exercised:\n    src/generated/client.ts(22,14): error TS2304: Cannot find name 'Iso8601'.\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: true\n  actual: false\n  operator: '=='\n  stack: |-\n    load (file:///verify/contract.test.mjs:122:10)\n    TestContext.<anonymous> (file:///verify/contract.test.mjs:283:36)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n# Subtest: the tracking line iterates the shipment list\nnot ok 9 - the tracking line iterates the shipment list\n  ---\n  duration_ms: 0.406628\n  location: '/verify/contract.test.mjs:290:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    sh build.sh failed, so the call sites cannot be exercised:\n    src/generated/client.ts(22,14): error TS2304: Cannot find name 'Iso8601'.\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: true\n  actual: false\n  operator: '=='\n  stack: |-\n    load (file:///verify/contract.test.mjs:122:10)\n    TestContext.<anonymous> (file:///verify/contract.test.mjs:291:37)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n1..9\n# tests 9\n# suites 0\n# pass 3\n# fail 6\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 562.116756\n",
+    "duration_ms": 636,
+    "exit_code": 1,
+    "parse_ok": true,
+    "partial_credit": 0.333333
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.333333,
+    "step_efficiency": null,
+    "tool_call_validity": 1.0,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 14.157,
+    "destructive_attempts": 0,
+    "total_steps": 0,
+    "total_commands": 0,
+    "schema_violations": 0,
+    "failed_commands": 0
+  },
+  "failure_modes": [],
+  "image_id": "sha256:894c3ae1d51c6f0763a9f1a91ce45860a781eb1dbbb015c3e8853ddad505dd4d",
+  "harness_version": "0.2.0",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "8ab9decb89ecfc9a",
+      "build.sh": "1f910b6b653bf2f7",
+      "openapi.json": "9c5d238299716969",
+      "package.json": "3d96cace041a7f4a",
+      "src/generated/client.ts": "fe1487c0784f2423",
+      "src/orders.ts": "2cb00431eeff0d38",
+      "src/shipments.ts": "a2dcd2e860737065",
+      "src/status.ts": "05a2457cbf3bc324",
+      "tools/generate-client.mjs": "d324f4c72b570666",
+      "tsconfig.json": "0c267bc81b1afc1f"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "8ab9decb89ecfc9a",
+      "build.sh": "1f910b6b653bf2f7",
+      "openapi.json": "9c5d238299716969",
+      "package.json": "3d96cace041a7f4a",
+      "src/generated/client.ts": "fe1487c0784f2423",
+      "src/orders.ts": "2cb00431eeff0d38",
+      "src/shipments.ts": "a2dcd2e860737065",
+      "src/status.ts": "05a2457cbf3bc324",
+      "tools/generate-client.mjs": "d324f4c72b570666",
+      "tsconfig.json": "0c267bc81b1afc1f"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": "nvidia_nim/minimaxai/minimax-m3.1-flash failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+  "wall_clock_s": 14.157,
+  "solved": false,
+  "total_cost_usd": 0.0
+}

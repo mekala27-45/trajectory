@@ -1,0 +1,190 @@
+{
+  "id": "01a170d5-6d30-70a4-9132-d95fc4d4e845",
+  "schema_version": 1,
+  "task_id": "ts-build-break-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/openai/gpt-oss-20b",
+    "temperature": 0.7,
+    "max_steps": 35,
+    "seed": 0,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 720,
+    "command_timeout_seconds": 240,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-25T02:13:17.731441Z",
+  "finished_at": "2026-10-25T02:14:47.524405Z",
+  "status": "error",
+  "steps": [
+    {
+      "index": 0,
+      "timestamp": "2026-10-25T02:13:21.212880Z",
+      "thought": "We need to run tests? Let's inspect repo.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": "",
+        "depth": 3
+      },
+      "tool_output": "Invalid arguments for list_dir: depth: Extra inputs are not permitted. Expected fields: path.",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 696,
+      "tokens_out": 37,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": true,
+      "error": "Invalid arguments for list_dir: depth: Extra inputs are not permitted. Expected fields: path.",
+      "failed": false
+    },
+    {
+      "index": 1,
+      "timestamp": "2026-10-25T02:14:01.932606Z",
+      "thought": "We need list_dir root.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": ""
+      },
+      "tool_output": "path is empty",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 750,
+      "tokens_out": 29,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": "path is empty",
+      "failed": false
+    },
+    {
+      "index": 2,
+      "timestamp": "2026-10-25T02:14:34.339847Z",
+      "thought": "Let's list root.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": ""
+      },
+      "tool_output": "path is empty",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 783,
+      "tokens_out": 27,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": "path is empty",
+      "failed": false
+    },
+    {
+      "index": 3,
+      "timestamp": "2026-10-25T02:14:40.948021Z",
+      "thought": "We need to list root dir. Let's do list_dir.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": ""
+      },
+      "tool_output": "path is empty",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 816,
+      "tokens_out": 35,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": "path is empty",
+      "failed": false
+    }
+  ],
+  "verification": {
+    "passed": false,
+    "tests_passed": 3,
+    "tests_total": 7,
+    "stderr_tail": "sh'\n  code: 'ERR_TEST_FAILURE'\n  stack: |-\n    genericNodeError (node:internal/errors:983:15)\n    wrappedFn (node:internal/errors:537:14)\n    checkExecSyncError (node:child_process:882:11)\n    execFileSync (node:child_process:918:15)\n    run (file:///verify/build.test.mjs:29:10)\n    TestContext.<anonymous> (file:///verify/build.test.mjs:93:3)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n  ...\n# Subtest: the dependency was built by the reference, not by hand\nnot ok 6 - the dependency was built by the reference, not by hand\n  ---\n  duration_ms: 0.554606\n  location: '/verify/build.test.mjs:97:1'\n  failureType: 'testCodeFailure'\n  error: 'core was not built, so the app does not declare it as a project reference'\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: true\n  actual: false\n  operator: '=='\n  stack: |-\n    TestContext.<anonymous> (file:///verify/build.test.mjs:98:10)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n# Subtest: the report is correct\nnot ok 7 - the report is correct\n  ---\n  duration_ms: 23.4481\n  location: '/verify/build.test.mjs:110:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    Command failed: node packages/app/dist/main.js\n    node:internal/modules/cjs/loader:1252\n      throw err;\n      ^\n    \n    Error: Cannot find module '@core/index.js'\n    Require stack:\n    - /workspace/packages/app/dist/main.js\n        at Function._resolveFilename (node:internal/modules/cjs/loader:1249:15)\n        at Function._load (node:internal/modules/cjs/loader:1075:27)\n        at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n        at wrapModuleLoad (node:internal/modules/cjs/loader:219:24)\n        at Module.require (node:internal/modules/cjs/loader:1340:12)\n        at require (node:internal/modules/helpers:138:16)\n        at Object.<anonymous> (/workspace/packages/app/dist/main.js:4:20)\n        at Module._compile (node:internal/modules/cjs/loader:1565:14)\n        at Object..js (node:internal/modules/cjs/loader:1708:10)\n        at Module.load (node:internal/modules/cjs/loader:1318:32) {\n      code: 'MODULE_NOT_FOUND',\n      requireStack: [ '/workspace/packages/app/dist/main.js' ]\n    }\n    \n    Node.js v22.12.0\n    \n  code: 'ERR_TEST_FAILURE'\n  stack: |-\n    Function._resolveFilename (node:internal/modules/cjs/loader:1249:15)\n    Function._load (node:internal/modules/cjs/loader:1075:27)\n    TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    wrapModuleLoad (node:internal/modules/cjs/loader:219:24)\n    Module.require (node:internal/modules/cjs/loader:1340:12)\n    require (node:internal/modules/helpers:138:16)\n    Object.<anonymous> (/workspace/packages/app/dist/main.js:4:20)\n    Module._compile (node:internal/modules/cjs/loader:1565:14)\n    Object..js (node:internal/modules/cjs/loader:1708:10)\n    Module.load (node:internal/modules/cjs/loader:1318:32) {\n    genericNodeError (node:internal/errors:983:15)\n    wrappedFn (node:internal/errors:537:14)\n    checkExecSyncError (node:child_process:882:11)\n    execFileSync (node:child_process:918:15)\n    run (file:///verify/build.test.mjs:29:10)\n    TestContext.<anonymous> (file:///verify/build.test.mjs:111:18)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n  ...\n1..7\n# tests 7\n# suites 0\n# pass 3\n# fail 4\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 848.360396\n",
+    "duration_ms": 925,
+    "exit_code": 1,
+    "parse_ok": true,
+    "partial_credit": 0.428571
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.428571,
+    "step_efficiency": null,
+    "tool_call_validity": 0.75,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 89.793,
+    "destructive_attempts": 0,
+    "total_steps": 4,
+    "total_commands": 0,
+    "schema_violations": 1,
+    "failed_commands": 0
+  },
+  "failure_modes": [
+    {
+      "id": "F01",
+      "name": "tool schema violation",
+      "confidence": 1.0,
+      "detector": "rule",
+      "evidence": "1 of 4 steps were rejected before reaching the sandbox. Tools involved: list_dir. First rejection at step 0: Invalid arguments for list_dir: depth: Extra inputs are not permitted. Expected fields: path.",
+      "step_indices": [
+        0
+      ]
+    }
+  ],
+  "image_id": "sha256:af92bd8c19c865bf63e12621ffb936b2a50bf9b5a0c6491afedfd710fb16a71e",
+  "harness_version": "0.2.0",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "0834bac887445de5",
+      "build.sh": "47acffabedf0f82c",
+      "packages/app/src/ambient.d.ts": "0ca32c1f3f1b66e7",
+      "packages/app/src/main.ts": "83a89addf628437b",
+      "packages/app/tsconfig.json": "f7693badf10c1148",
+      "packages/core/src/index.ts": "0d6a2e66a39a7f1d",
+      "packages/core/src/shapes.ts": "98023d13f458428e",
+      "packages/core/tsconfig.json": "b1df01c7b3ffbfde",
+      "tsconfig.base.json": "08d4f09bf7b44f2b"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "0834bac887445de5",
+      "build.sh": "47acffabedf0f82c",
+      "packages/app/src/ambient.d.ts": "0ca32c1f3f1b66e7",
+      "packages/app/src/main.ts": "83a89addf628437b",
+      "packages/app/tsconfig.json": "f7693badf10c1148",
+      "packages/core/src/index.ts": "0d6a2e66a39a7f1d",
+      "packages/core/src/shapes.ts": "98023d13f458428e",
+      "packages/core/tsconfig.json": "b1df01c7b3ffbfde",
+      "tsconfig.base.json": "08d4f09bf7b44f2b"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ",
+  "wall_clock_s": 89.793,
+  "solved": false,
+  "total_cost_usd": 0.0
+}

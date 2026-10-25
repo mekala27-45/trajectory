@@ -1,0 +1,95 @@
+{
+  "id": "01a170cd-a9b0-7028-a537-15e5f13158b8",
+  "schema_version": 1,
+  "task_id": "go-race-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+    "temperature": 0.7,
+    "max_steps": 40,
+    "seed": 1,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 1200,
+    "command_timeout_seconds": 300,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-25T02:04:48.931855Z",
+  "finished_at": "2026-10-25T02:05:03.421123Z",
+  "status": "error",
+  "steps": [],
+  "verification": {
+    "passed": false,
+    "tests_passed": 6,
+    "tests_total": 10,
+    "stderr_tail": "rap1()\n      /usr/local/go/src/testing/testing.go:1743 +0x44\n\nGoroutine 42 (finished) created at:\n  example.internal/aggregator/zz_hidden.TestScrapeWhileRequestsLand()\n      /workspace/zz_hidden/registry_hidden_test.go:344 +0x125\n  testing.tRunner()\n      /usr/local/go/src/testing/testing.go:1690 +0x226\n  testing.(*T).Run.gowrap1()\n      /usr/local/go/src/testing/testing.go:1743 +0x44\n==================\n==================\nWARNING: DATA RACE\nRead at 0x00c000198270 by goroutine 45:\n  example.internal/aggregator/agg.(*Registry).Snapshot()\n      /workspace/agg/aggregator.go:105 +0xd4\n  example.internal/aggregator/agg.(*Registry).SnapshotAll()\n      /workspace/agg/aggregator.go:116 +0xd3\n  example.internal/aggregator/zz_hidden.TestScrapeWhileRequestsLand.func2()\n      /workspace/zz_hidden/registry_hidden_test.go:363 +0x1fb\n\nPrevious write at 0x00c000198270 by goroutine 42:\n  example.internal/aggregator/agg.(*Registry).Observe()\n      /workspace/agg/aggregator.go:69 +0xb0\n  example.internal/aggregator/zz_hidden.TestScrapeWhileRequestsLand.func1()\n      /workspace/zz_hidden/registry_hidden_test.go:348 +0x16c\n  example.internal/aggregator/zz_hidden.TestScrapeWhileRequestsLand.gowrap1()\n      /workspace/zz_hidden/registry_hidden_test.go:350 +0x41\n\nGoroutine 45 (running) created at:\n  example.internal/aggregator/zz_hidden.TestScrapeWhileRequestsLand()\n      /workspace/zz_hidden/registry_hidden_test.go:354 +0x36b\n  testing.tRunner()\n      /usr/local/go/src/testing/testing.go:1690 +0x226\n  testing.(*T).Run.gowrap1()\n      /usr/local/go/src/testing/testing.go:1743 +0x44\n\nGoroutine 42 (finished) created at:\n  example.internal/aggregator/zz_hidden.TestScrapeWhileRequestsLand()\n      /workspace/zz_hidden/registry_hidden_test.go:344 +0x125\n  testing.tRunner()\n      /usr/local/go/src/testing/testing.go:1690 +0x226\n  testing.(*T).Run.gowrap1()\n      /usr/local/go/src/testing/testing.go:1743 +0x44\n==================\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:365: /v1/shard-2: Count 775 and TotalMicros 149750 disagree, so the snapshot was read while a write was halfway through\n    registry_hidden_test.go:377: Observed = 2138, want 2400\n    registry_hidden_test.go:387: /v1/shard-2: Count = 775, want 800\n    testing.go:1399: race detected during execution of test\n--- FAIL: TestScrapeWhileRequestsLand (0.32s)\nFAIL\nFAIL\texample.internal/aggregator/zz_hidden\t1.299s\nFAIL\n",
+    "duration_ms": 1734,
+    "exit_code": 1,
+    "parse_ok": true,
+    "partial_credit": 0.6
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.6,
+    "step_efficiency": null,
+    "tool_call_validity": 1.0,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 14.489,
+    "destructive_attempts": 0,
+    "total_steps": 0,
+    "total_commands": 0,
+    "schema_violations": 0,
+    "failed_commands": 0
+  },
+  "failure_modes": [],
+  "image_id": "sha256:ff1d96872e014187b3e9801f2b1723971530206490f6a6d32dab85d50ee9ea29",
+  "harness_version": "0.2.0",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "e20b5f5952f00033",
+      "agg/aggregator.go": "3573eadc92e43708",
+      "agg/aggregator_test.go": "408950cba8bfabab",
+      "agg/histogram.go": "eb417e6ff6978839",
+      "cmd/aggd/main.go": "a36f811616f23394",
+      "go.mod": "b3093abd2ccec4c3"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "e20b5f5952f00033",
+      "agg/aggregator.go": "3573eadc92e43708",
+      "agg/aggregator_test.go": "408950cba8bfabab",
+      "agg/histogram.go": "eb417e6ff6978839",
+      "cmd/aggd/main.go": "a36f811616f23394",
+      "go.mod": "b3093abd2ccec4c3"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": "nvidia_nim/minimaxai/minimax-m3.1-flash failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+  "wall_clock_s": 14.489,
+  "solved": false,
+  "total_cost_usd": 0.0
+}

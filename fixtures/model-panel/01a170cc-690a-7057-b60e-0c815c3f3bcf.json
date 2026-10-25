@@ -1,0 +1,93 @@
+{
+  "id": "01a170cc-690a-7057-b60e-0c815c3f3bcf",
+  "schema_version": 1,
+  "task_id": "py-failing-suite-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+    "temperature": 0.7,
+    "max_steps": 25,
+    "seed": 0,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 420,
+    "command_timeout_seconds": 120,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-25T02:03:26.846656Z",
+  "finished_at": "2026-10-25T02:03:45.196055Z",
+  "status": "error",
+  "steps": [],
+  "verification": {
+    "passed": false,
+    "tests_passed": 4,
+    "tests_total": 8,
+    "stderr_tail": "FFF..F..                                                                 [100%]\n=================================== FAILURES ===================================\n____________________ test_single_day_range_contains_one_day ____________________\n\n    def test_single_day_range_contains_one_day():\n        day = date(2026, 3, 10)\n>       assert date_range(day, day) == [day]\nE       assert [] == [datetime.date(2026, 3, 10)]\nE         \nE         Right contains one more item: datetime.date(2026, 3, 10)\nE         Use -v to get more diff\n\n/verify/test_daterange.py:19: AssertionError\n________________________ test_range_includes_both_ends _________________________\n\n    def test_range_includes_both_ends():\n>       assert date_range(date(2026, 3, 10), date(2026, 3, 13)) == [\n            date(2026, 3, 10),\n            date(2026, 3, 11),\n            date(2026, 3, 12),\n            date(2026, 3, 13),\n        ]\nE       assert [datetime.dat...(2026, 3, 12)] == [datetime.dat...(2026, 3, 13)]\nE         \nE         Right contains one more item: datetime.date(2026, 3, 13)\nE         Use -v to get more diff\n\n/verify/test_daterange.py:23: AssertionError\n_____________________ test_days_between_counts_inclusively _____________________\n\n    def test_days_between_counts_inclusively():\n>       assert days_between(date(2026, 3, 1), date(2026, 3, 31)) == 31\nE       assert 30 == 31\nE        +  where 30 = days_between(datetime.date(2026, 3, 1), datetime.date(2026, 3, 31))\nE        +    where datetime.date(2026, 3, 1) = date(2026, 3, 1)\nE        +    and   datetime.date(2026, 3, 31) = date(2026, 3, 31)\n\n/verify/test_daterange.py:32: AssertionError\n__________________________ test_leap_day_is_included ___________________________\n\n    def test_leap_day_is_included():\n        assert date(2028, 2, 29) in date_range(date(2028, 2, 27), date(2028, 3, 1))\n>       assert days_between(date(2028, 2, 1), date(2028, 2, 29)) == 29\nE       assert 28 == 29\nE        +  where 28 = days_between(datetime.date(2028, 2, 1), datetime.date(2028, 2, 29))\nE        +    where datetime.date(2028, 2, 1) = date(2028, 2, 1)\nE        +    and   datetime.date(2028, 2, 29) = date(2028, 2, 29)\n\n/verify/test_daterange.py:54: AssertionError\n=============================== warnings summary ===============================\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/verify/pytest-cache-files-bhe9lofw'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429\n  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:429: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/lastfailed: [Errno 13] Permission denied: '/verify/pytest-cache-files-9b0vl_9w'\n    config.cache.set(\"cache/lastfailed\", self.lastfailed)\n\n../usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51\n  /usr/local/lib/python3.12/site-packages/_pytest/stepwise.py:51: PytestCacheWarning: could not create cache path /verify/.pytest_cache/v/cache/stepwise: [Errno 13] Permission denied: '/verify/pytest-cache-files-nj122o8f'\n    session.config.cache.set(STEPWISE_CACHE_DIR, [])\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED ../verify/test_daterange.py::test_single_day_range_contains_one_day - ...\nFAILED ../verify/test_daterange.py::test_range_includes_both_ends - assert [d...\nFAILED ../verify/test_daterange.py::test_days_between_counts_inclusively - as...\nFAILED ../verify/test_daterange.py::test_leap_day_is_included - assert 28 == 29\n4 failed, 4 passed, 3 warnings in 0.05s\n",
+    "duration_ms": 344,
+    "exit_code": 1,
+    "parse_ok": true,
+    "partial_credit": 0.5
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.5,
+    "step_efficiency": null,
+    "tool_call_validity": 1.0,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": null,
+    "cost_usd": 0.0,
+    "wall_clock_s": 18.349,
+    "destructive_attempts": 0,
+    "total_steps": 0,
+    "total_commands": 0,
+    "schema_violations": 0,
+    "failed_commands": 0
+  },
+  "failure_modes": [],
+  "image_id": "sha256:497e46fda83a6fdf9f62aa2880c6b195c4ea83a0627617b7a677cbfcebf99f76",
+  "harness_version": "0.2.0",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "6657eca6c48d8c69",
+      "pytest.ini": "d6e3e89cc6aab794",
+      "src/daterange/__init__.py": "775d12a59ba87e7c",
+      "src/daterange/core.py": "5294a86f44f5d2c7",
+      "tests/test_core.py": "567da701dedfed40"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "6657eca6c48d8c69",
+      "pytest.ini": "d6e3e89cc6aab794",
+      "src/daterange/__init__.py": "775d12a59ba87e7c",
+      "src/daterange/core.py": "5294a86f44f5d2c7",
+      "tests/test_core.py": "567da701dedfed40"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": "nvidia_nim/minimaxai/minimax-m3.1-flash failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+  "wall_clock_s": 18.349,
+  "solved": false,
+  "total_cost_usd": 0.0
+}
