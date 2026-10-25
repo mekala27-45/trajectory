@@ -13,6 +13,11 @@ tests, and scores the trajectory, not just the outcome.
 **Live leaderboard:** https://mekala27-45.github.io/trajectory/ &nbsp; **Metrics:**
 [docs/metrics.md](docs/metrics.md) &nbsp; **Results:** [RESULTS.md](RESULTS.md)
 
+> **New to coding agents or AI evaluation?** Start with the plain-language guide,
+> [Understanding trajectory](docs/understanding-trajectory.md). It explains the whole project
+> from scratch and walks through every page of the site, assuming only that you know what an AI
+> model is. The rest of this README is written for engineers who want the precise version.
+
 ## Where to start
 
 Five links, in the order that makes the rest of this readable. No install needed for any of
