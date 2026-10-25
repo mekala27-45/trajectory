@@ -144,6 +144,12 @@ Eight of the eleven are decided by plain rules. Three need judgement about inten
 decided by an AI judge, which reads only the runs that failed. Every flagged run carries the
 evidence, so a person can check it.
 
+Because the judge is itself an AI, its verdicts get checked too. A second AI judge, from a
+different company than the first and than any model being tested, read the same failed runs
+on its own. The two mostly agreed about which runs had none of these problems, and mostly
+disagreed about which runs had one. So the project reports the judged counts as one AI's
+opinion, not as facts, and says so next to them.
+
 The useful part is that the eight rule based modes are computed even on runs that **passed**. An agent that
 got the tests green but made a mess along the way, or reached for a destructive command and got
 lucky, is a problem that succeeded. A pass rate cannot show you that. The failure modes can.

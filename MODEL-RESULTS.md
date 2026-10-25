@@ -178,6 +178,19 @@ GRPO samples a group of answers to one prompt and moves each toward or away from
 
 A group whose samples all pass, or all fail, gets an advantage of zero for every sample under a binary reward, which is why the bold cells above are the only ones a binary reward can learn from.
 
+### Two judges compared
+
+- Judges compared: `nvidia_nim/stepfun-ai/step-5-preview` and `nvidia_nim/deepseek-ai/deepseek-v4.1-flash`, on 49 of the 50 runs the first judged, temperature 0
+
+| mode | both present | first only | second only | neither | raw agreement | kappa |
+| --- | --- | --- | --- | --- | --- | --- |
+| F06 ignored test output | 1 | 5 | 0 | 43 | 0.90 | 0.26 |
+| F07 long horizon context loss | 1 | 5 | 4 | 39 | 0.82 | 0.08 |
+| F10 environment mismatch | 0 | 0 | 1 | 48 | 0.98 | 0.00 |
+
+- Drift, between the judges: mean absolute difference 0.034, largest 0.300
+- Left out of the comparison: 1 run(s) the second judge returned no valid verdict on
+
 <!-- end measured -->
 
 ## What the trajectories show
@@ -248,15 +261,33 @@ test, is set out in the [grader audit](docs/grader-audit.md).
 failure modes a rule cannot decide and for context drift. On the first pass it filled each
 mode judgement in its reply as a JSON string, the schema refused that reply on 54 of the 55
 unsolved runs it read, one call timed out, and all 55 were sealed with no verdict. The reply
-is now read as the object it encodes. The 28 unsolved reruns were judged as they ran, and the same judge, at the same
-temperature, read again the 22 first pass runs still without a verdict, and only those, in
-workflow run 40179971123. The promotion checked that nothing in those records changed but
-the judge's own output.
+is now read as the object it encodes. The 28 unsolved reruns were judged as they ran, and the
+same judge, at the same temperature, read again the 22 first pass runs still without a
+verdict, and only those, in workflow run 40179971123. The promotion checked that nothing in
+those records changed but the judge's own output.
 
 All 50 unsolved runs now carry a verdict: ignored test output on seven, long horizon
 context loss on seven, environment mismatch on none, and a context drift of 0.0 on 47 of
-the 50. How far a second judge from another family agrees is being measured next, and this
-section is rewritten when it has.
+the 50.
+
+**A second reader does not reproduce those counts.** `deepseek-v4.1-flash`, from a family
+that is neither the first judge's nor any agent's, read the same runs with the same prompt
+at temperature 0, in workflow run 40191361481. It returned a verdict on 49 of the 50; on the
+other the free tier timed out three times. The measured block above has each mode's two by
+two table. The two judges agree on most runs, because most runs have none of the three
+modes. On the runs that have one, they mostly do not agree. Of the six of those 49 runs the
+first judge flagged for ignored test output, the second agreed on one and flagged no other,
+a kappa of 0.26. Of the six the first flagged for context loss, the second agreed on one and
+flagged four others instead, a kappa of 0.08, close to what chance alone would give.
+Environment mismatch, which the first judge never found, the second found once. Their drift
+scores differ by 0.034 on average, but the first judge scored 0.0 on 47 of the 50 runs, so
+that agreement is mostly about drift being absent.
+
+So read the judged modes as one model's reading of the trajectory, not a measurement of
+it: the seven and seven above are what `step-5-preview` saw. Every other count on this page
+comes from a rule, which is deterministic and needs no second reader. An earlier attempt at
+this comparison, workflow run 40184208378, ran out of time on the free tier before it wrote
+anything; [model-requests/README.md](model-requests/README.md) records both requests.
 
 ## Limitations
 
@@ -282,8 +313,10 @@ section is rewritten when it has.
   0.7, behind one rate limited key. The same model elsewhere, or at another temperature, may
   score differently, and `glm-5.3` ran with up to three times each task's wall clock
   ceiling because its queue was slow.
-- **The judge is one model.** Its verdicts decide three failure modes and the drift metric.
-  How far a second judge from another family agrees is measured below and in
-  [docs/metrics.md](docs/metrics.md#judge-agreement); agreement between two models is not
-  agreement with a person.
+- **The judge is one model, and a second one mostly disagrees with it.** Its verdicts decide
+  three failure modes and the drift metric. A second judge from another family agreed with
+  it on which runs had a judged mode about as often as chance would for context loss, kappa
+  0.08, and not much more for ignored test output, 0.26, so those counts are one model's
+  reading. Neither judge has been checked against human labels, and agreement between two
+  models would not be agreement with a person in any case.
 - **One person wrote every task**, so the suite carries that person's sense of what is hard.

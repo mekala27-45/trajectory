@@ -235,6 +235,13 @@ export default function GuidePage() {
           green but made a mess, or reached for a destructive command and got lucky, is a problem
           that succeeded. A pass rate cannot show that. The failure modes can.
         </p>
+        <p>
+          Because the judge is itself an AI, its verdicts get checked too. A second AI judge, from a
+          different company than the first and than any model being tested, read the same failed
+          runs on its own. The two mostly agreed about which runs had none of these problems, and
+          mostly disagreed about which runs had one. So the judged counts are reported as one
+          AI&rsquo;s opinion, not as facts.
+        </p>
       </Section>
 
       <Section n="08" title="A tour of this site, page by page">

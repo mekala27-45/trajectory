@@ -300,7 +300,10 @@ when it comes from the first judge's publisher, which shares too much training t
 a second opinion, or from the family of any agent whose runs it would read, which could
 favour its sibling's work. It does not run at all until the promotion has named the first
 judge. The request lists candidates in order, and the first one the free tier actually
-serves judges the whole sample; any passed over are named in the report.
+serves judges the whole sample; any passed over are named in the report, and so is every
+run left out, with its reason. The request also sets how long one call may wait, because a
+free tier can hold a reply in its queue for minutes, and the workflow sends no new run after
+80 minutes, so a slow day shortens the measurement instead of losing it.
 
 Both report per mode the two by two table, raw agreement and Cohen's kappa, and the mean
 and largest absolute difference in the drift score. A committed cross family result
@@ -311,6 +314,12 @@ Kappa is reported alongside raw agreement because raw agreement flatters a rare 
 passes that both say "absent" every time agree perfectly and have told you nothing. When a
 mode never fired in either pass, kappa is reported as not computable rather than as 0.0,
 because 0.0 reads as disagreement.
+
+The five model panel shows why both are there. `deepseek-v4.1-flash` read 49 of the runs
+`step-5-preview` judged, and the raw agreement looks high, 0.90 for ignored test output and
+0.82 for context loss, because most runs have neither. On the runs that have one, the two
+rarely agreed: kappa 0.26 and 0.08. [MODEL-RESULTS.md](../MODEL-RESULTS.md#the-judge) reads
+the judged counts as one model's reading for that reason.
 
 An evaluation harness that does not measure the reliability of its own judge has no
 business grading anyone else.

@@ -178,7 +178,7 @@ test.describe("failure modes", () => {
     const agreement = judgeAgreement();
     test.skip(agreement == null, "no second judge measurement ships with this bundle");
     await page.goto("/failures/");
-    const lines = page.getByText(/^A second judge, .+, agreed on \d+ of \d+ runs;/);
+    const lines = page.getByText(/^A second judge, .+, agreed on \d+ of \d+ runs\b/);
     await expect(lines).toHaveCount(Object.keys(agreement!.per_mode).length);
   });
 

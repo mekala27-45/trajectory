@@ -250,11 +250,13 @@ trajectory judge runs/matrix --model <model> --sample 0.2
 
 It judges every unsolved run at temperature 0, judges a 20 percent sample again at
 temperature 0.7, and reports per-mode raw agreement, Cohen's kappa, and the mean and worst
-absolute difference in the drift score. The nightly CI workflow runs it whenever a key is
-present as a repository secret.
+absolute difference in the drift score. The nightly workflow would run it once its own keys
+are set as repository secrets; they are not, so it has not run on this matrix.
 
-Until that number exists, treat the three judged modes as unpopulated columns rather than
-as evidence of anything.
+Until it does, treat the three judged modes here as unpopulated columns rather than as
+evidence of anything. On the real model panel the judge did run, and a second judge from
+another family read the same runs: the two rarely agreed on which runs had a judged mode,
+which [MODEL-RESULTS.md](MODEL-RESULTS.md#the-judge) sets out mode by mode.
 
 ## Methodology and limitations
 
@@ -371,9 +373,10 @@ Read step efficiency as a ratio against one competent human route, not as a scor
 
 ### The judge is a language model
 
-And it did not run here at all. See [Judge self-agreement](#judge-self-agreement). When it
-does run, its self-agreement is reported alongside its verdicts, because a harness that
-does not measure the reliability of its own judge has no business grading anyone else.
+And it did not run here at all. See [Judge self-agreement](#judge-self-agreement). On the
+real model panel it did, and how far a second judge from another family agrees with it is
+reported beside its verdicts, because a harness that does not measure the reliability of
+its own judge has no business grading anyone else. The answer there was not far.
 
 ### Redundant action rate has a baseline above zero
 

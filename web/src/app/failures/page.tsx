@@ -10,15 +10,28 @@ function shortModel(model: string): string {
   return model.split("/").pop() ?? model;
 }
 
-/** One line on how far a second reader agreed about a judged mode. */
+/**
+ * One line on how far a second reader agreed about a judged mode.
+ *
+ * Raw agreement alone flatters a rare mode, since two judges that both say absent on nearly
+ * every run agree on nearly every run, so the line also says how many of the runs the first judge
+ * flagged the second one flagged too.
+ */
 function agreementLine(second: string, entry: ModeAgreementEntry): string {
   const total = entry.both_present + entry.first_only + entry.second_only + entry.neither_present;
   const agreed = entry.both_present + entry.neither_present;
+  const flagged = entry.both_present + entry.first_only;
   const kappa =
     entry.cohens_kappa == null
       ? "kappa not computable, since neither judge found it"
       : `kappa ${entry.cohens_kappa.toFixed(2)}`;
-  return `A second judge, ${shortModel(second)}, agreed on ${agreed} of ${total} runs; ${kappa}.`;
+  const presence =
+    flagged > 0
+      ? `, and on ${entry.both_present} of the ${flagged} the first judge flagged`
+      : entry.second_only > 0
+        ? `, flagging ${entry.second_only} the first judge did not`
+        : "";
+  return `A second judge, ${shortModel(second)}, agreed on ${agreed} of ${total} runs${presence}; ${kappa}.`;
 }
 
 export const metadata = {

@@ -16,10 +16,11 @@ can be read without the logs.
 
 The first panel: five free hosted models from four publishers, all twelve tasks at seeds 0
 and 1. With the runs the provider ended run once more, `nemotron-3-ultra` solved 21 of 24,
-`minimax-m3.1-flash` 16, `nemotron-3.5-lightning` 12, `gpt-oss-20b` 11 and `glm-5.3` 10. The leader is separated from the bottom three by
-intervals that sit entirely above zero; most other pairs are not separated by twelve tasks,
-and `MODEL-RESULTS.md` says which. No model solved `sql-migration-01`, and five of its ten
-runs ended below the score the untouched workspace already has.
+`minimax-m3.1-flash` 16, `nemotron-3.5-lightning` 12, `gpt-oss-20b` 11 and `glm-5.3` 10. The
+leader is separated from the bottom three by intervals that sit entirely above zero; most
+other pairs are not separated by twelve tasks, and `MODEL-RESULTS.md` says which. No model
+solved `sql-migration-01`, and five of its ten runs ended below the score the untouched
+workspace already has.
 
 ### When the provider ends a run
 
@@ -74,6 +75,23 @@ likely the suite's time budget on a loaded machine. Every kill is
 now replayed once more, and one that does not happen again is scored as unstable, not
 caught. The figures are held to their report in CI and reproduced on Docker by
 `mutation.yml` whenever a task, the mutation code, the verifier or the planted test changes.
+
+### The judge, read twice
+
+Three failure modes and the drift metric come from a model reading the trajectory, so this
+release checks the reader. `step-5-preview` sent each mode's verdict as JSON text inside its
+tool call, which the schema refused, so its first pass sealed every unsolved run with no
+verdict. The reply is now read as the object it encodes, and the 22 first pass runs still
+without one were read again, and only those, by `rejudge.yml`, under a promotion that checks
+nothing but the judge's output changed. All 50 unsolved runs carry a verdict.
+
+Then `judge-agreement.yml` had a second judge, from a family that is neither the first
+judge's nor any agent's, read the same runs. `deepseek-v4.1-flash` returned a verdict on 49
+of the 50. The two agree on most runs, because most runs have none of the judged modes, and
+mostly disagree on which runs have one: Cohen's kappa 0.26 for ignored test output and 0.08
+for context loss. `MODEL-RESULTS.md` reads the judged counts as one model's reading for that
+reason, and the request, the provider's timeouts on the first attempt and the run left out
+are all on record.
 
 ### How sure a number is
 

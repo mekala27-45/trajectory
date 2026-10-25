@@ -52,7 +52,7 @@ to make agent failures legible.
 
 ## Beyond the leaderboard
 
-Five things this harness does that a pass-rate benchmark does not, each one command or one
+Six things this harness does that a pass-rate benchmark does not, each one command or one
 document away:
 
 - **It runs in your stack, not only this one.** Every task exports to the Harbor task
@@ -81,6 +81,12 @@ document away:
   the slip a model makes, and counts how many the hidden tests catch. Every near miss that got
   through is listed by file and line, because a reward that pays a near miss in full teaches it.
   [docs/verifier-strength.md](docs/verifier-strength.md).
+- **It checks its own judge.** Three failure modes and the drift score come from a model
+  reading the trajectory, so a second judge, from a family that is neither the first judge's
+  nor any agent's, reads the same runs, and the two are compared mode by mode with Cohen's
+  kappa. On the real model panel they rarely agreed on which runs had a judged mode, and the
+  results say so instead of presenting those counts as facts.
+  [MODEL-RESULTS.md](MODEL-RESULTS.md#the-judge).
 
 The published matrix shows the problem directly. Three of the five agents scored **100.0%
 +/- 0.0%**, identical rows on any conventional leaderboard. One of them made a malformed
@@ -168,9 +174,12 @@ policy here reads 33.3% +/- 23.6%, and a single-seed run of it would have publis
 
 ## Failure modes
 
-Eleven named modes applied to every run. Eight decided by deterministic rules, three by a
-rubric judge. The judge did not run on the results published here, so the three judged modes
-never fired and the judge's self-agreement is unmeasured, which the limitations say in full.
+Eleven named modes. Eight are decided by deterministic rules, on every run; three by a
+rubric judge that reads the runs that failed. The judge did not run on the scripted matrix,
+so there its three modes read zero for not measured. On the real model panel it read all 50
+unsolved runs, and a second judge from another family read 49 of them: the two rarely
+agreed on which runs had a judged mode, so those counts are one model's reading.
+[MODEL-RESULTS.md](MODEL-RESULTS.md#the-judge) has both, mode by mode.
 
 | id | mode | how |
 | --- | --- | --- |
@@ -296,9 +305,12 @@ Not buried, because they decide whether the rest is worth reading.
   exists, is still not an isolation boundary, and is still gated behind an environment
   variable, but that is now a caveat about a tool this repository ships rather than about
   these numbers.
-- **Judge self-agreement is unmeasured.** Metric 8 is null on all 180 runs and the three
-  judged modes were never applied. Their zeros mean "not measured". A free model key now
-  exists, so this is the next measurement rather than a blocked one.
+- **The judge is a model, and a second one mostly disagrees with it.** On the scripted
+  matrix it did not run: metric 8 is null on all 180 runs, and the three judged modes read
+  zero for not measured. On the model panel a second judge from another family reproduced
+  few of the first judge's verdicts on which runs had a judged mode, Cohen's kappa 0.26 for
+  ignored test output and 0.08 for context loss, so read those counts as one model's
+  reading. Neither judge has been checked against human labels.
 - **Step efficiency divides by a reference solution one person wrote**, which may not be
   optimal. Read it as a ratio against one competent route.
 - **Redundant action rate has a baseline above zero**, 0.062 on this suite, the rate of the
