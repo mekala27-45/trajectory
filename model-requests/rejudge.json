@@ -1,0 +1,6 @@
+{
+  "purpose": "The panel's judge, step-5-preview, filled each mode judgement in its tool call as a JSON string, so the schema refused its replies, and one call timed out; those runs were sealed with no verdict. With replies of that shape now read as the objects they encode, the same judge at the same temperature reads exactly the 22 unsolved runs still without a verdict after the reruns, and no others.",
+  "judge_model": "nvidia_nim/stepfun-ai/step-5-preview",
+  "parallel": 3,
+  "rpm": 20
+}
