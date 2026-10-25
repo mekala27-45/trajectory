@@ -28,11 +28,13 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import shlex
 import subprocess
 import sys
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -246,24 +248,60 @@ def rate_per_job(request: Request, running: int) -> float:
     return math.floor(request.rpm_total / at_once * 10) / 10
 
 
-def probe(model: str, timeout: int = 90) -> tuple[bool, str]:
+# A reasoning model can spend a thousand tokens thinking before it writes the tool call, so
+# the probe gives it room. Too small a cap reads as a model that cannot call tools.
+PROBE_MAX_TOKENS = 4096
+PROBE_TIMEOUT_S = 120
+PROBES_AT_ONCE = 4
+
+
+def probe(model: str, timeout: int = PROBE_TIMEOUT_S) -> tuple[bool, str]:
     """One tool call through the smoke script, in its own process so its hard cap holds."""
+    command = [
+        sys.executable,
+        str(SMOKE),
+        "--model",
+        model,
+        "--tool",
+        "--timeout",
+        str(timeout),
+        "--max-tokens",
+        str(PROBE_MAX_TOKENS),
+    ]
     try:
         done = subprocess.run(
-            [sys.executable, str(SMOKE), "--model", model, "--tool", "--timeout", str(timeout)],
-            capture_output=True,
-            text=True,
-            timeout=timeout + 60,
-            check=False,
+            command, capture_output=True, text=True, timeout=timeout + 60, check=False
         )
     except subprocess.TimeoutExpired:
-        return False, f"no answer within {timeout + 60}s"
+        return False, f"FAILED: no answer within {timeout + 60}s"
     lines = (done.stdout + "\n" + done.stderr).splitlines()
     detail = next(
         (line for line in reversed(lines) if line.startswith(("OK ", "FAILED"))),
         lines[-1] if lines else "no output",
     )
     return done.returncode == 0, detail.strip()
+
+
+def probe_all(models: list[str]) -> dict[str, tuple[bool, str]]:
+    """Probe several models at once. Each is a separate process with its own hard cap."""
+    unique = list(dict.fromkeys(models))
+    with ThreadPoolExecutor(max_workers=PROBES_AT_ONCE) as pool:
+        results = list(pool.map(probe, unique))
+    return dict(zip(unique, results, strict=True))
+
+
+def _escape(text: str, *, prop: bool = False) -> str:
+    """Escape a workflow command the way the runner expects."""
+    text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    if prop:
+        text = text.replace(":", "%3A").replace(",", "%2C")
+    return text
+
+
+def annotate(level: str, title: str, message: str) -> None:
+    """Raise a workflow annotation, which the checks API serves even when logs are not."""
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::{level} title={_escape(title, prop=True)}::{_escape(message)}", flush=True)
 
 
 def plan(request: Request, passing: list[Entry], judge_model: str | None) -> list[dict[str, str]]:
@@ -354,6 +392,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("request", nargs="?", type=Path, help="The request JSON file.")
     parser.add_argument("--tasks-root", type=Path, default=ROOT / "tasks")
     parser.add_argument("--smoke", action="store_true", help="Probe every model first.")
+    parser.add_argument(
+        "--probe-only",
+        action="store_true",
+        help="Probe and report, and succeed whatever the probes say. For choosing models.",
+    )
     parser.add_argument("--github-output", help="Append the job matrix to this file.")
     parser.add_argument("--summary", help="Append the markdown summary to this file.")
     parser.add_argument(
@@ -377,22 +420,31 @@ def main(argv: list[str]) -> int:
         print(f"cannot plan the panel: {exc}", file=sys.stderr)
         return 2
 
+    smoke = args.smoke or args.probe_only
+    probed: dict[str, tuple[bool, str]] = {}
+    if smoke:
+        wanted = [entry.model for entry in request.entries]
+        if request.judge_model is not None:
+            wanted.append(request.judge_model)
+        probed = probe_all(wanted)
+        for model, (ok, detail) in probed.items():
+            print(f"{'ok  ' if ok else 'FAIL'} {model}: {detail}", flush=True)
+            annotate("notice" if ok else "warning", f"probe {model}", detail)
+
     outcomes: list[tuple[Entry, bool | None, str]] = []
     for entry in request.entries:
-        if args.smoke:
-            ok, detail = probe(entry.model)
+        if smoke:
+            ok, detail = probed[entry.model]
             outcomes.append((entry, ok, detail))
-            print(f"{'ok  ' if ok else 'FAIL'} {entry.model}: {detail}", flush=True)
         else:
             outcomes.append((entry, None, "planned without a probe"))
 
     judge: tuple[str, bool | None, str] | None = None
     judge_model = request.judge_model
     if judge_model is not None:
-        if args.smoke:
-            ok, detail = probe(judge_model)
+        if smoke:
+            ok, detail = probed[judge_model]
             judge = (judge_model, ok, detail)
-            print(f"{'ok  ' if ok else 'FAIL'} judge {judge_model}: {detail}", flush=True)
             if not ok:
                 judge_model = None
         else:
@@ -407,6 +459,14 @@ def main(argv: list[str]) -> int:
         args.github_output,
         f"entries={json.dumps(jobs)}\nmax_parallel={request.max_parallel}\ncount={len(jobs)}\n",
     )
+    annotate(
+        "notice",
+        "panel plan",
+        f"{len(jobs)} job(s): {', '.join(job['slug'] for job in jobs) or 'none'}; "
+        f"judge {judge_model or 'none'}",
+    )
+    if args.probe_only:
+        return 0
     if not jobs:
         print("no model passed its probe, so there is nothing to run", file=sys.stderr)
         return 1

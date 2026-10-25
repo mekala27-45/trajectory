@@ -1,0 +1,54 @@
+name: model-probe
+
+# One tool call to each candidate in model-requests/probe.json, and nothing else. This is
+# how a model earns a place in a panel: the probe says whether it answers, how fast, and
+# whether it calls tools, for one request each. It runs apart from any panel in progress,
+# and every result is raised as an annotation, so it can be read without the logs.
+
+on:
+  push:
+    branches: [main]
+    paths: ["model-requests/probe.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: model-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: skip without the key
+        id: guard
+        run: |
+          if [ -z "${{ secrets.NVIDIA_API_KEY }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "NVIDIA_API_KEY is not set in this repository, nothing to probe."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.run == 'true'
+
+      - uses: astral-sh/setup-uv@v5
+        if: steps.guard.outputs.run == 'true'
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+        if: steps.guard.outputs.run == 'true'
+
+      - name: probe every candidate with one call
+        if: steps.guard.outputs.run == 'true'
+        env:
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          uv run python scripts/plan_panel.py model-requests/probe.json --probe-only \
+            --summary "$GITHUB_STEP_SUMMARY"

@@ -13,7 +13,6 @@ from trajectory_runner.loader import discover
 
 ROOT = Path(__file__).resolve().parent.parent
 TASKS = discover(ROOT / "tasks", suite="core-12")
-REQUEST = ROOT / "model-requests" / "panel.json"
 
 
 def body(**overrides: object) -> dict[str, object]:
@@ -25,8 +24,10 @@ def body(**overrides: object) -> dict[str, object]:
     return base
 
 
-def test_the_committed_request_is_valid():
-    request = panel.parse_request(json.loads(REQUEST.read_text(encoding="utf-8")), TASKS)
+@pytest.mark.parametrize("name", ["panel.json", "probe.json"])
+def test_the_committed_requests_are_valid(name: str):
+    path = ROOT / "model-requests" / name
+    request = panel.parse_request(json.loads(path.read_text(encoding="utf-8")), TASKS)
     assert request.entries
     assert request.rpm_total <= panel.RPM_CEILING
     assert len({entry.slug for entry in request.entries}) == len(request.entries)
@@ -145,3 +146,39 @@ def test_records_summary_counts_by_model(tmp_path: Path):
     text = panel.records_summary(tmp_path)
     assert "| `nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b` | 3 |" in text
     assert "No sealed run records" in panel.records_summary(tmp_path / "absent")
+
+
+def test_probe_only_reports_and_succeeds(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    request = tmp_path / "probe.json"
+    request.write_text(json.dumps(body()), encoding="utf-8")
+    monkeypatch.setattr(panel, "probe", lambda model, timeout=90: (False, "FAILED: nope"))
+    assert panel.main([str(request), "--probe-only"]) == 0
+
+
+def test_every_probe_becomes_an_annotation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    request = tmp_path / "probe.json"
+    request.write_text(
+        json.dumps(body(models=[{"model": "nvidia_nim/v/good"}, {"model": "nvidia_nim/v/bad"}])),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        panel,
+        "probe",
+        lambda model, timeout=90: (model.endswith("good"), "line one\nline two, 100%"),
+    )
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert panel.main([str(request), "--probe-only"]) == 0
+    out = capsys.readouterr().out
+    assert "::notice title=probe nvidia_nim/v/good::line one%0Aline two, 100%25" in out
+    assert "::warning title=probe nvidia_nim/v/bad::" in out
+    assert "::notice title=panel plan::1 job(s): good" in out
+
+
+def test_no_annotation_outside_a_workflow(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    panel.annotate("notice", "t", "m")
+    assert capsys.readouterr().out == ""
