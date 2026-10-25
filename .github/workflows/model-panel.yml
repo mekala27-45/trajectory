@@ -1,0 +1,188 @@
+name: model-panel
+
+# Several real models, one committed request, one job per model.
+#
+# The request lives in model-requests/panel.json, so every model figure the repository
+# publishes has a reviewable record of what was asked for and under which caps. Changing
+# that file on main starts a panel; so does a manual dispatch.
+#
+# Every model is probed with one tool call before any job is planned. A model that fails
+# its probe is left out with the reason in the summary and the rest run regardless, so a
+# retired model or a typo costs one call, not a job.
+#
+# The jobs share one key, and the free key is rate limited across every model it calls, so
+# the request's total rate is split between the jobs that run at once. Each job has its own
+# call ceiling, by default the most calls its runs could ever make, so no seed is cut short.
+#
+# The model API call is made by the runner process, which has the network. The sandbox each
+# task runs in still has its network disabled, so this changes nothing about the isolation
+# the benchmark depends on.
+#
+# Records reach a branch named for this run, model-panel-<run id>. Promoting them onto the
+# leaderboard is a separate, reviewed commit.
+
+on:
+  push:
+    branches: [main]
+    paths: ["model-requests/panel.json"]
+  workflow_dispatch:
+    inputs:
+      request:
+        description: "Request file to run."
+        required: false
+        default: "model-requests/panel.json"
+      smoke_only:
+        description: "Probe every model with one call and stop."
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: model-panel
+  cancel-in-progress: false
+
+jobs:
+  # ------------------------------------------------------------- probe, then plan
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      run: ${{ steps.guard.outputs.run }}
+      entries: ${{ steps.plan.outputs.entries }}
+      max_parallel: ${{ steps.plan.outputs.max_parallel }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - name: skip without the key
+        id: guard
+        run: |
+          if [ -z "${{ secrets.NVIDIA_API_KEY }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "NVIDIA_API_KEY is not set in this repository, skipping the panel."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.run == 'true'
+
+      - uses: astral-sh/setup-uv@v5
+        if: steps.guard.outputs.run == 'true'
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+        if: steps.guard.outputs.run == 'true'
+
+      - name: probe every model with one call and plan the jobs
+        id: plan
+        if: steps.guard.outputs.run == 'true'
+        env:
+          # LiteLLM reads NVIDIA_NIM_API_KEY; the repository secret is NVIDIA_API_KEY.
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          REQUEST: ${{ github.event.inputs.request || 'model-requests/panel.json' }}
+        run: |
+          uv run python scripts/plan_panel.py "$REQUEST" --smoke \
+            --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------- one job per model
+  run:
+    needs: plan
+    if: >-
+      needs.plan.outputs.run == 'true' && needs.plan.outputs.count != '0' &&
+      github.event.inputs.smoke_only != 'true'
+    name: run ${{ matrix.slug }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.plan.outputs.max_parallel) }}
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.entries) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: run the model on the docker backend
+        timeout-minutes: 300
+        env:
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # Every token was validated by plan_panel.py and none needs quoting, so a plain
+          # split rebuilds the argument list without evaluating anything.
+          PANEL_ARGS: ${{ matrix.args }}
+        run: |
+          read -ra args <<< "$PANEL_ARGS"
+          uv run python scripts/run_matrix.py "${args[@]}"
+
+      # Each run is sealed to disk the moment it finishes, so whatever finished is kept
+      # even when the step above fails or runs out of time.
+      - name: gather the sealed run records
+        if: always()
+        run: |
+          mkdir -p panel-out
+          find runs -path '*/runs/*.json' -exec cp {} panel-out/ \; 2>/dev/null || true
+          echo "::notice title=${{ matrix.slug }}::$(ls panel-out | wc -l) sealed run records"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: panel-${{ matrix.slug }}
+          path: panel-out
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ------------------------------------------------------------- one branch with all of it
+  collect:
+    needs: [plan, run]
+    if: >-
+      always() && needs.plan.outputs.run == 'true' && needs.plan.outputs.count != '0' &&
+      github.event.inputs.smoke_only != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: panel-*
+          path: incoming
+          merge-multiple: true
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: count what arrived
+        run: uv run python scripts/plan_panel.py --summarise incoming --summary "$GITHUB_STEP_SUMMARY"
+
+      # Plain git to a branch named for this run, which can never collide with an earlier one.
+      - name: push the records to a branch for this run
+        run: |
+          mkdir -p fixtures/model-panel
+          find incoming -name '*.json' -exec cp {} fixtures/model-panel/ \; 2>/dev/null || true
+          count="$(ls fixtures/model-panel | wc -l)"
+          if [ "$count" = "0" ]; then
+            echo "::warning::no sealed run records arrived, nothing to push"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="model-panel-${{ github.run_id }}"
+          git checkout -b "$branch"
+          git add -f fixtures/model-panel
+          git commit -m "data: model panel records from run ${{ github.run_id }}"
+          git push --force origin "HEAD:refs/heads/$branch"
+          echo "::notice title=records-branch::$branch holds $count run records"

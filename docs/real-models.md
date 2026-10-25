@@ -64,3 +64,39 @@ past a small token cap rather than one that failed.
 A slow reasoning model that does not advertise tool calling is the wrong tool here however
 capable it is in the abstract, and the smoke is what tells the difference cheaply, before a
 full matrix runs.
+
+## A panel of models
+
+One model on the leaderboard says how that model did. It cannot say whether the tasks tell
+models apart, which is the question an evaluation has to answer before anyone trusts its
+numbers. A panel answers it.
+
+A panel is a committed request, [`model-requests/panel.json`](../model-requests/panel.json):
+the models, the seeds, the suite, the temperature, the total request rate, and an optional
+judge. Changing that file on `main` starts
+[`model-panel.yml`](../.github/workflows/model-panel.yml), so every model figure the
+repository publishes has a reviewable record of what was asked for, in the same history as
+the code that produced it. `scripts/plan_panel.py` validates the request before anything is
+spent, and refuses a scripted policy, an unknown task, a duplicate seed, or a rate above the
+key's limit.
+
+How the workflow spends a free key:
+
+- **One call per model first.** Every model, and the judge, is probed with a single tool
+  call. A model that fails is left out of the panel with its reason in the run summary, and
+  the rest run regardless. A judge that fails its probe means the panel runs without one.
+- **One job per model.** Each job runs its model on the Docker backend under its own call
+  ceiling. The default ceiling is the most calls the requested runs could ever make, every
+  run taken to its step ceiling, so no seed is cut part way through.
+- **One rate limit, shared.** The free key is limited across every model it calls, so the
+  request's total rate is divided evenly between the jobs that run at once.
+- **A slice when a run was cut.** An entry can name tasks and seeds, so a seed a ceiling cut
+  short is completed on its own instead of repeating what already finished.
+- **Records survive a failure.** Each run is sealed to disk the moment it ends, so a job
+  that fails or runs out of time still delivers what it finished. Everything arrives on a
+  branch named for the workflow run, and promoting it onto the leaderboard is a separate,
+  reviewed commit.
+
+Provider latency on a shared free tier counts against each task's wall clock ceiling, the
+same as the model's own time. A slow hour on the free tier can show up as timeouts, so
+compare models from the same panel rather than across days.

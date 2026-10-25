@@ -1,0 +1,46 @@
+{
+  "purpose": "Six free hosted models from six model families on all twelve core-12 tasks at seeds 0 and 1, so the leaderboard can show whether the tasks tell models apart. Plus the four seed 1 tasks the first nemotron run's call ceiling cut short, which completes its second seed. Unsolved runs are read by a judge from a family none of the six belongs to, the first time the three judged failure modes and context drift are measured.",
+  "suite": "core-12",
+  "temperature": 0.7,
+  "rpm_total": 34,
+  "max_parallel": 4,
+  "parallel": 2,
+  "seeds": [
+    0,
+    1
+  ],
+  "judge_model": "nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+  "models": [
+    {
+      "model": "nvidia_nim/deepseek-ai/deepseek-v4.1-flash"
+    },
+    {
+      "model": "nvidia_nim/z-ai/glm-5.3-flash"
+    },
+    {
+      "model": "nvidia_nim/minimaxai/minimax-m3.1-flash"
+    },
+    {
+      "model": "nvidia_nim/moonshotai/kimi-k2.6"
+    },
+    {
+      "model": "nvidia_nim/openai/gpt-oss-20b"
+    },
+    {
+      "model": "nvidia_nim/google/gemma-4-31b-it"
+    },
+    {
+      "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+      "tasks": [
+        "py-perf-01",
+        "sql-migration-01",
+        "ts-api-contract-01",
+        "ts-build-break-01"
+      ],
+      "seeds": [
+        1
+      ],
+      "note": "Completes seed 1. The first run's shared ceiling of 500 calls ran out before these four started, so they were never attempted."
+    }
+  ]
+}

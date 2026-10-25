@@ -28,7 +28,7 @@ from trajectory_core.judge import LiteLLMJudge
 from trajectory_core.models import SandboxBackend
 from trajectory_runner.agent import Budget, CallBudget, RateLimiter
 from trajectory_runner.execute import ExecutionOptions, plan, prebuild_images, run_suite
-from trajectory_runner.loader import discover
+from trajectory_runner.loader import LoadedTask, discover
 from trajectory_runner.sandbox import ALLOW_LOCAL_ENV, docker_available
 from trajectory_runner.store import new_run_directory, write_bundle
 
@@ -46,6 +46,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Model identifier, repeatable. Defaults to the five offline policies.",
     )
     parser.add_argument("--seeds", type=int, default=DEFAULT_SEEDS)
+    parser.add_argument(
+        "--seed",
+        action="append",
+        type=int,
+        default=None,
+        help="An explicit seed, repeatable. Overrides --seeds, so a seed a cap cut short can "
+        "be completed on its own without repeating the ones that finished.",
+    )
+    parser.add_argument(
+        "--task",
+        action="append",
+        default=None,
+        help="A task identifier, repeatable. Defaults to every task in the suite.",
+    )
     parser.add_argument("--parallel", type=int, default=2)
     parser.add_argument("--budget-usd", type=float, default=None)
     parser.add_argument(
@@ -78,6 +92,31 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def select_tasks(tasks: list[LoadedTask], wanted: list[str] | None) -> list[LoadedTask]:
+    """Keep the tasks asked for, in suite order, and refuse an identifier the suite lacks.
+
+    A typo in a task id would otherwise run nothing for that task and report a smaller
+    matrix as if it were the one requested.
+    """
+    if not wanted:
+        return tasks
+    known = {loaded.id for loaded in tasks}
+    unknown = sorted(set(wanted) - known)
+    if unknown:
+        raise ValueError(f"not in the suite: {', '.join(unknown)}")
+    keep = set(wanted)
+    return [loaded for loaded in tasks if loaded.id in keep]
+
+
+def seed_list(count: int, explicit: list[int] | None) -> list[int]:
+    """The seeds to run: the explicit ones when given, else 0 up to the count."""
+    if explicit:
+        if any(seed < 0 for seed in explicit):
+            raise ValueError("seeds are non-negative")
+        return sorted(set(explicit))
+    return list(range(count))
+
+
 def main(argv: list[str]) -> int:
     """Run the matrix and write one bundle covering all of it."""
     structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(30))
@@ -100,9 +139,13 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
-    tasks = discover(args.tasks_root, suite=args.suite)
+    try:
+        tasks = select_tasks(discover(args.tasks_root, suite=args.suite), args.task)
+        seeds = seed_list(args.seeds, args.seed)
+    except ValueError as exc:
+        print(f"cannot plan the matrix: {exc}", file=sys.stderr)
+        return 2
     models = args.model or [f"stub:{name}" for name in POLICIES]
-    seeds = list(range(args.seeds))
     real_models = bool(args.model)
     order = args.order if args.order != "auto" else ("seed" if real_models else "task")
 
