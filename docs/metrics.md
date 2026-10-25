@@ -205,6 +205,41 @@ A metric that is undefined for a run is excluded from its own denominator rather
 coerced to zero. A group with nothing in it renders `n/a`, never `0.000 +/- 0.000`, because
 a zero there reads as a measurement.
 
+## How sure a number is
+
+The seed spread answers one question: would running the same tasks again move the number.
+It is silent on a second that matters more for a small suite: would the number hold on
+tasks the suite does not have. `trajectory report` answers that one too, from
+[`stats.py`](../packages/core/src/trajectory_core/stats.py), and every figure is seeded so
+a published interval can be recomputed exactly.
+
+- **An interval over tasks.** A 95% two stage percentile bootstrap: draw the tasks with
+  replacement, then each drawn task's seeds with replacement, and take the task mean. Every
+  task weighs the same, so a task sampled three times does not count three times as much.
+  With twelve tasks the interval is wide, and that width is the finding: two models whose
+  intervals overlap a lot are two models this suite cannot rank.
+- **pass@k.** The unbiased estimator of Chen et al. (2021), `1 - C(n-c, k) / C(n, k)` for a
+  task with `n` samples and `c` solves, averaged over the tasks with at least `k` samples.
+  pass@1 is the solve rate; the gap to pass@2 says how much a second attempt buys.
+- **Head to head.** Two models compared on the tasks both attempted, resampled as pairs
+  rather than as two independent averages, which is what a shared task set allows. The
+  report gives the difference with its interval and the share of resamples in which the
+  first came out ahead. A pair is separated only when the whole interval sits on one side
+  of zero.
+- **The reward signal, per model.** For each task, whether a model's samples disagree. A
+  group relative method such as GRPO computes each sample's advantage as its reward less the
+  group mean, over the group's spread, so a task every sample passes, or every sample
+  fails, gives zero advantage everywhere and teaches nothing. `MODEL-RESULTS.md` marks the
+  tasks that do teach, under a binary reward and under partial credit, and works one group
+  through to its advantages.
+
+## How strong the hidden tests are
+
+A metric is only as good as the tests behind it. `trajectory tasks mutate` replays each
+reference with one small change in a file it writes and counts the near misses the hidden
+tests catch. [verifier-strength.md](verifier-strength.md) has the method, the measured
+block and every mutant that got through.
+
 Leaderboard rows are keyed by model, suite **and sandbox backend**. Runs from the
 unisolated local backend form their own rows and are never averaged together with
 container runs. That backend cannot guarantee the agent did not read the hidden tests, so

@@ -19,14 +19,17 @@ Each task becomes a Harbor task directory:
 | `task.toml` | limits and metadata, Harbor schema 1.0 |
 | `instruction.md` | the agent prompt, verbatim, the only thing the agent sees |
 | `environment/` | the task Dockerfile with the workspace baked in, never the tests |
-| `tests/test.sh` | the verifier, which writes a reward on every exit path |
+| `tests/test.sh` | the verifier, which plants a fresh must fail test and writes a reward on every exit path |
 | `tests/verify/` | the hidden tests, present only at grading time |
 | `solution/solve.sh` | the reference playbook replayed as an oracle |
 
 The reward is binary, solved or not, and `partial_credit` carries the fraction of hidden
 tests that passed, so a task that starts four of eight green reads as reward 0 with partial
 credit 0.5 rather than as a partial success. The export refuses a Dockerfile that would copy
-the tests into the agent's image.
+the tests into the agent's image. Every grading run copies the hidden tests into a fresh
+directory and plants one more test there, written for that run, that fails for any correct
+runner; a report that claims success with it in the set scores zero and says `tampered` in
+`reward.json`. The [grader audit](grader-audit.md) explains why.
 
 `scripts/check_harbor_export.py` runs in CI with no Docker. It grades a sample of exports
 three ways: the oracle must score 1.0, the untouched workspace 0.0, and the untouched

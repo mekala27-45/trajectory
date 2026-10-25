@@ -128,8 +128,11 @@ route that remains is named instead of hidden.
 
 ## What the Harbor export carries
 
-The Harbor export carries the hardening and the counting rule. It does not plant a test
-yet, because its grading script is generated once per task and a planted test has to be
-written fresh for every run to mean anything, and where its tests run is Harbor's choice,
-not this harness's. Both are the next changes to the export. It is the part a model team cannot get from a leaderboard
+The Harbor export carries the hardening, the counting rule and the planted test. Its
+grading script is generated once per task, so the planted test is not: on every grading
+run, `test.sh` copies the hidden tests into a fresh directory, has `score.py` write a new
+must fail test among them with a random name, and reads the report back with the same three
+outcomes the native verifier uses. The exported task itself is never changed, so no planted
+test is left for the next run to find. Where Harbor runs its tests is Harbor's choice, not
+this harness's, so the fresh container is the one defence the export cannot carry. It is the part a model team cannot get from a leaderboard
 number, which is the argument for scoring the trajectory rather than only the outcome.

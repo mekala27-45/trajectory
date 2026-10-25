@@ -75,7 +75,7 @@ REAL_NOTE = (
 )
 DEFAULT_FIXTURES = (Path("fixtures/recorded-runs"), Path("fixtures/model-runs"))
 MUTATION_REPORT = Path("fixtures/mutation/core-12.json")
-MODEL_PROVENANCE = Path("fixtures/model-runs/provenance.json")
+MODEL_PROVENANCE = Path("fixtures/model-runs.provenance.json")
 
 
 def _interval(value: Interval) -> dict[str, float]:

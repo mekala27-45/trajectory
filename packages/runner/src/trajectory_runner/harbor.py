@@ -172,7 +172,15 @@ trap write_zero EXIT
 # the import path, and the user site directory, where an agent could plant a startup hook,
 # is ignored. task.toml declares it too; it is repeated here so the verifier is hardened
 # however it is run.
-export VERIFY_DIR="$HERE/verify"
+#
+# The hidden tests run from a fresh copy, with one more test planted among them: written for
+# this run alone, with a random name, and failing for any correct runner. A report that
+# claims success with it in the set is not believed. The copy keeps the exported task as it
+# was, so every run plants its own and none is left behind for the next.
+export VERIFY_DIR="$(mktemp -d)"
+cp -R "$HERE/verify/." "$VERIFY_DIR/"
+CANARY="$(python3 -I -S "$HERE/score.py" plant --parser {parser} --dir "$VERIFY_DIR" \
+  2>/dev/null || true)"
 export {hardening}
 out="$(cd "$WORKDIR" && VERIFY_DIR="$VERIFY_DIR" bash "$HERE/run_verify.sh" 2>&1)"
 rc=$?
@@ -181,7 +189,7 @@ printf '%s\n' "$out"
 # The parser runs isolated and without the site module, so no file the agent left in any
 # site directory can run inside the process that writes the reward.
 printf '%s' "$out" | python3 -I -S "$HERE/score.py" \
-  --parser {parser} --exit "$rc" --out "$OUT"{expected}
+  --parser {parser} --exit "$rc" --out "$OUT" --canary "$CANARY"{expected}
 """
 
 
@@ -208,7 +216,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import secrets
 import sys
 
 _PYTEST = re.compile(r"(\d+)\s+(passed|failed|error|errors|skipped|xfailed|xpassed)\b")
@@ -269,17 +279,90 @@ PARSERS = {
     "json_report": parse_json,
 }
 
+# The planted test, the same rule the native verifier applies. Ordinary words, so it looks
+# like any other file in a hidden test directory.
+_WORDS = ("anchor", "balance", "border", "buffer", "column", "cursor", "ledger", "marker",
+          "record", "signal", "window")
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_GO_PACKAGE = re.compile(r"^package\s+(\w+)\s*$", re.MULTILINE)
+
+
+def plant(parser, directory):
+    """Write a must fail test for this runner into the directory and return its name."""
+    word, token = secrets.choice(_WORDS), secrets.token_hex(3)
+    left, right = 11 + secrets.randbelow(87), 11 + secrets.randbelow(87)
+    wrong = left + right + 1 + secrets.randbelow(9)
+    if parser == "pytest":
+        name = "test_%s_%s" % (word, token)
+        filename = name + ".py"
+        body = "def %s():\n    total = %d + %d\n    assert total == %d\n" % (
+            name, left, right, wrong
+        )
+    elif parser == "go_test":
+        package = None
+        for entry in sorted(os.listdir(directory)):
+            if entry.endswith(".go"):
+                with open(os.path.join(directory, entry), encoding="utf-8", errors="replace") as f:
+                    found = _GO_PACKAGE.search(f.read())
+                if found:
+                    package = found.group(1)
+                    break
+        if package is None:
+            return ""
+        name = "Test%s%s" % (word.capitalize(), token.upper())
+        filename = "%s_%s_test.go" % (word, token)
+        body = (
+            'package %s\n\nimport "testing"\n\nfunc %s(t *testing.T) {\n\ttotal := %d + %d\n'
+            '\tif total != %d {\n\t\tt.Fatalf("total is %%d", total)\n\t}\n}\n'
+        ) % (package, name, left, right, wrong)
+    elif parser == "node_tap":
+        name = "%s_%s" % (word, token)
+        filename = name + ".test.mjs"
+        body = (
+            'import { test } from "node:test";\nimport assert from "node:assert/strict";\n\n'
+            'test("%s", () => {\n  assert.equal(%d + %d, %d);\n});\n'
+        ) % (name, left, right, wrong)
+    else:
+        return ""
+    with open(os.path.join(directory, filename), "w", encoding="utf-8") as handle:
+        handle.write(body)
+    return name
+
+
+def reported(parser, name, output, failed):
+    """True when the runner's report names the planted test as failed, or as passed."""
+    text, escaped = _ANSI.sub("", output), re.escape(name)
+    if parser == "pytest":
+        pattern = r"^FAILED\s+\S*::%s(\s|$)" % escaped if failed else None
+    elif parser == "go_test":
+        pattern = r"^\s*--- %s: %s\s" % ("FAIL" if failed else "PASS", escaped)
+    elif parser == "node_tap":
+        pattern = r"^\s*%sok \d+ - %s\s*$" % ("not " if failed else "", escaped)
+    else:
+        pattern = None
+    return bool(pattern and re.search(pattern, text, re.MULTILINE))
+
 
 def main(argv):
+    if argv and argv[0] == "plant":
+        ap = argparse.ArgumentParser()
+        ap.add_argument("--parser", required=True)
+        ap.add_argument("--dir", required=True)
+        args = ap.parse_args(argv[1:])
+        print(plant(args.parser, args.dir))
+        return 0
     ap = argparse.ArgumentParser()
     ap.add_argument("--parser", required=True)
     ap.add_argument("--exit", type=int, required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--expected", type=int, default=None)
+    ap.add_argument("--canary", default="")
     args = ap.parse_args(argv)
 
     output = sys.stdin.read()
     parsed = None if args.parser == "exit_code" else PARSERS[args.parser](output)
+    exit_ok = args.exit == 0
+    tampered = False
 
     if parsed is None and args.parser == "exit_code":
         passed, total = (1, 1) if args.exit == 0 else (0, 1)
@@ -289,17 +372,28 @@ def main(argv):
         passed, total = 0, (args.expected or 1)
     else:
         passed, total = parsed
+        if args.canary:
+            if args.exit == 0 or reported(args.parser, args.canary, output, failed=False):
+                # Success claimed with a test that must fail in the set: not believed.
+                tampered, passed, total = True, 0, max(total - 1, 1)
+            elif reported(args.parser, args.canary, output, failed=True):
+                total -= 1  # the planted test failed as it must; it is not one of the task's
+                exit_ok = args.exit == 1
+            else:
+                exit_ok = False  # never mentioned: nothing confirms the report
         if args.expected and total < args.expected:
             total = args.expected  # a declared test that never ran did not pass
     partial = (passed / total) if total else 0.0
 
-    solved = total > 0 and passed == total and args.exit == 0
+    solved = total > 0 and passed == total and exit_ok and not tampered
     reward = 1.0 if solved else 0.0
     payload = {
         "reward": reward,
         "partial_credit": round(partial, 6),
         "tests_passed": passed,
         "tests_total": total,
+        "canary": args.canary or None,
+        "tampered": tampered,
     }
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(payload, handle)

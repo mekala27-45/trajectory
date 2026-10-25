@@ -145,6 +145,102 @@ class TestTheExportGradesLikeTheNativeVerifier:
         assert (payload["reward"], payload["tests_passed"], payload["tests_total"]) == graded
 
 
+class TestThePlantedTestInTheExport:
+    """The export plants its own must fail test on every grading run, and reads it back."""
+
+    CANARY = "test_ledger_3fa2c1"
+
+    def _score(
+        self, tmp_path: Path, output: str, parser: str, exit_code: int, canary: str
+    ) -> dict[str, object]:
+        loaded = _write_task(tmp_path / "src", GOOD_DOCKERFILE)
+        target = export_task(loaded, tmp_path / "out")
+        reward_file = tmp_path / "reward.json"
+        command = [
+            sys.executable,
+            "-I",
+            "-S",
+            str(target / "tests" / "score.py"),
+            "--parser",
+            parser,
+            "--exit",
+            str(exit_code),
+            "--out",
+            str(reward_file),
+            "--canary",
+            canary,
+        ]
+        subprocess.run(command, input=output, text=True, check=True, capture_output=True)  # noqa: S603
+        return json.loads(reward_file.read_text(encoding="utf-8"))
+
+    def test_a_clean_pass_leaves_the_planted_test_out(self, tmp_path: Path) -> None:
+        output = (
+            f"FAILED ../verify/{self.CANARY}.py::{self.CANARY} - assert 70 == 73\n"
+            "1 failed, 8 passed\n"
+        )
+        payload = self._score(tmp_path, output, "pytest", 1, self.CANARY)
+        assert (payload["reward"], payload["tests_passed"], payload["tests_total"]) == (1.0, 8, 8)
+        assert payload["tampered"] is False
+
+    def test_success_claimed_with_it_in_the_set_is_not_believed(self, tmp_path: Path) -> None:
+        payload = self._score(tmp_path, "9 passed in 0.01s\n", "pytest", 0, self.CANARY)
+        assert payload["tampered"] is True
+        assert (payload["reward"], payload["tests_passed"]) == (0.0, 0)
+
+    def test_a_report_that_never_mentions_it_cannot_pass(self, tmp_path: Path) -> None:
+        payload = self._score(tmp_path, "1 failed, 8 passed\n", "pytest", 1, self.CANARY)
+        assert payload["reward"] == 0.0
+        assert payload["tampered"] is False
+
+    def test_go_and_node_reports(self, tmp_path: Path) -> None:
+        go = "--- PASS: TestA (0.00s)\n--- FAIL: TestLedger3FA2C1 (0.00s)\n"
+        payload = self._score(tmp_path / "go", go, "go_test", 1, "TestLedger3FA2C1")
+        assert (payload["reward"], payload["tests_total"]) == (1.0, 1)
+        tap = "ok 1 - a\nok 2 - ledger_3fa2c1\n"
+        payload = self._score(tmp_path / "tap", tap, "node_tap", 1, "ledger_3fa2c1")
+        assert payload["tampered"] is True
+
+    def test_test_sh_plants_into_a_fresh_copy_every_run(self, tmp_path: Path) -> None:
+        loaded = _write_task(tmp_path / "src", GOOD_DOCKERFILE)
+        target = export_task(loaded, tmp_path / "out")
+        script = (target / "tests" / "test.sh").read_text(encoding="utf-8")
+        assert 'export VERIFY_DIR="$(mktemp -d)"' in script
+        assert '"$HERE/score.py" plant --parser' in script
+        assert '--canary "$CANARY"' in script
+
+    def test_plant_writes_a_test_that_really_fails(self, tmp_path: Path) -> None:
+        loaded = _write_task(tmp_path / "src", GOOD_DOCKERFILE)
+        target = export_task(loaded, tmp_path / "out")
+        verify = tmp_path / "verify"
+        verify.mkdir()
+        done = subprocess.run(  # noqa: S603
+            [
+                sys.executable,
+                "-I",
+                "-S",
+                str(target / "tests" / "score.py"),
+                "plant",
+                "--parser",
+                "pytest",
+                "--dir",
+                str(verify),
+            ],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        name = done.stdout.strip()
+        assert name.startswith("test_")
+        ran = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:randomly", str(verify)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert ran.returncode == 1
+        assert f"::{name}" in ran.stdout
+
+
 class TestGuards:
     def test_a_dockerfile_that_copies_the_tests_is_refused(self, tmp_path: Path) -> None:
         leaky = GOOD_DOCKERFILE + "COPY verify/ /verify/\n"
