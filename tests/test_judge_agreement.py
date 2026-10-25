@@ -74,7 +74,12 @@ def test_only_runs_the_first_judge_read_are_compared():
     solved = next(run for run in read_runs(MODEL_RUNS) if run.solved)
     judged = _judged(first, drift=0.1, hits=[])
     failed = _judged(second, drift=0.2, hits=[], error="judge failed: timed out")
-    unjudged = third  # no drift recorded: the judge never ran
+    # No drift recorded: the judge never read it. Built here rather than found, because
+    # every unsolved run in the committed panel now carries a verdict.
+    assert third.score is not None
+    unjudged = third.model_copy(
+        update={"score": third.score.model_copy(update={"context_drift": None})}
+    )
     kept = agreement.judged_runs([judged, failed, unjudged, solved])
     assert [run.id for run in kept] == [judged.id]
 

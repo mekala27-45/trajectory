@@ -249,9 +249,9 @@ agent could not edit them afterwards. It was fixed, and every published model re
 again after the fix. Finding your own bugs is the point of a measurement tool, not an
 embarrassment.
 
-A free service also has bad hours. On the first panel it dropped about two runs in five
-partway through, by timing out or turning requests away, and a run cut off like that says
-nothing about the model. So the harness counts those runs separately from the model's own
+A free service also has bad hours. On the first panel it ended about two runs in five early,
+some before the model had taken a single step, by timing out or turning requests away, and a
+run cut off like that says nothing about the model. So the harness counts those runs separately from the model's own
 failures, and can run exactly those again under a rule written down before anyone sees the
 result: the new run replaces the old one whatever it scores.
 
