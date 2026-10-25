@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -385,6 +386,10 @@ def ended_by_provider(run: Run) -> bool:
     )
 
 
+# A provider exception whose message ends where the server's reason should begin.
+_EMPTY_REFUSAL = re.compile(r"Exception - \s*$")
+
+
 def _is_rate_limit(exc: Exception) -> bool:
     """A refusal for asking too often, as opposed to a slow or broken reply."""
     text = f"{type(exc).__name__} {exc}".lower()
@@ -409,8 +414,17 @@ def retry_delay(exc: Exception, attempt: int) -> float:
 
 
 def _is_retryable(exc: Exception) -> bool:
-    """Decide whether a provider exception is worth another attempt."""
+    """Decide whether a provider exception is worth another attempt.
+
+    A bad request is not, as a rule: the same request sent again is refused again. The one
+    exception is a refusal with no reason in it at all. The free tier's gpt-oss-20b endpoint
+    answered about one call in thirty that way, at scattered points in runs whose requests
+    looked like every other, which is the server failing on its own output rather than on
+    the request, and a second attempt is a fresh sample.
+    """
     name = type(exc).__name__.lower()
+    if "badrequest" in name and _EMPTY_REFUSAL.search(str(exc)):
+        return True
     if any(
         token in name
         for token in (

@@ -318,3 +318,17 @@ def test_transient_failures_are_retryable(exc):
 )
 def test_deterministic_failures_are_not_retryable(exc):
     assert _is_retryable(exc) is False
+
+
+class BadRequestError(Exception):
+    """Named the way LiteLLM names the class, which is what the check reads."""
+
+
+def test_a_refusal_with_no_reason_is_retried():
+    """The gpt-oss endpoint's empty HTTP 400, about one call in thirty on the free tier."""
+    assert _is_retryable(BadRequestError("litellm.BadRequestError: Nvidia_nimException - "))
+
+
+def test_a_refusal_with_a_reason_is_not():
+    refused = BadRequestError("litellm.BadRequestError: Nvidia_nimException - context too long")
+    assert _is_retryable(refused) is False
