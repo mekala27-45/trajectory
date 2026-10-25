@@ -1,0 +1,257 @@
+{
+  "id": "01a17214-b9de-70c6-a5db-0797f3c1b456",
+  "schema_version": 1,
+  "task_id": "ts-api-contract-01",
+  "suite": "core-12",
+  "config": {
+    "model": "nvidia_nim/openai/gpt-oss-20b",
+    "temperature": 0.7,
+    "max_steps": 45,
+    "seed": 1,
+    "tools_enabled": [
+      "bash",
+      "read_file",
+      "write_file",
+      "list_dir",
+      "finish"
+    ],
+    "timeout_seconds": 900,
+    "command_timeout_seconds": 240,
+    "budget_usd": null,
+    "max_output_bytes": 16384,
+    "sandbox_backend": "docker"
+  },
+  "started_at": "2026-10-25T08:02:03.346966Z",
+  "finished_at": "2026-10-25T08:03:56.771181Z",
+  "status": "error",
+  "steps": [
+    {
+      "index": 0,
+      "timestamp": "2026-10-25T08:02:11.991054Z",
+      "thought": "We need to run build.sh. Let's view files.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": "",
+        "depth": 2
+      },
+      "tool_output": "Invalid arguments for list_dir: depth: Extra inputs are not permitted. Expected fields: path.",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 845,
+      "tokens_out": 40,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": true,
+      "error": "Invalid arguments for list_dir: depth: Extra inputs are not permitted. Expected fields: path.",
+      "failed": false
+    },
+    {
+      "index": 1,
+      "timestamp": "2026-10-25T08:02:24.506223Z",
+      "thought": "We need to list directory.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": ""
+      },
+      "tool_output": "path is empty",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 899,
+      "tokens_out": 29,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": "path is empty",
+      "failed": false
+    },
+    {
+      "index": 2,
+      "timestamp": "2026-10-25T08:02:37.585688Z",
+      "thought": "Let's list root.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": ""
+      },
+      "tool_output": "path is empty",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 932,
+      "tokens_out": 27,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": "path is empty",
+      "failed": false
+    },
+    {
+      "index": 3,
+      "timestamp": "2026-10-25T08:02:50.501984Z",
+      "thought": "We need to list directory. Use list_dir with path \".\"? Let's try.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": "."
+      },
+      "tool_output": "README.md\nbuild.sh\nopenapi.json\npackage.json\nsrc/\ntools/\ntsconfig.json",
+      "exit_code": null,
+      "duration_ms": 43,
+      "tokens_in": 965,
+      "tokens_out": 39,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 4,
+      "timestamp": "2026-10-25T08:03:15.839428Z",
+      "thought": "Let's list src.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": "src",
+        "depth": 2
+      },
+      "tool_output": "Invalid arguments for list_dir: depth: Extra inputs are not permitted. Expected fields: path.",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 1015,
+      "tokens_out": 31,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": true,
+      "error": "Invalid arguments for list_dir: depth: Extra inputs are not permitted. Expected fields: path.",
+      "failed": false
+    },
+    {
+      "index": 5,
+      "timestamp": "2026-10-25T08:03:27.395430Z",
+      "thought": "The tool doesn't accept depth. Let's just list.",
+      "tool_name": "list_dir",
+      "tool_args": {
+        "path": "src"
+      },
+      "tool_output": "generated/\norders.ts\nshipments.ts\nstatus.ts",
+      "exit_code": null,
+      "duration_ms": 45,
+      "tokens_in": 1071,
+      "tokens_out": 33,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": false,
+      "error": null,
+      "failed": false
+    },
+    {
+      "index": 6,
+      "timestamp": "2026-10-25T08:03:39.692377Z",
+      "thought": "Let's inspect generated client.",
+      "tool_name": "read_file",
+      "tool_args": {
+        "path": "src/generated/client.ts",
+        "line_start": 1,
+        "line_end": 400
+      },
+      "tool_output": "Invalid arguments for read_file: line_start: Extra inputs are not permitted; line_end: Extra inputs are not permitted. Expected fields: path.",
+      "exit_code": null,
+      "duration_ms": 0,
+      "tokens_in": 1113,
+      "tokens_out": 41,
+      "cost_usd": 0.0,
+      "truncated": false,
+      "schema_violation": true,
+      "error": "Invalid arguments for read_file: line_start: Extra inputs are not permitted; line_end: Extra inputs are not permitted. Expected fields: path.",
+      "failed": false
+    }
+  ],
+  "verification": {
+    "passed": false,
+    "tests_passed": 3,
+    "tests_total": 9,
+    "stderr_tail": "ernal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n# Subtest: every create request carries an idempotency key\nnot ok 7 - every create request carries an idempotency key\n  ---\n  duration_ms: 1.097576\n  location: '/verify/contract.test.mjs:253:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    sh build.sh failed, so the call sites cannot be exercised:\n    src/generated/client.ts(22,14): error TS2304: Cannot find name 'Iso8601'.\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: true\n  actual: false\n  operator: '=='\n  stack: |-\n    load (file:///verify/contract.test.mjs:122:10)\n    TestContext.<anonymous> (file:///verify/contract.test.mjs:254:32)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n# Subtest: the status the schema gained has a label\nnot ok 8 - the status the schema gained has a label\n  ---\n  duration_ms: 0.233244\n  location: '/verify/contract.test.mjs:282:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    sh build.sh failed, so the call sites cannot be exercised:\n    src/generated/client.ts(22,14): error TS2304: Cannot find name 'Iso8601'.\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: true\n  actual: false\n  operator: '=='\n  stack: |-\n    load (file:///verify/contract.test.mjs:122:10)\n    TestContext.<anonymous> (file:///verify/contract.test.mjs:283:36)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n# Subtest: the tracking line iterates the shipment list\nnot ok 9 - the tracking line iterates the shipment list\n  ---\n  duration_ms: 0.496615\n  location: '/verify/contract.test.mjs:290:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    sh build.sh failed, so the call sites cannot be exercised:\n    src/generated/client.ts(22,14): error TS2304: Cannot find name 'Iso8601'.\n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: true\n  actual: false\n  operator: '=='\n  stack: |-\n    load (file:///verify/contract.test.mjs:122:10)\n    TestContext.<anonymous> (file:///verify/contract.test.mjs:291:37)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:633:18)\n    Test.postRun (node:internal/test_runner/test:1045:19)\n    Test.run (node:internal/test_runner/test:973:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)\n  ...\n# Subtest: cursor_376e47\nnot ok 10 - cursor_376e47\n  ---\n  duration_ms: 1.31408\n  location: '/verify/cursor_376e47.test.mjs:4:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    Expected values to be strictly equal:\n    \n    155 !== 158\n    \n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: 158\n  actual: 155\n  operator: 'strictEqual'\n  stack: |-\n    TestContext.<anonymous> (file:///verify/cursor_376e47.test.mjs:5:10)\n    Test.runInAsyncScope (node:async_hooks:211:14)\n    Test.run (node:internal/test_runner/test:934:25)\n    Test.start (node:internal/test_runner/test:833:17)\n    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)\n  ...\n1..10\n# tests 10\n# suites 0\n# pass 3\n# fail 7\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 604.706814\n",
+    "duration_ms": 2876,
+    "exit_code": 1,
+    "parse_ok": true,
+    "canary": "cursor_376e47",
+    "tampered": false,
+    "partial_credit": 0.333333
+  },
+  "score": {
+    "solved": false,
+    "partial_credit": 0.333333,
+    "step_efficiency": null,
+    "tool_call_validity": 0.571429,
+    "redundant_action_rate": 0.0,
+    "recovery_rate": null,
+    "premature_termination": false,
+    "context_drift": 0.0,
+    "cost_usd": 0.0,
+    "wall_clock_s": 113.424,
+    "destructive_attempts": 0,
+    "total_steps": 7,
+    "total_commands": 0,
+    "schema_violations": 3,
+    "failed_commands": 0
+  },
+  "failure_modes": [
+    {
+      "id": "F01",
+      "name": "tool schema violation",
+      "confidence": 1.0,
+      "detector": "rule",
+      "evidence": "3 of 7 steps were rejected before reaching the sandbox. Tools involved: list_dir, read_file. First rejection at step 0: Invalid arguments for list_dir: depth: Extra inputs are not permitted. Expected fields: path.",
+      "step_indices": [
+        0,
+        4,
+        6
+      ]
+    }
+  ],
+  "image_id": "sha256:9d52604e056a50c8eb0e539127be217a50edf4413f8759702572cbc8e4089107",
+  "harness_version": "0.3.0",
+  "runner_fingerprint": {
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "arch": "x86_64",
+    "python_version": "3.12.3",
+    "cpu_count": 4,
+    "docker_version": "28.0.4",
+    "sandbox_backend": "docker",
+    "ci": true,
+    "source_commit": "e2405b6e7ad191257b841fe28628169eee7e6d17"
+  },
+  "initial_workspace": {
+    "files": {
+      "README.md": "8ab9decb89ecfc9a",
+      "build.sh": "1f910b6b653bf2f7",
+      "openapi.json": "9c5d238299716969",
+      "package.json": "3d96cace041a7f4a",
+      "src/generated/client.ts": "fe1487c0784f2423",
+      "src/orders.ts": "2cb00431eeff0d38",
+      "src/shipments.ts": "a2dcd2e860737065",
+      "src/status.ts": "05a2457cbf3bc324",
+      "tools/generate-client.mjs": "d324f4c72b570666",
+      "tsconfig.json": "0c267bc81b1afc1f"
+    },
+    "truncated": false
+  },
+  "final_workspace": {
+    "files": {
+      "README.md": "8ab9decb89ecfc9a",
+      "build.sh": "1f910b6b653bf2f7",
+      "openapi.json": "9c5d238299716969",
+      "package.json": "3d96cace041a7f4a",
+      "src/generated/client.ts": "fe1487c0784f2423",
+      "src/orders.ts": "2cb00431eeff0d38",
+      "src/shipments.ts": "a2dcd2e860737065",
+      "src/status.ts": "05a2457cbf3bc324",
+      "tools/generate-client.mjs": "d324f4c72b570666",
+      "tsconfig.json": "0c267bc81b1afc1f"
+    },
+    "truncated": false
+  },
+  "context_compressed": false,
+  "error": "nvidia_nim/openai/gpt-oss-20b failed after 1 attempt(s): litellm.BadRequestError: Nvidia_nimException - ",
+  "wall_clock_s": 113.424,
+  "solved": false,
+  "total_cost_usd": 0.0
+}
