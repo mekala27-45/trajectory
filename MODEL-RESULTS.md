@@ -77,27 +77,45 @@ Share is of the 7 solved run(s).
 | F01 | tool schema violation | 2 | 28.6% |
 | F05 | shell quoting error | 1 | 14.3% |
 
+### How sure
+
+Each interval is a 95% two stage bootstrap over tasks, then over each task's seeds, with every task weighing the same. It answers whether a number would hold on tasks the suite does not have, which the seed spread above cannot. pass@k is the unbiased estimate that at least one of k samples of a task solves it, averaged over tasks.
+
+| model | tasks | runs | solve rate, 95% interval | partial credit, 95% interval | pass@1 | pass@2 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b` | 12 | 20 | 33.3% [8.3, 58.3] | 0.749 [0.605, 0.877] | 33.3% | 50.0% |
+
 ### Per task, read as an RL reward signal
 
-A task whose samples all pass or all fail gives a group relative method no gradient; only mixed outcomes teach. A task sampled once cannot show either, so it reads n/a. This describes the reward signal these tasks offer this model. It is not a training run.
+Each cell is solved runs over sampled runs. A task whose samples all pass or all fail gives a group relative method no gradient; only mixed outcomes teach. A bold cell has a learning signal under a binary reward, and an italic cell only under partial credit. This describes the reward signal these tasks offer these models. It is not a training run.
 
-| task | samples | solved | mean partial credit | signal, binary reward | signal, partial credit |
-| --- | --- | --- | --- | --- | --- |
-| cli-implement-01 | 2 | 0 | 0.450 | no | yes |
-| git-surgery-01 | 2 | 0 | 0.250 | no | yes |
-| go-race-01 | 2 | 0 | 0.800 | no | yes |
-| log-forensics-01 | 2 | 2 | 1.000 | no | no |
-| py-dep-conflict-01 | 2 | 1 | 0.750 | yes | yes |
-| py-etl-schema-01 | 2 | 0 | 0.750 | no | yes |
-| py-failing-suite-01 | 2 | 2 | 1.000 | no | no |
-| py-flaky-test-01 | 2 | 1 | 0.833 | yes | yes |
-| py-perf-01 | 1 | 1 | 1.000 | n/a | n/a |
-| sql-migration-01 | 1 | 0 | 0.800 | n/a | n/a |
-| ts-api-contract-01 | 1 | 0 | 0.778 | n/a | n/a |
-| ts-build-break-01 | 1 | 0 | 0.571 | n/a | n/a |
+| task | `nemotron-3.5-lightning-30b-a3b` |
+| --- | --- |
+| cli-implement-01 | *0/2* |
+| git-surgery-01 | *0/2* |
+| go-race-01 | *0/2* |
+| log-forensics-01 | 2/2 |
+| py-dep-conflict-01 | **1/2** |
+| py-etl-schema-01 | *0/2* |
+| py-failing-suite-01 | 2/2 |
+| py-flaky-test-01 | **1/2** |
+| py-perf-01 | 1/1 |
+| sql-migration-01 | 0/1 |
+| ts-api-contract-01 | 0/1 |
+| ts-build-break-01 | 0/1 |
 
-- Tasks with a learning signal under a binary reward: 2 of 8 sampled at least twice
-- Tasks with a learning signal under partial credit: 6 of 8 sampled at least twice
+- Tasks with a learning signal for `nemotron-3.5-lightning-30b-a3b`: 2 of 8 under a binary reward, 6 of 8 under partial credit
+
+### One group, worked
+
+GRPO samples a group of answers to one prompt and moves each toward or away from the group's own average: its advantage is its reward less the group mean, over the group's spread. Here the prompt is a task and the group is a model's seeds on it, `nemotron-3.5-lightning-30b-a3b` on py-dep-conflict-01, the first such group with mixed outcomes.
+
+| seed | solved | partial credit | advantage, binary reward | advantage, partial credit |
+| --- | --- | --- | --- | --- |
+| 0 | no | 0.500 | -1.00 | -1.00 |
+| 1 | yes | 1.000 | +1.00 | +1.00 |
+
+A group whose samples all pass, or all fail, gets an advantage of zero for every sample under a binary reward, which is why the bold cells above are the only ones a binary reward can learn from.
 
 <!-- end measured -->
 

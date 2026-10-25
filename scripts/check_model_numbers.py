@@ -29,6 +29,7 @@ from pathlib import Path
 
 from trajectory_core.aggregate import failure_mode_counts, leaderboard
 from trajectory_core.models import Run
+from trajectory_core.stats import group_advantages
 from trajectory_runner.cli import _markdown_report
 from trajectory_runner.store import read_runs
 
@@ -66,7 +67,7 @@ def render(fixtures: Path) -> str:
     # Drop the report's own H1 and demote its sections, so it nests under the document's.
     if lines and lines[0].startswith("# "):
         lines = lines[1:]
-    lines = ["#" + line if line.startswith("## ") else line for line in lines]
+    lines = ["#" + line if line.startswith(("## ", "### ")) else line for line in lines]
     return "\n".join([*lines, "", *signal_lines(runs)]).strip("\n")
 
 
@@ -75,58 +76,121 @@ def _variance(values: list[float]) -> float:
     return sum((value - mean) ** 2 for value in values) / len(values)
 
 
+def _short(model: str) -> str:
+    return model.rsplit("/", 1)[-1]
+
+
 def signal_lines(runs: list[Run]) -> list[str]:
-    """Per task outcomes across seeds, read as a reinforcement learning reward signal.
+    """Per task outcomes across seeds, for every model, read as an RL reward signal.
 
     A group of samples on one task that all pass, or all fail, has zero reward variance, so
     a group relative method such as GRPO gets no gradient from it. Only a task with mixed
-    outcomes teaches anything at this model's level. Under a partial credit reward a task
-    can still carry signal when every sample fails, which is the case for partial credit,
-    and the case against it is the shortcut a partial reward pays for.
+    outcomes teaches anything at a model's level. Under a partial credit reward a task can
+    still carry signal when every sample fails, which is the case for partial credit, and
+    the case against it is the shortcut a partial reward pays for.
     """
-    by_task: dict[str, list[Run]] = defaultdict(list)
-    for run in runs:
-        by_task[run.task_id].append(run)
+    models = sorted({run.config.model for run in runs})
+    tasks = sorted({run.task_id for run in runs})
+    groups: dict[tuple[str, str], list[Run]] = defaultdict(list)
+    for run in sorted(runs, key=lambda r: (r.config.seed, r.id)):
+        groups[(run.config.model, run.task_id)].append(run)
+
+    def partial_of(run: Run) -> float:
+        return run.score.partial_credit if run.score else 0.0
 
     rows: list[str] = []
-    binary_signal = partial_signal = compared = 0
-    for task_id in sorted(by_task):
-        group = by_task[task_id]
-        solved = sum(1 for run in group if run.solved)
-        partial = [run.score.partial_credit if run.score else 0.0 for run in group]
-        mean = f"{sum(partial) / len(partial):.3f}"
-        if len(group) < 2:
-            # One sample cannot disagree with itself, so its signal is unknown, not absent.
-            rows.append(f"| {task_id} | 1 | {solved} | {mean} | n/a | n/a |")
-            continue
-        compared += 1
-        binary = solved not in (0, len(group))
-        graded = _variance(partial) > 0
-        binary_signal += binary
-        partial_signal += graded
-        rows.append(
-            f"| {task_id} | {len(group)} | {solved} | {mean} "
-            f"| {'yes' if binary else 'no'} | {'yes' if graded else 'no'} |"
+    for task_id in tasks:
+        cells = []
+        for model in models:
+            group = groups.get((model, task_id), [])
+            if not group:
+                cells.append("n/a")
+                continue
+            solved = sum(1 for run in group if run.solved)
+            cell = f"{solved}/{len(group)}"
+            if len(group) >= 2 and solved not in (0, len(group)):
+                cell = f"**{cell}**"
+            elif len(group) >= 2 and _variance([partial_of(run) for run in group]) > 0:
+                cell = f"*{cell}*"
+            cells.append(cell)
+        rows.append(f"| {task_id} | " + " | ".join(cells) + " |")
+
+    summary: list[str] = []
+    for model in models:
+        compared = binary = graded = 0
+        for task_id in tasks:
+            group = groups.get((model, task_id), [])
+            if len(group) < 2:
+                continue
+            compared += 1
+            solved = sum(1 for run in group if run.solved)
+            binary += solved not in (0, len(group))
+            graded += _variance([partial_of(run) for run in group]) > 0
+        summary.append(
+            f"- Tasks with a learning signal for `{_short(model)}`: {binary} of {compared} "
+            f"under a binary reward, {graded} of {compared} under partial credit"
         )
 
     return [
         "### Per task, read as an RL reward signal",
         "",
-        "A task whose samples all pass or all fail gives a group relative method no "
-        "gradient; only mixed outcomes teach. A task sampled once cannot show either, so it "
-        "reads n/a. This describes the reward signal these tasks offer this model. It is "
-        "not a training run.",
+        "Each cell is solved runs over sampled runs. A task whose samples all pass or all fail "
+        "gives a group relative method no gradient; only mixed outcomes teach. A bold cell has "
+        "a learning signal under a binary reward, and an italic cell only under partial "
+        "credit. This describes the reward signal these tasks offer these models. It is not a "
+        "training run.",
         "",
-        "| task | samples | solved | mean partial credit "
-        "| signal, binary reward | signal, partial credit |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| task | " + " | ".join(f"`{_short(model)}`" for model in models) + " |",
+        "| --- | " + " | ".join("---" for _ in models) + " |",
         *rows,
         "",
-        f"- Tasks with a learning signal under a binary reward: {binary_signal} of {compared} "
-        "sampled at least twice",
-        f"- Tasks with a learning signal under partial credit: {partial_signal} of {compared} "
-        "sampled at least twice",
+        *summary,
+        "",
+        *grpo_lines(groups),
     ]
+
+
+def grpo_lines(groups: dict[tuple[str, str], list[Run]]) -> list[str]:
+    """One group worked through: the advantage GRPO would give each sample."""
+    chosen = next(
+        (
+            key
+            for key in sorted(groups)
+            if len(groups[key]) >= 2
+            and sum(1 for run in groups[key] if run.solved) not in (0, len(groups[key]))
+        ),
+        None,
+    )
+    if chosen is None:
+        return []
+    group = groups[chosen]
+    binary = [1.0 if run.solved else 0.0 for run in group]
+    partial = [run.score.partial_credit if run.score else 0.0 for run in group]
+    lines = [
+        "### One group, worked",
+        "",
+        "GRPO samples a group of answers to one prompt and moves each toward or away from the "
+        "group's own average: its advantage is its reward less the group mean, over the "
+        "group's spread. Here the prompt is a task and the group is a model's seeds on it, "
+        f"`{_short(chosen[0])}` on {chosen[1]}, the first such group with mixed outcomes.",
+        "",
+        "| seed | solved | partial credit | advantage, binary reward | advantage, partial credit |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for run, a_binary, a_partial, score in zip(
+        group, group_advantages(binary), group_advantages(partial), partial, strict=True
+    ):
+        lines.append(
+            f"| {run.config.seed} | {'yes' if run.solved else 'no'} | {score:.3f} "
+            f"| {a_binary:+.2f} | {a_partial:+.2f} |"
+        )
+    lines += [
+        "",
+        "A group whose samples all pass, or all fail, gets an advantage of zero for every "
+        "sample under a binary reward, which is why the bold cells above are the only ones a "
+        "binary reward can learn from.",
+    ]
+    return lines
 
 
 def required(rendered: str) -> list[str]:

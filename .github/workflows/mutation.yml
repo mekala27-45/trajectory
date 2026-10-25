@@ -1,0 +1,77 @@
+name: mutation
+
+# Mutation testing of the hidden tests, on the Docker backend. Each sampled mutant is a
+# task's reference with one small change in a file it writes, replayed in a container and
+# graded by the same verifier every run gets. The report says how much of a near miss each
+# task's hidden tests catch, and names every mutant that got through.
+#
+# It runs when a task, the mutation code or this workflow changes, because those are the
+# only things that can move its result, and costs no model call. The report reaches a
+# branch named for the run; promoting it into fixtures/mutation is a reviewed commit, which
+# scripts/check_mutation_numbers.py then holds the document to.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tasks/**"
+      - "packages/runner/src/trajectory_runner/mutation.py"
+      - "packages/runner/src/trajectory_runner/verifier.py"
+      - "packages/runner/src/trajectory_runner/canary.py"
+      - ".github/workflows/mutation.yml"
+  workflow_dispatch:
+    inputs:
+      per_task:
+        description: "Mutants sampled per task."
+        required: false
+        default: "12"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mutation
+  cancel-in-progress: true
+
+jobs:
+  mutate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.24"
+          enable-cache: true
+
+      - run: uv sync --all-packages --all-extras --frozen
+
+      - name: run every sampled mutant on the docker backend
+        run: |
+          uv run trajectory tasks mutate --suite core-12 --backend docker \
+            --per-task "${{ github.event.inputs.per_task || '12' }}" --parallel 4 \
+            --out mutation-report.json
+          # One annotation for the whole suite, which the checks API serves without the log.
+          uv run python - <<'PY'
+          import json
+          r = json.load(open("mutation-report.json"))
+          rows = [f"{r['killed']} of {r['scored']} mutants killed"]
+          for t in r["tasks"]:
+              score = "n/a" if t["score"] is None else f"{t['score']:.0%}"
+              rows.append(f"{t['task_id']} {t['killed']}/{t['scored']} {score}")
+          print("::notice title=mutation::" + "%0A".join(rows))
+          PY
+
+      - name: push the report to a branch for this run
+        run: |
+          mkdir -p fixtures/mutation
+          cp mutation-report.json fixtures/mutation/core-12.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="mutation-${{ github.run_id }}"
+          git checkout -b "$branch"
+          git add -f fixtures/mutation/core-12.json
+          git commit -m "data: mutation report from run ${{ github.run_id }}"
+          git push --force origin "HEAD:refs/heads/$branch"
+          echo "::notice title=report-branch::$branch"

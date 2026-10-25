@@ -78,10 +78,36 @@ def test_a_task_carries_binary_signal_only_when_its_samples_disagree():
     from trajectory_runner.store import read_runs
 
     runs = [run for run in read_runs(RECORDED) if run.config.model == "stub:hasty"]
-    rows = [line for line in gate.signal_lines(runs) if line.startswith("| ") and "---" not in line]
-    body = rows[1:]  # the first row is the header
+    lines = gate.signal_lines(runs)
+    table = lines[: lines.index("### One group, worked")]
+    body = [line for line in table if line.startswith("| ") and "-0" in line.split("|")[1]]
     assert len(body) == 12
     for row in body:
-        cells = [cell.strip() for cell in row.strip("|").split("|")]
-        samples, solved, binary = int(cells[1]), int(cells[2]), cells[4]
-        assert binary == ("yes" if 0 < solved < samples else "no"), row
+        cell = [part.strip() for part in row.strip("|").split("|")][1]
+        bold = cell.startswith("**")
+        solved, samples = (int(n) for n in cell.strip("*").split("/"))
+        assert bold == (0 < solved < samples), row
+
+
+def test_every_model_gets_a_column_and_a_summary_line():
+    from trajectory_runner.store import read_runs
+
+    runs = read_runs(RECORDED)
+    lines = gate.signal_lines(runs)
+    header = next(line for line in lines if line.startswith("| task |"))
+    assert header.count("`stub:") == 5
+    summaries = [line for line in lines if line.startswith("- Tasks with a learning signal")]
+    assert len(summaries) == 5
+
+
+def test_the_worked_group_has_advantages_that_sum_to_zero():
+    from trajectory_runner.store import read_runs
+
+    runs = read_runs(RECORDED)
+    lines = gate.signal_lines(runs)
+    start = lines.index("### One group, worked")
+    rows = [line for line in lines[start:] if line.startswith("| ") and "---" not in line][1:]
+    assert len(rows) >= 2
+    binary = [float(row.strip("|").split("|")[3]) for row in rows]
+    assert abs(sum(binary)) < 0.02  # each cell is rounded to two places
+    assert any(value > 0 for value in binary) and any(value < 0 for value in binary)

@@ -15,6 +15,7 @@ import json
 import os
 import sys
 from datetime import UTC, datetime
+from itertools import combinations
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -39,6 +40,7 @@ from trajectory_core.models import (
     ToolName,
 )
 from trajectory_core.scoring import rank_failure_modes, rescore
+from trajectory_core.stats import model_statistics, outcomes_by_task, paired_difference
 from trajectory_runner.agent import Budget
 from trajectory_runner.execute import (
     ExecutionOptions,
@@ -482,6 +484,86 @@ def tasks_verify_references(
     console.print(
         f"[green]{len(tasks)} task(s) start broken and are solved by their own reference[/green]"
     )
+
+
+@tasks_app.command("mutate")
+def tasks_mutate(
+    suite: Annotated[str, typer.Option(help="Suite to measure.")] = "core-12",
+    task: Annotated[list[str] | None, typer.Option(help="Measure only these tasks.")] = None,
+    backend: Annotated[str | None, typer.Option(help="docker or local.")] = None,
+    per_task: Annotated[int, typer.Option(help="Mutants sampled per task.")] = 12,
+    parallel: Annotated[int, typer.Option(help="Mutants run at once.")] = 4,
+    out: Annotated[Path | None, typer.Option(help="Write the JSON report here.")] = None,
+    tasks_root: Annotated[Path | None, typer.Option(help="Path to the tasks directory.")] = None,
+) -> None:
+    """Measure how much of a near miss the hidden tests catch, by mutation testing.
+
+    Each sampled mutant is the reference with one small change in a file it writes, the
+    kind of slip a model makes. A suite that passes a mutant would pay a near miss in
+    full as a reward, and the report names every one that got through.
+    """
+    from trajectory_runner.mutation import mutate_task, suite_record
+
+    resolved = resolve_backend(backend)
+    tasks = load_tasks(tasks_root, suite)
+    if task:
+        wanted = set(task)
+        tasks = [t for t in tasks if t.id in wanted]
+    if not tasks:
+        fail("no tasks matched.")
+    if per_task < 1:
+        fail("--per-task must be at least 1.")
+
+    table = Table(header_style="bold", title="mutation testing", title_justify="left")
+    table.add_column("task", style="cyan", no_wrap=True)
+    table.add_column("sites", justify="right")
+    table.add_column("killed", justify="right")
+    table.add_column("by a crash", justify="right")
+    table.add_column("survived", justify="right")
+    table.add_column("score", justify="right")
+
+    reports = []
+    for loaded in tasks:
+        report = mutate_task(
+            loaded,
+            backend=resolved,
+            per_task=per_task,
+            parallel=parallel,
+            allow_local_override=resolved is SandboxBackend.LOCAL,
+        )
+        reports.append(report)
+        if not report.sites or not report.control_passed:
+            table.add_row(report.task_id, str(report.sites), "", "", "", report.control_detail)
+            continue
+        table.add_row(
+            report.task_id,
+            str(report.sites),
+            str(report.killed),
+            str(report.killed - report.killed_by_assertion),
+            str(report.survived),
+            "n/a" if report.score is None else f"{report.score:.0%}",
+        )
+    console.print(table)
+
+    record = suite_record(
+        reports,
+        suite=suite,
+        backend=resolved,
+        per_task=per_task,
+        harness_version=HARNESS_VERSION,
+        generated_at=datetime.now(UTC).isoformat(),
+    )
+    for report in reports:
+        for result in report.results:
+            if result.outcome == "survived":
+                console.print(f"[yellow]survived[/yellow] {report.task_id}: {result.mutant.label}")
+    console.print(
+        f"{record['killed']} of {record['scored']} mutants killed across {len(tasks)} task(s)"
+    )
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+        console.print(f"wrote {out}")
 
 
 @tasks_app.command("policies")
@@ -1274,7 +1356,77 @@ def _markdown_report(
         )
     if not modes_on_solved:
         lines.append("| | no failure modes on solved runs | 0 | 0.0% |")
+    lines += uncertainty_lines(runs)
     return "\n".join(lines)
+
+
+def _pass_cell(value: float | None) -> str:
+    return "n/a" if value is None else f"{value * 100:.1f}%"
+
+
+def uncertainty_lines(runs: list[Run]) -> list[str]:
+    """Intervals over tasks for every model, pass@k, and every pair head to head.
+
+    The leaderboard's spread says whether a re-run would move a number. This says whether
+    the number would hold on other tasks, which with twelve tasks is the wider question.
+    """
+    models = sorted({run.config.model for run in runs if run.score is not None})
+    if not models:
+        return []
+    stats = {model: model_statistics(runs, model) for model in models}
+    most = max((max(s.pass_at, default=1) for s in stats.values()), default=1)
+    ks = list(range(1, most + 1))
+    lines = [
+        "",
+        "## How sure",
+        "",
+        "Each interval is a 95% two stage bootstrap over tasks, then over each task's seeds, "
+        "with every task weighing the same. It answers whether a number would hold on tasks "
+        "the suite does not have, which the seed spread above cannot. pass@k is the unbiased "
+        "estimate that at least one of k samples of a task solves it, averaged over tasks.",
+        "",
+        "| model | tasks | runs | solve rate, 95% interval | partial credit, 95% interval | "
+        + " | ".join(f"pass@{k}" for k in ks)
+        + " |",
+        "| --- | --- | --- | --- | --- | " + " | ".join("---" for _ in ks) + " |",
+    ]
+    for model in models:
+        stat_row = stats[model]
+        partial = stat_row.partial_credit.render(percent=False, digits=3)
+        lines.append(
+            f"| `{model}` | {stat_row.tasks} | {stat_row.samples} | "
+            f"{stat_row.solve_rate.render()} | {partial} | "
+            + " | ".join(_pass_cell(stat_row.pass_at.get(k)) for k in ks)
+            + " |"
+        )
+    if len(models) < 2:
+        return lines
+    lines += [
+        "",
+        "### Head to head",
+        "",
+        "The first model's solve rate less the second's, on the tasks both attempted, resampled "
+        "as pairs. The last column is the share of resamples in which the first came out "
+        "ahead. An interval that crosses zero means these tasks do not separate the two.",
+        "",
+        "| first | second | shared tasks | difference, 95% interval | first ahead |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    by_model = {
+        model: outcomes_by_task([run for run in runs if run.config.model == model])
+        for model in models
+    }
+    for first, second in combinations(models, 2):
+        try:
+            difference, ahead, shared = paired_difference(by_model[first], by_model[second])
+        except ValueError:
+            continue
+        lines.append(
+            f"| `{first}` | `{second}` | {shared} | "
+            f"{difference.estimate * 100:+.1f} points "
+            f"[{difference.low * 100:+.1f}, {difference.high * 100:+.1f}] | {ahead * 100:.0f}% |"
+        )
+    return lines
 
 
 @app.command()
