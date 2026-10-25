@@ -66,6 +66,8 @@ export interface FigureStory {
   failed: number[];
   /** Of those, the ones the agent changed course after. */
   adapted: number[];
+  /** Step indexes of the malformed calls, which the harness refused without running. */
+  malformed: number[];
   finishedRed: boolean;
 }
 
@@ -103,6 +105,7 @@ export function storyOf(run: Run): FigureStory {
   return {
     failed: failed.map((step) => step.index),
     adapted: adapted.map((step) => step.index),
+    malformed: steps.filter((step) => step.schema_violation).map((step) => step.index),
     finishedRed: Boolean(last && last.tool_name === "finish" && !run.verification?.passed),
   };
 }
@@ -128,6 +131,19 @@ function failureSentence(story: FigureStory): string {
   if (adapted === failed) return `${lead}, and it changed course after each.`;
   if (adapted === 0) return `${lead}, and it never changed course.`;
   return `${lead}, and it changed course after ${adapted} of them.`;
+}
+
+/** The sentence on malformed calls, or nothing when every call was well formed. */
+function malformedSentence(story: FigureStory, steps: number): string {
+  const malformed = story.malformed.length;
+  if (malformed === 0) return "";
+  if (malformed === 1) return `One of its ${steps} steps was a malformed call that never ran.`;
+  return `${opening(malformed)} of its ${steps} steps were malformed calls that never ran.`;
+}
+
+/** Sentences joined with one space, leaving out the empty ones. */
+function sentences(...parts: string[]): string {
+  return parts.filter((part) => part.length > 0).join(" ");
 }
 
 function Drawing({
@@ -336,9 +352,10 @@ export function TrajectoryFigure({
   const ending = story.finishedRed
     ? `Then it called finish with ${tests}.`
     : `It stopped with ${tests}.`;
+  const storyText = sentences(failureSentence(story), malformedSentence(story, steps), ending);
   const label =
     `${model} on ${run.task_id}, seed ${run.config.seed}: ${steps} steps against a reference ` +
-    `of ${referenceSteps}. ${failureSentence(story)} ${ending}`;
+    `of ${referenceSteps}. ${storyText}`;
 
   return (
     <figure className="rounded-lg border border-line bg-raised px-3.5 pt-4 pb-3 sm:px-5">
@@ -360,22 +377,34 @@ export function TrajectoryFigure({
           className="block sm:hidden"
         />
       </div>
-      <ul className="mt-2 flex flex-col gap-1 font-mono text-[11px] text-muted sm:hidden">
-        <li className="flex gap-2">
+      {/* On a phone the callouts drawn on the wide figure move here. The malformed call key
+          is not drawn on either figure, so it shows at every width. */}
+      <ul
+        className={`mt-2 flex flex-col gap-1 font-mono text-[11px] text-muted ${
+          story.malformed.length > 0 ? "" : "sm:hidden"
+        }`}
+      >
+        <li className="flex gap-2 sm:hidden">
           <Swatch color="var(--fg-dim)" />
           top line: the reference, {referenceSteps} steps to solved
         </li>
-        <li className="flex gap-2">
+        <li className="flex gap-2 sm:hidden">
           <Swatch color="var(--accent)" />
           lower line: this run, {steps} steps
         </li>
         {story.failed.length > 0 ? (
-          <li className="flex gap-2">
+          <li className="flex gap-2 sm:hidden">
             <Swatch color="var(--warn)" />
             each dip: a command that failed
           </li>
         ) : null}
-        <li className="flex gap-2">
+        {story.malformed.length > 0 ? (
+          <li className="flex gap-2">
+            <Swatch color="var(--bad)" />
+            small red dot: a malformed call, which never ran
+          </li>
+        ) : null}
+        <li className="flex gap-2 sm:hidden">
           <Swatch color={story.finishedRed ? "var(--bad)" : "var(--warn)"} />
           last dot: {story.finishedRed ? "called finish" : "stopped"}, {tests}
         </li>
@@ -385,8 +414,8 @@ export function TrajectoryFigure({
           A real run from this dataset, drawn step by step: <b className="text-fg">{model}</b> on{" "}
           <span className="font-mono text-[12px]">{run.task_id}</span>, seed {run.config.seed}, a
           task to {task}. It took {steps} steps where the reference takes {referenceSteps}.{" "}
-          {failureSentence(story)} {ending} The outcome is one bit, not solved. The steps are the
-          rest of the story, and they are what a leaderboard built on pass rate throws away.
+          {storyText} The outcome is one bit, not solved. The steps are the rest of the story, and
+          they are what a leaderboard built on pass rate throws away.
         </span>
         <Link
           href={`/runs/${run.id}/`}
