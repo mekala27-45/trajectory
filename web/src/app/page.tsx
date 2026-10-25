@@ -14,6 +14,7 @@ import {
 } from "@/components/ui";
 import {
   getIndex,
+  getJudgeAgreement,
   getLeaderboard,
   getMutation,
   getRun,
@@ -50,13 +51,14 @@ export const metadata = {
 };
 
 export default async function LeaderboardPage() {
-  const [index, board, tasks, runs, stats, mutation] = await Promise.all([
+  const [index, board, tasks, runs, stats, mutation, agreement] = await Promise.all([
     getIndex(),
     getLeaderboard(),
     getTasks(),
     listRuns(),
     getStats(),
     getMutation(),
+    getJudgeAgreement(),
   ]);
   const mutationByTask = new Map((mutation?.tasks ?? []).map((task) => [task.task_id, task]));
   const realStats = (stats?.models ?? []).filter((entry) => !isStubModel(entry.model));
@@ -89,6 +91,46 @@ export default async function LeaderboardPage() {
       : realModels.length > 1
         ? ` ${realModels.length} real models so far, ${realSolved} of ${realRuns.length} runs solved.`
         : "";
+
+  const cards = [
+    {
+      title: "Runs in your stack",
+      body: "Every task exports to the Harbor task format, and CI grades a sample of the exports three ways: the oracle must score 1.0, the untouched workspace 0.0, and the untouched workspace with a fake test runner module planted at its root exactly the same. ATIF trajectories from Claude Code, Codex and others import and score with every metric their record supports.",
+      href: "https://github.com/mekala27-45/trajectory/blob/main/docs/interop.md",
+      link: "Harbor and ATIF",
+    },
+    {
+      title: "Resists reward hacking",
+      body: "The hidden tests run in a fresh container that holds only the final workspace, with a test planted for every run that has to fail. A report of success that does not survive it is not believed, and F11 names the attempt.",
+      href: "https://github.com/mekala27-45/trajectory/blob/main/docs/grader-audit.md",
+      link: "The grader audit",
+    },
+    {
+      title: "Runs real models for free",
+      body: `A committed request names a panel of models. One call probes each, then every model that answered runs the suite in its own job, on a free tier, under a call ceiling and a shared rate limit.${realResult}`,
+      href: "https://github.com/mekala27-45/trajectory/blob/main/docs/real-models.md",
+      link: "Real models",
+    },
+    {
+      title: "Measures its own tests",
+      body: mutation
+        ? `Each reference is replayed with one small bug, the slip a model makes. The hidden tests caught ${mutation.killed} of ${mutation.scored} near misses, and every one that got through is listed.`
+        : "Each reference is replayed with one small bug, the slip a model makes, to count how many near misses the hidden tests catch and to list every one that gets through.",
+      href: "https://github.com/mekala27-45/trajectory/blob/main/docs/verifier-strength.md",
+      link: "Verifier strength",
+    },
+    ...(agreement
+      ? [
+          {
+            title: "Checks its own judge",
+            body: `Three failure modes and the drift score come from a model reading the trajectory, so a second judge from another family, ${agreement.second_judge.split("/").pop() ?? agreement.second_judge}, read ${agreement.compared_runs} of the ${agreement.eligible_runs} runs the first judge read. The failure modes page says how far the two agree, mode by mode.`,
+            href: "https://github.com/mekala27-45/trajectory/blob/main/MODEL-RESULTS.md#the-judge",
+            link: "The judge, read twice",
+          },
+        ]
+      : []),
+  ];
+  const cardCount = cards.length === 5 ? "Five" : "Four";
 
   return (
     <div className="flex flex-col gap-6">
@@ -228,48 +270,26 @@ export default async function LeaderboardPage() {
           Beyond the leaderboard
         </h2>
         <p className="mb-3 max-w-[78ch] text-[13px] text-muted">
-          Four things this harness does that a pass rate cannot. Each is a pure part of the same run
-          record or the same tasks, so a result published here can be dropped into another stack,
-          checked for a gamed grader, reproduced against real models, or weighed against how strong
-          its tests are.
+          {cardCount} things this harness does that a pass rate cannot. Each is a pure part of the
+          same run record or the same tasks, so a result published here can be dropped into another
+          stack, checked for a gamed grader, reproduced against real models, or weighed against how
+          strong its tests are{agreement ? ", and its judge is read against a second one" : ""}.
         </p>
         <div className="mb-3">
           <PlainNote>
             The same recorded runs can be used inside tools at other labs, checked for a program
             trying to cheat the scorer, and produced by real AI models at no cost, and the tests
-            themselves are checked for how many near misses they catch. Those are the four cards
-            below.
+            themselves are checked for how many near misses they catch.
+            {agreement
+              ? " The AI that judges failed runs is checked against a second AI too."
+              : ""}{" "}
+            Those are the {cardCount.toLowerCase()} cards below.
           </PlainNote>
         </div>
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              title: "Runs in your stack",
-              body: "Every task exports to the Harbor task format, and CI grades a sample of the exports three ways: the oracle must score 1.0, the untouched workspace 0.0, and the untouched workspace with a fake test runner module planted at its root exactly the same. ATIF trajectories from Claude Code, Codex and others import and score with every metric their record supports.",
-              href: "https://github.com/mekala27-45/trajectory/blob/main/docs/interop.md",
-              link: "Harbor and ATIF",
-            },
-            {
-              title: "Resists reward hacking",
-              body: "The hidden tests run in a fresh container that holds only the final workspace, with a test planted for every run that has to fail. A report of success that does not survive it is not believed, and F11 names the attempt.",
-              href: "https://github.com/mekala27-45/trajectory/blob/main/docs/grader-audit.md",
-              link: "The grader audit",
-            },
-            {
-              title: "Runs real models for free",
-              body: `A committed request names a panel of models. One call probes each, then every model that answered runs the suite in its own job, on a free tier, under a call ceiling and a shared rate limit.${realResult}`,
-              href: "https://github.com/mekala27-45/trajectory/blob/main/docs/real-models.md",
-              link: "Real models",
-            },
-            {
-              title: "Measures its own tests",
-              body: mutation
-                ? `Each reference is replayed with one small bug, the slip a model makes. The hidden tests caught ${mutation.killed} of ${mutation.scored} near misses, and every one that got through is listed.`
-                : "Each reference is replayed with one small bug, the slip a model makes, to count how many near misses the hidden tests catch and to list every one that gets through.",
-              href: "https://github.com/mekala27-45/trajectory/blob/main/docs/verifier-strength.md",
-              link: "Verifier strength",
-            },
-          ].map((card) => (
+        <ul
+          className={`grid gap-3 sm:grid-cols-2 ${cards.length === 5 ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}
+        >
+          {cards.map((card) => (
             <li
               key={card.title}
               className="flex h-full flex-col gap-2 rounded-lg border border-line bg-raised px-3.5 py-3"
