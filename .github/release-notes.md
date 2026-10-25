@@ -53,7 +53,7 @@ not. The mutant is equivalent on the task's data, so a test failed for another r
 likely the suite's time budget on a loaded machine. Every kill is
 now replayed once more, and one that does not happen again is scored as unstable, not
 caught. The figures are held to their report in CI and reproduced on Docker by
-`mutation.yml` whenever a task or the verifier changes.
+`mutation.yml` whenever a task, the mutation code, the verifier or the planted test changes.
 
 ### How sure a number is
 

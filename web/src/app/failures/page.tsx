@@ -47,20 +47,21 @@ export default async function FailuresPage() {
         <h1 className="text-[22px] font-semibold sm:text-[26px]">Failure modes</h1>
         <p className="max-w-[80ch] text-[14px] text-muted">
           A pass rate says a run failed. It does not say how. Every run is classified against this
-          taxonomy, {ruleCount} of the {modeCount} by deterministic rules over the trajectory and
-          the rest by a rubric judge, and each hit carries the evidence a human can check it
-          against. Two models with the same solve rate usually fail for different reasons, and the
-          reason is what a model team can act on. Runs that passed are classified too, which is the
-          view no pass rate can produce: a run that made malformed tool calls, invented paths and
-          got the hidden tests green anyway is a process problem that happened to succeed.
+          taxonomy: {ruleCount} of the {modeCount} modes by deterministic rules over the trajectory,
+          on every run, and the rest by a rubric judge that reads the runs that failed. Each hit
+          carries the evidence a human can check it against. Two models with the same solve rate
+          usually fail for different reasons, and the reason is what a model team can act on. Runs
+          that passed are classified by the rules too, which is the view no pass rate can produce: a
+          run that made malformed tool calls, invented paths and got the hidden tests green anyway
+          is a process problem that happened to succeed.
         </p>
       </section>
 
       <PlainNote>
         A failure mode is a named, specific way a program can go wrong: quitting early, repeating
         the same command, running something destructive, and so on. There are eleven. This page
-        counts how often each one happened, and it counts them even on runs that passed, because a
-        program can reach the right answer in a careless way.
+        counts how often each one happened, and it counts the rule based ones even on runs that
+        passed, because a program can reach the right answer in a careless way.
       </PlainNote>
 
       <Panel className="px-4 py-3">

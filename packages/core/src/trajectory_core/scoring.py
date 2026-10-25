@@ -210,7 +210,10 @@ def recovery_rate(steps: Sequence[Step]) -> float | None:
     A failure counts as recovered when at least one of the next two steps is something
     other than a re-issue of the same command. Reading a file, writing a file, or running
     a different command all count: the agent changed what it was doing. Issuing the
-    identical command again does not, and neither does ending the run.
+    identical command again does not, and neither does ending the run, whether the agent
+    calls `finish` or the trajectory simply stops. A `finish` straight after a failed test
+    run is the agent walking away from the failure, which is the opposite of adapting to
+    it, so the window closes there.
 
     Returns None when nothing failed, because a rate over zero failures is not a
     measurement and averaging it in as either 0 or 1 distorts the aggregate.
@@ -227,6 +230,8 @@ def recovery_rate(steps: Sequence[Step]) -> float | None:
     for index, failed_command in failures:
         window = steps[index + 1 : index + 1 + RECOVERY_WINDOW]
         for step in window:
+            if step.tool_name == ToolName.FINISH.value:
+                break
             following = command_of(step)
             if following is None or following != failed_command:
                 recovered += 1

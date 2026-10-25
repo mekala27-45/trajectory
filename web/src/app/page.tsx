@@ -147,8 +147,11 @@ export default async function LeaderboardPage() {
           <Field label="Total wall clock">{seconds(index.total_wall_clock_s)}</Field>
         </dl>
         <p className="mt-3 border-t border-line pt-2 font-mono text-[11px] text-dim">
-          harness {index.harness_version}, schema {index.schema_version}, bundle built{" "}
-          {timestamp(index.generated_at)}
+          {index.record_harness_versions?.length
+            ? `runs recorded with harness ${index.record_harness_versions.join(" and ")}, `
+            : ""}
+          bundle built by harness {index.harness_version} on {timestamp(index.generated_at)}, schema{" "}
+          {index.schema_version}
           {index.judge_model ? `, judge ${index.judge_model}` : ", rubric judge did not run"}
         </p>
       </Panel>
@@ -241,7 +244,7 @@ export default async function LeaderboardPage() {
           {[
             {
               title: "Runs in your stack",
-              body: "Every task exports to the Harbor task format, and CI grades a sample of the exports both ways: the oracle must score 1.0 and the untouched workspace 0.0. ATIF trajectories from Claude Code, Codex and others import and score with the same metrics.",
+              body: "Every task exports to the Harbor task format, and CI grades a sample of the exports three ways: the oracle must score 1.0, the untouched workspace 0.0, and the untouched workspace with a fake test runner module planted at its root exactly the same. ATIF trajectories from Claude Code, Codex and others import and score with every metric their record supports.",
               href: "https://github.com/mekala27-45/trajectory/blob/main/docs/interop.md",
               link: "Harbor and ATIF",
             },

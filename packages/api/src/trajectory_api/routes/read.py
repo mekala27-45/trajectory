@@ -70,6 +70,7 @@ def index(session: SessionDep) -> DatasetIndex:
     return DatasetIndex(
         generated_at=datetime.now(UTC),
         harness_version=HARNESS_VERSION,
+        record_harness_versions=queries.record_harness_versions(session),
         suites=sorted({s.suite for s in summaries}),
         models=sorted({s.model for s in summaries}),
         backends=sorted({s.backend for s in summaries}, key=lambda b: b.value),

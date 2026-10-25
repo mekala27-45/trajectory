@@ -459,6 +459,25 @@ def local_verify_runnable() -> bool:
     return completed.returncode == 0
 
 
+# What a task's image may be built from. Everything else in the task directory, the hidden
+# tests and the reference above all, stays out of the build context.
+BUILD_CONTEXT = ("Dockerfile", "workspace")
+
+
+def build_context(task_dir: Path) -> io.BytesIO:
+    """The Dockerfile and the workspace as a tar, which is the whole of the build context.
+
+    Symbolic links are kept as links and file modes are kept as they are, which is what a
+    directory context would have given the build.
+    """
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        for name in BUILD_CONTEXT:
+            archive.add(task_dir / name, arcname=name, recursive=True)
+    buffer.seek(0)
+    return buffer
+
+
 def build_task_image(
     task: Task,
     task_dir: Path,
@@ -468,10 +487,15 @@ def build_task_image(
 ) -> str:
     """Build the task image, reusing a cached build when nothing relevant changed.
 
-    The cache key is a content hash of the Dockerfile and the agent workspace. Hidden
-    tests and the reference playbook are excluded on purpose, because neither is ever
-    baked into the image and rebuilding on every test edit would make task authoring
-    miserable.
+    The build context holds the Dockerfile and the agent workspace and nothing else, so no
+    instruction in the Dockerfile, not even a `COPY . /workspace/`, can bake the hidden
+    tests or the reference into the image: they are not in the context to be copied. Task
+    validation also refuses a Dockerfile that names them, which says why at authoring time
+    instead of at build time.
+
+    The cache key is a content hash of the same two things. Hidden tests and the reference
+    playbook are excluded on purpose, because neither is ever baked into the image and
+    rebuilding on every test edit would make task authoring miserable.
 
     Args:
         task: The task definition.
@@ -512,7 +536,8 @@ def build_task_image(
     started = time.monotonic()
     try:
         resolved.images.build(
-            path=str(task_dir),
+            fileobj=build_context(task_dir),
+            custom_context=True,
             dockerfile="Dockerfile",
             tag=tag,
             rm=True,

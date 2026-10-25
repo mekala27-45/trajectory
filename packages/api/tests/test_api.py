@@ -275,6 +275,8 @@ class TestReadRoutes:
         assert body["run_count"] == 2
         assert body["solved_count"] == 1
         assert body["models"] == ["stub:methodical"]
+        # The runs' own harness, read from the records, not the harness serving them.
+        assert body["record_harness_versions"] == [build_run().harness_version]
 
     def test_the_index_note_flags_scripted_policies(self, client: TestClient, auth):
         ingest(client, auth, [build_run(model="stub:methodical")])

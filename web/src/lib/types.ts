@@ -355,7 +355,10 @@ export interface FailureModeBreakdown {
 /** `DatasetIndex`. What the bundle or the database contains. */
 export interface DatasetIndex {
   generated_at: string;
+  /** The harness that built this bundle or serves this API, not the one that ran the runs. */
   harness_version: string;
+  /** Every harness version the runs were recorded with. Absent from older bundles. */
+  record_harness_versions?: string[];
   schema_version: number;
   suites: string[];
   models: string[];

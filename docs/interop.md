@@ -69,9 +69,10 @@ metrics its record can support. Three adaptations make the mapping honest:
   machine's trajectory, not a measurement this harness made. Nothing yet filters an `atif:`
   row out of an aggregate, so treat the prefix as a label, not a guarantee.
 
-**Round trip.** A native export imports back without loss. On every one of the 200 records
-the steps, the outcome, the failure modes, the full score and the verification record,
-exit code included, come back identical, and that is a test. A few fields are deliberately
+**Round trip.** A native export imports back without loss. On every committed record, the
+scripted matrix and the real model runs alike, the steps, the outcome, the failure modes,
+the full score and the verification record, exit code included, come back identical, and
+that is a test. A few fields are deliberately
 not preserved, because they describe where the run happened rather than what it did: the run
 id, the sandbox backend, which becomes local, and the image id.
 

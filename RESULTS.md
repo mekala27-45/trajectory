@@ -39,16 +39,22 @@ up as one.
 
 Every cell is a mean across seeds with one population standard deviation. A pass rate
 reported without its spread is not a result, and neither is any other metric here, so the
-spread is printed even where it is zero. The only non-zero spread that a summary table
-would have hidden is `stub:hasty` redundancy at 0.014 +/- 0.010.
+spread is printed even where it is zero.
+
+**Recovery was rescored on 25 October 2026.** A review of this table found that the metric
+counted a `finish` called straight after a failed command as a recovery. That credited
+`stub:hasty` with recovering on a run where it watched the tests fail and stopped, and
+`stub:sloppy` with recovering from a broken command it never looked at again. A `finish`
+now closes the window. Rescoring needed no rerun, because every metric is a function of the
+record: 16 of the 180 runs moved, all in the recovery column, and no trajectory changed.
 
 | model | runs | solve rate | partial credit | step efficiency | tool validity | redundancy | recovery | premature finish | destructive | wall clock |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `stub:methodical` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | **1.000 +/- 0.000** | **1.000 +/- 0.000** | **0.062 +/- 0.000** | 1.000 +/- 0.000 | 0.0% +/- 0.0% | 0 | 6.0 s |
-| `stub:sloppy` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.766 +/- 0.000 | **0.922 +/- 0.000** | 0.052 +/- 0.000 | 1.000 +/- 0.000 | 0.0% +/- 0.0% | 0 | 5.6 s |
-| `stub:thrasher` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.664 +/- 0.000 | 1.000 +/- 0.000 | **0.493 +/- 0.000** | **0.847 +/- 0.137** | 0.0% +/- 0.0% | 0 | 8.8 s |
-| `stub:reckless` | 36 | 97.2% +/- 3.9% | 0.981 +/- 0.027 | 0.766 +/- 0.001 | 1.000 +/- 0.000 | 0.045 +/- 0.000 | 1.000 +/- 0.000 | 2.8% +/- 3.9% | **72** | 5.7 s |
-| `stub:hasty` | 36 | **33.3% +/- 23.6%** | 0.674 +/- 0.167 | 1.000 +/- 0.000 | 1.000 +/- 0.000 | **0.014 +/- 0.010** | 1.000 +/- 0.000 | **66.7% +/- 23.6%** | 0 | 4.2 s |
+| `stub:sloppy` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.766 +/- 0.000 | **0.922 +/- 0.000** | 0.052 +/- 0.000 | **0.653 +/- 0.330** | 0.0% +/- 0.0% | 0 | 5.6 s |
+| `stub:thrasher` | 36 | **100.0% +/- 0.0%** | 1.000 +/- 0.000 | 0.664 +/- 0.000 | 1.000 +/- 0.000 | **0.493 +/- 0.000** | 0.847 +/- 0.137 | 0.0% +/- 0.0% | 0 | 8.8 s |
+| `stub:reckless` | 36 | 97.2% +/- 3.9% | 0.981 +/- 0.027 | 0.766 +/- 0.001 | 1.000 +/- 0.000 | 0.045 +/- 0.000 | 0.972 +/- 0.039 | 2.8% +/- 3.9% | **72** | 5.7 s |
+| `stub:hasty` | 36 | **33.3% +/- 23.6%** | 0.674 +/- 0.167 | 1.000 +/- 0.000 | 1.000 +/- 0.000 | **0.014 +/- 0.010** | 0.917 +/- 0.118 | **66.7% +/- 23.6%** | 0 | 4.2 s |
 
 Cost per solved task is `n/a` for every row because spend was zero.
 
@@ -141,10 +147,12 @@ The trajectory metrics separate them on the first glance:
 - `sloppy` has a tool call validity of **0.922**, meaning roughly 8 percent of its tool
   calls were rejected before reaching the sandbox. It referenced a file that was never in
   the workspace on every single run, and shipped a shell command with an unbalanced quote
-  on every single run. Step efficiency 0.766.
+  on every single run. Step efficiency 0.766. Where that broken command is its last
+  before `finish`, it never responds to the failure, so its recovery rate is **0.653 +/-
+  0.330**, from 1.000 on seed 0 to 0.208 on seed 2 as the command lands nearer the end.
 - `thrasher` has a redundant action rate of **0.493**: about half of every command it
-  issued was a byte-identical repeat of an earlier one. Its recovery rate is **0.847 +/-
-  0.137**, the only non-zero seed variance in that column, and its step efficiency is
+  issued was a repeat of an earlier one. Its recovery rate is 0.847 +/- 0.137, because it
+  re-issues a failing command before it changes course, and its step efficiency is
   **0.664**, the worst of any policy that solved anything.
 - `methodical` sits at the ceiling on all three.
 
@@ -284,7 +292,8 @@ the local backend. Per model the counts are identical too, `stub:reckless` solvi
 
 Across the whole leaderboard exactly one behavioural cell moved: `stub:thrasher` recovery
 after failure, from 0.833 +/- 0.136 to 0.847 +/- 0.137, a move of about a tenth of that
-cell's own seed standard deviation. Solve rate, partial credit, step efficiency, tool call
+cell's own seed standard deviation. That comparison predates the recovery fix described
+under the leaderboard, and the fix left the Docker figure for `stub:thrasher` where it was. Solve rate, partial credit, step efficiency, tool call
 validity, redundancy
 and premature termination are identical for all five policies, as are both failure mode
 tables and the per seed breakdown.

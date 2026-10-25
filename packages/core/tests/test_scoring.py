@@ -273,6 +273,24 @@ class TestMetric6RecoveryRate:
         steps = [make_step(0, command="pytest", exit_code=1)]
         assert recovery_rate(steps) == 0.0
 
+    def test_calling_finish_after_a_failure_is_not_recovery(self):
+        """Tests fail, the agent declares itself done. That is walking away, not adapting.
+
+        Found by a review of the published matrix: `stub:hasty` ran the failing suite and
+        called finish, and the metric scored that run's recovery 1.0.
+        """
+        steps = [make_step(0, command="pytest", exit_code=1), finish_step(1)]
+        assert recovery_rate(steps) == 0.0
+
+    def test_adapting_before_the_finish_still_counts(self):
+        """The window closes at finish, so a read before it is still a recovery."""
+        steps = [
+            make_step(0, command="pytest", exit_code=1),
+            make_step(1, tool=ToolName.READ_FILE.value, args={"path": "a.py"}, exit_code=None),
+            finish_step(2),
+        ]
+        assert recovery_rate(steps) == 1.0
+
     def test_no_failures_gives_no_rate_rather_than_a_perfect_one(self):
         """A rate over zero failures is not a measurement, so it must not be averaged in."""
         assert recovery_rate(bash_steps("a", "b")) is None

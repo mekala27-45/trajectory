@@ -270,6 +270,7 @@ def build(runs: list[Run], tasks_root: Path, out: Path) -> DatasetIndex:
     index = DatasetIndex(
         generated_at=datetime.now(UTC),
         harness_version=HARNESS_VERSION,
+        record_harness_versions=sorted({run.harness_version for run in runs}),
         suites=sorted({run.suite for run in runs}),
         models=sorted({run.config.model for run in runs}),
         backends=backends,

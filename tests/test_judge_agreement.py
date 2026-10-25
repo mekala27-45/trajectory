@@ -152,6 +152,11 @@ def test_a_request_is_checked_before_any_call(tmp_path: Path):
         agreement.read_request(_request(tmp_path, second_judge="no spaces allowed"))
 
 
+def test_an_unnamed_first_judge_is_refused():
+    with pytest.raises(agreement.RequestError, match="not named"):
+        agreement.check_independence("nvidia_nim/deepseek-ai/deepseek-v4.1-flash", None, set())
+
+
 @pytest.mark.parametrize(
     ("second", "reason"),
     [

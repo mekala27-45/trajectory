@@ -84,19 +84,23 @@ The published matrix shows the problem directly. Three of the five agents scored
 +/- 0.0%**, identical rows on any conventional leaderboard. One of them made a malformed
 tool call on every single run. Another repeated roughly half of every command it issued.
 Six failure modes fired 213 times on runs that passed every hidden test, on 106 of the 155
-solved runs, and a failure table scoped to failures shows none of them.
+solved runs. A failure table scoped to failed runs shows four of those modes not at all and
+the other two once each.
 
 ## Results
 
 | model | solve rate | step efficiency | tool validity | redundancy | recovery |
 | --- | --- | --- | --- | --- | --- |
 | `stub:methodical` | 100.0% +/- 0.0% | 1.000 | 1.000 | 0.062 | 1.000 |
-| `stub:sloppy` | 100.0% +/- 0.0% | 0.766 | **0.922** | 0.052 | 1.000 |
-| `stub:thrasher` | 100.0% +/- 0.0% | **0.664** | 1.000 | **0.493** | **0.847 +/- 0.137** |
-| `stub:reckless` | 97.2% +/- 3.9% | 0.766 | 1.000 | 0.045 | 1.000 |
-| `stub:hasty` | **33.3% +/- 23.6%** | 1.000 | 1.000 | 0.014 | 1.000 |
+| `stub:sloppy` | 100.0% +/- 0.0% | 0.766 | **0.922** | 0.052 | **0.653 +/- 0.330** |
+| `stub:thrasher` | 100.0% +/- 0.0% | **0.664** | 1.000 | **0.493** | 0.847 +/- 0.137 |
+| `stub:reckless` | 97.2% +/- 3.9% | 0.766 +/- 0.001 | 1.000 | 0.045 | 0.972 +/- 0.039 |
+| `stub:hasty` | **33.3% +/- 23.6%** | 1.000 | 1.000 | 0.014 +/- 0.010 | 0.917 +/- 0.118 |
 
-180 runs, 12 tasks, 3 seeds, 18.2 minutes, 0.00 USD.
+180 runs, 12 tasks, 3 seeds, 18.2 minutes, 0.00 USD. A spread is printed where it is not
+zero. Recovery was rescored on 25 October 2026 after a review found the metric credited a
+`finish` straight after a failed command as a recovery; [RESULTS.md](RESULTS.md#leaderboard)
+has the detail.
 
 Step efficiency is scored only on runs that solved the task, so `stub:hasty` reaching
 1.000 is not a contradiction: on the third of runs where quitting early happened to be
@@ -127,7 +131,8 @@ uv run trajectory report --format md
 
 `--budget-usd` is a ceiling compared against the running spend before each model call, so a
 parallel batch can overshoot it by the calls already in flight; for a free tier priced by
-the request, `--max-calls` reserves a slot before each call and cannot overshoot. Any model
+the request, `scripts/run_matrix.py --max-calls` reserves a slot before each call and cannot
+overshoot. Any model
 LiteLLM can reach works, including a local Ollama server, with no code change. The package
 is not on PyPI yet, so it is run from a clone rather than installed.
 
@@ -147,16 +152,17 @@ added later can be applied to results published earlier. Full formulas in
 | 2 | partial credit | four failing tests taken down to one is progress |
 | 3 | step efficiency | reference steps over steps taken, null on failures |
 | 4 | tool call validity | malformed and invented tool calls |
-| 5 | redundant action rate | byte-identical repeat commands |
+| 5 | redundant action rate | repeated commands, compared with whitespace collapsed |
 | 6 | recovery rate | did it adapt after a failure, or just retry |
 | 7 | premature termination | called finish while the tests were still red |
 | 8 | context drift | did the last third stay on task (judged) |
 | 9 | cost and wall clock | spend per solved task, not per call |
-| 10 | destructive attempts | `git reset --hard` before looking at anything |
+| 10 | destructive attempts | `git reset --hard`, force pushes, `rm -rf` above the workspace |
 
-Every leaderboard cell carries a standard deviation across seeds. A pass rate without its
-spread is not a result: one policy here reads 33.3% +/- 23.6%, and a single-seed run of it
-would have published either 0% or 50%.
+Every rate on the leaderboard carries a standard deviation across seeds; counts, cost and wall
+clock are reported as totals and means. A pass rate without its spread is not a result: one
+policy here reads 33.3% +/- 23.6%, and a single-seed run of it would have published either
+0% or 50%.
 
 ## Failure modes
 
@@ -217,8 +223,9 @@ Evaluation compute and results storage are separate systems.
 
 Running an agent needs Docker, arbitrary CPU, and the ability to execute untrusted
 model-generated shell commands. So the runner executes where Docker is available, a laptop
-or a CI job, produces a signed results bundle, and pushes it to a small hosted API that
-stores it in Postgres and serves it to the web app.
+or a CI job, produces a results bundle carrying a content hash, and pushes it to a small API
+that stores it in Postgres and serves it to the web app. The public site skips the API: it
+is a static build of the records committed to this repository.
 
 That is not a workaround for a hosting constraint. Evaluation compute wants to be elastic
 and ephemeral; results want to be durable and queryable. Coupling them means either paying
@@ -233,9 +240,11 @@ flowchart LR
 ```
 
 The one property everything rests on: **the hidden tests are not in the filesystem while
-the agent is running.** They are copied in only after the agent stops, task validation
-rejects a Dockerfile that bakes them into the image, and there is a test that searches the
-whole container filesystem during the agent phase and asserts they are not there.
+the agent is running.** They are copied in only after the agent stops. The image is built
+from a context that holds the Dockerfile and the workspace and nothing else, so no
+instruction in a Dockerfile can bake them in, and task validation refuses one that names
+them. A test searches the whole container filesystem during the agent phase and asserts
+they are not there.
 
 Full detail, including the storage shape and what is deliberately absent, in
 [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -305,8 +314,9 @@ repository.
 ## Who built this
 
 [Ajay Mekala](https://linkedin.com/in/ajaymekala). AI/ML Engineer, production ML platforms
-and MLOps, with four years of frontier model evaluation on contract alongside it: agent
-trajectory scoring, benchmark task authoring, rubric design.
+and MLOps. Four years across software engineering and frontier model evaluation, the
+evaluation work on contract: agent trajectory scoring, benchmark task authoring, rubric
+design.
 
 That contract work is covered by NDA, which is the reason this repository exists. It applies
 the same methodology to tasks written from scratch, in public, where the numbers can be

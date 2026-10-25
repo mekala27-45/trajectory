@@ -4,7 +4,9 @@ description: >
   start and end date into a list of dates. The library documents the range as inclusive of
   both ends, and three of its tests fail because the implementation excludes the end date.
   Everything needed to diagnose this is visible in the workspace, including a test suite
-  that reproduces the failure.
+  that reproduces the failure. The tempting wrong fix trades one bug for another, for
+  example a reversed range that now returns a single date, and the hidden tests check that
+  a reversed range is still empty.
 language: python
 difficulty: 1
 tags: [off-by-one, dates, entry-level]

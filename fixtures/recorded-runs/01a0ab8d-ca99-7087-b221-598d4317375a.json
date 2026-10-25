@@ -213,7 +213,7 @@
     "step_efficiency": 0.666667,
     "tool_call_validity": 0.888889,
     "redundant_action_rate": 0.2,
-    "recovery_rate": 1.0,
+    "recovery_rate": 0.5,
     "premature_termination": false,
     "context_drift": null,
     "cost_usd": 0.0,

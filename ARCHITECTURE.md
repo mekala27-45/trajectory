@@ -73,7 +73,7 @@ flowchart TB
     subgraph runner["Runner: laptop or CI, Docker required"]
         direction TB
         L["task loader<br/>validates definitions"]
-        S["sandbox manager<br/>one container per run"]
+        S["sandbox manager<br/>one agent container per run,<br/>a fresh one to verify"]
         A["agent loop<br/>LiteLLM tool calling"]
         V["verifier<br/>hidden tests, post hoc"]
         SC["scorer<br/>ten trajectory metrics"]
@@ -105,9 +105,12 @@ flowchart TB
 
 The web app has two data sources and one shape. With `NEXT_PUBLIC_API_URL` set it reads
 the live API; without it, the committed fixture bundle. Both serve the identical Pydantic
-models, so the client cannot tell which one it is talking to. That is what makes the public
-demo work for a stranger with no key and nothing to configure, and it is also why the
-demo does not go dark when the API scales to zero.
+models for runs, tasks, the leaderboard and failure modes, so those pages read the same from
+either. That is what makes the public demo work for a stranger with no key and nothing to
+configure, and it is also why the demo does not go dark when the API scales to zero. Three
+panels exist only in the static bundle, because the bundle builder computes them: the
+intervals over tasks, the mutation report and the judge agreement. On the API path those
+sections are left out rather than drawn empty.
 
 ## Packages
 
@@ -127,10 +130,12 @@ process that has no Docker and no Postgres.
 
 The hidden tests are not present in the filesystem while the agent is running.
 
-`verify/` is never copied into the task image, and validation rejects a Dockerfile that
-tries. It is copied into the running container only after the agent loop has ended, by the
-verifier. There is a test that searches the entire container filesystem during the agent
-phase and asserts the test file is not there.
+`verify/` is never in the task image. The image is built from a context holding the
+Dockerfile and `workspace/` and nothing else, so no instruction, a `COPY .` included, can
+reach the hidden tests or the reference, and validation refuses a Dockerfile that names
+them. The tests reach the verification container only after the agent loop has ended. A
+test searches the entire container filesystem during the agent phase and asserts the test
+file is not there.
 
 An agent that can read the verification tests will read them, and the benchmark is
 worthless from the first time that happens quietly. Every other design choice here is
@@ -204,8 +209,9 @@ aggregation computes, and the seam for moving it into SQL later is one function 
 
 ## Two sandbox backends
 
-`DockerSandbox` is the production backend. One container per run, non-root, memory and CPU
-and PID ceilings, all capabilities dropped, no-new-privileges, network off unless the task
+`DockerSandbox` is the production backend. One container for the agent and a fresh one,
+from the same image, for verification. Both run non-root, with memory and CPU and PID
+ceilings, all capabilities dropped, no-new-privileges, network off unless the task
 justifies it in writing, tmpfs for scratch, removed on exit including when the body raises.
 
 `LocalSandbox` runs commands in a temporary directory on the host. It exists because task

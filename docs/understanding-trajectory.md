@@ -91,8 +91,8 @@ exam, with three parts.
   yardstick for efficiency, because we can compare how many steps the agent took against how
   many the reference needed.
 
-The agent does its work inside a **sandbox**, which is a sealed container with no access to the
-internet and no way out. That keeps every run clean and comparable, and it keeps the agent from
+The agent does its work inside a **sandbox**, which is a locked down container with no access
+to the internet. That keeps every run clean and comparable, and it keeps the agent from
 reaching the hidden tests. When the agent stops, the hidden tests are copied in and run, and
 then every step of the attempt is scored.
 
@@ -121,8 +121,9 @@ these. Skim them once so the leaderboard makes sense later.
 10. **Destructive attempts.** Did the agent reach for dangerous commands, the kind that throw
     away work, such as wiping the project history before even looking at it.
 
-Two of these come from an AI judge reading the run. The rest are mechanical rules, which means
-anyone can recompute them from the record and get the same answer.
+One of these, context drift, comes from an AI judge reading the run. The other nine are
+mechanical rules, which means anyone can recompute them from the record and get the same
+answer.
 
 ---
 
@@ -140,9 +141,10 @@ eleven, labeled F01 to F11. A few examples, in plain terms:
   into reporting success. More on this in section 9.
 
 Eight of the eleven are decided by plain rules. Three need judgement about intent, so they are
-decided by an AI judge. Every flagged run carries the evidence, so a person can check it.
+decided by an AI judge, which reads only the runs that failed. Every flagged run carries the
+evidence, so a person can check it.
 
-The useful part is that failure modes are computed even on runs that **passed**. An agent that
+The useful part is that the eight rule based modes are computed even on runs that **passed**. An agent that
 got the tests green but made a mess along the way, or reached for a destructive command and got
 lucky, is a problem that succeeded. A pass rate cannot show you that. The failure modes can.
 
@@ -165,8 +167,9 @@ Two things to notice:
   second number says how much the result wobbled between runs. A single run can be a fluke, so a
   result without its spread is not really a result. Showing the spread is a sign the measurement
   is honest.
-- **There are two kinds of agent in the table, and they are labeled.** Most rows are **scripted
-  policies**, tagged as such. These are not real AI models. They are small hand-written programs
+- **There are two kinds of agent in the table, and they are labeled.** The table opens on the
+  real models, and a filter adds the **scripted policies**, tagged as such. These are not real
+  AI models. They are small hand-written programs
   that each imitate one bad habit on purpose, so that every metric had a known answer before any
   real model was ever scored. They are how the harness itself was checked for correctness. Only
   the rows without a `stub:` prefix, tagged **real model**, are actual AI models. Keeping these
@@ -210,7 +213,8 @@ Different labs use different software to run these experiments. A test that only
 own tool is a walled garden. So trajectory speaks two shared formats. **Harbor** is a common task
 format, so these twelve tasks can be run inside other labs' systems. **ATIF** is a common format
 for a recorded run, so trajectory can read a run produced by another agent, such as Claude Code or
-Codex, and score it with the same measurements. In short: the work is portable, not locked in.
+Codex, and score it with every measurement that run's record can support. In short: the work is
+portable, not locked in.
 
 ### Can the grader be fooled? (reward hacking)
 
@@ -288,7 +292,7 @@ the job of evaluating AI systems carefully. That is the field this project belon
 - **Trajectory.** The full step-by-step record of one attempt at a task.
 - **Hidden tests.** The checks that decide success, kept from the agent until after it stops.
 - **Reference solution.** A known-good fix, used to prove the task is fair and to measure efficiency.
-- **Sandbox.** The sealed container the agent works in, with no internet and no way out.
+- **Sandbox.** The locked down container the agent works in, with no internet.
 - **Pass rate.** The fraction of tasks an agent solved. The thin number this project improves on.
 - **Partial credit.** The fraction of hidden tests that passed on one task.
 - **Failure mode.** A named, specific way an agent can go wrong, labeled F01 to F11.

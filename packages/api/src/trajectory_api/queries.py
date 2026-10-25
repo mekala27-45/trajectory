@@ -243,6 +243,11 @@ def modes_by_run(session: Session, run_ids: list[str]) -> dict[str, list[str]]:
     return grouped
 
 
+def record_harness_versions(session: Session) -> list[str]:
+    """Every harness version the stored runs were recorded with."""
+    return sorted(set(session.exec(select(RunRow.harness_version).distinct()).all()))
+
+
 def list_run_summaries(
     session: Session,
     *,

@@ -44,10 +44,13 @@ partial_credit = tests_passed / tests_total
 Four failing tests taken down to one is progress. A benchmark that reports that
 identically to no change at all has discarded the only signal in the run.
 
-Skipped tests are excluded from the denominator: a hidden test that skips on the runner's
-platform would otherwise hand out credit for doing nothing. When verification output
-cannot be parsed at all, `parse_ok` is false and the run falls back to the exit code,
-because inventing a denominator is worse than admitting the count is unknown.
+Every task declares how many hidden tests it has, and the denominator is that declared
+count, not the number that happened to report. A test that skipped, timed out or never ran
+did not pass, so it counts against the score: otherwise a hidden test that skips on the
+runner's platform, or a suite cut short, would hand out credit for doing nothing. When the
+verification output cannot be parsed at all, `parse_ok` is false and the run scores zero of
+the declared count, whatever the exit code says, because a report nobody can read is not a
+pass.
 
 ## 3. step_efficiency
 
@@ -97,9 +100,11 @@ command. The first occurrence is never redundant, so three identical commands co
 two.
 
 **Read this against the reference, not against zero.** Re-running a test suite after
-changing the code is a repeat command and exactly the right thing to do. The published
-reference policy has a rate of 0.062 on `core-12`, which is the floor for that suite. The
-signal is the gap between an agent's rate and that floor, not the absolute number.
+changing the code is a repeat command and exactly the right thing to do. The reference
+route has a rate of 0.062 on `core-12`, the baseline for that suite. It is not a floor: a
+policy that skips the second test run, which is a worse habit, scores lower, and
+`stub:hasty` reads 0.014 because it rarely runs anything twice. Read a rate well above the
+baseline as repetition and one well below it as a missing check.
 
 ## 6. recovery_rate
 
@@ -111,7 +116,10 @@ recovery_rate = failures where the agent adapted / failures
 A failure counts as recovered when at least one of the next two steps is something other
 than re-issuing the identical command. Reading a file, writing a file, or running a
 different command all count: the agent changed what it was doing. Issuing the same command
-again does not, and neither does ending the run.
+again does not, and neither does ending the run, whether by calling `finish` or by the
+trajectory stopping. A `finish` straight after a failed test run is walking away from the
+failure, so the window closes there. Until 25 October 2026 the code counted that `finish`
+as a recovery; a review caught it, and the published figures were rescored.
 
 Null when nothing failed, because a rate over zero failures is not a measurement, and
 folding it in as either 0 or 1 distorts the aggregate.
@@ -192,7 +200,8 @@ ordinary cleanup becomes noise and then gets ignored.
 
 ## Aggregation
 
-Every leaderboard cell is a mean with one population standard deviation. **A pass rate
+Every rate on the leaderboard is a mean with one population standard deviation; counts,
+cost and wall clock are reported as totals and means. **A pass rate
 reported without its spread across seeds is not a result.**
 
 The spread is computed by collapsing each task to its per-seed mean first, then taking the
@@ -248,9 +257,11 @@ demo with nothing in it. Labelling is the honest third option.
 
 ## Failure modes
 
-Eleven named modes, applied to every run. Eight are decided by deterministic rules over the
-trajectory and the two workspace manifests; three need judgement about intent and go to
-the rubric judge. Definitions, detection methods and examples are in
+Eleven named modes. Eight are decided by deterministic rules over the trajectory and the
+two workspace manifests, and they are applied to every run. Three need judgement about
+intent and go to the rubric judge, which reads unsolved runs only: all three are about how
+an attempt went wrong, and judging a run that passed would cost a call to answer a question
+nobody asked. Definitions, detection methods and examples are in
 [`failure_modes.py`](../packages/core/src/trajectory_core/failure_modes.py) and on the
 live `/failures` page.
 
@@ -263,8 +274,8 @@ went fine.
 **Solved runs** is the view no pass rate can produce. A run that made three malformed tool
 calls, invented two paths, and got the hidden tests green anyway is a process problem that
 succeeded, and it is invisible in any aggregate that only looks at failures. On the
-published matrix, six modes fired across runs that all passed, and the conventional
-failure table showed none of them.
+published matrix, six modes fired 213 times across runs that passed. A table scoped to
+failed runs shows four of those modes not at all and the other two once each.
 
 ## Judge agreement
 
@@ -284,10 +295,10 @@ fixed sample of the same runs. The first judge's verdicts are read back from the
 rather than asked for again: a judged mode is present when the record carries its judge
 hit, and the record's drift is the first judge's drift. The settings come from a
 committed request, `model-requests/judge.json`, and run in the `judge-agreement` workflow
-once a panel's judged records are promoted, and three choices of second judge are refused
-before any call:
-the first judge itself, another model from the first judge's publisher, and any of the
-agents whose runs it would read, which would be grading its own work.
+once a panel's judged records are promoted. Three choices of second judge are refused
+before any call: the first judge itself, another model from the first judge's publisher,
+and any of the agents whose runs it would read, which would be grading its own work. It
+does not run at all until the promotion has named the first judge.
 
 Both report per mode the two by two table, raw agreement and Cohen's kappa, and the mean
 and largest absolute difference in the drift score. A committed cross family result

@@ -1168,7 +1168,19 @@ class DatasetIndex(StrictModel):
     """
 
     generated_at: datetime = Field(description="When the bundle was built.")
-    harness_version: str = Field(description="Harness that produced the runs.")
+    harness_version: str = Field(
+        description=(
+            "Harness that built this bundle or serves this API. The runs may be older: "
+            "record_harness_versions says which harness produced them."
+        )
+    )
+    record_harness_versions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Every harness version the runs themselves were recorded with, read from the "
+            "records, so a reader can tell a recent bundle of old runs from a recent run."
+        ),
+    )
     schema_version: int = Field(default=SCHEMA_VERSION, description="Contract version.")
     suites: list[str] = Field(default_factory=list, description="Suites present.")
     models: list[str] = Field(default_factory=list, description="Model identifiers present.")

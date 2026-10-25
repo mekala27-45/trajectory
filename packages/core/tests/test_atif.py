@@ -19,7 +19,13 @@ from trajectory_core.models import FailureModeId, Run, SandboxBackend
 from trajectory_core.testing import make_task
 
 ROOT = Path(__file__).resolve().parents[3]
-RECORDED = sorted((ROOT / "fixtures" / "recorded-runs").glob("*.json"))
+# Every committed record: the scripted matrix and the real model runs, which carry
+# reasoning, provider timeouts and judge output the scripted ones never do.
+RECORDED = sorted(
+    path
+    for directory in ("recorded-runs", "model-runs")
+    for path in (ROOT / "fixtures" / directory).glob("*.json")
+)
 
 
 def _task_for(run: Run):

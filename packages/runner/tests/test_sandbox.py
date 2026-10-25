@@ -18,7 +18,9 @@ from trajectory_runner.sandbox import (
     _normalise_path,
     _parse_manifest,
     _parse_wrapper_output,
+    build_context,
     build_sandbox,
+    build_task_image,
     directory_content_hash,
     local_verify_runnable,
     sanitised_path,
@@ -143,6 +145,60 @@ class TestImageCacheKey:
         before = directory_content_hash([root / "Dockerfile", root / "workspace"])
         (root / "workspace" / "a.py").write_text("x = 2\n")
         assert directory_content_hash([root / "Dockerfile", root / "workspace"]) != before
+
+
+class TestTheBuildContext:
+    """The image is built from the Dockerfile and the workspace, and from nothing else."""
+
+    @staticmethod
+    def _names(context) -> set[str]:
+        import tarfile
+
+        with tarfile.open(fileobj=context, mode="r") as archive:
+            return set(archive.getnames())
+
+    def test_the_hidden_tests_and_the_reference_are_not_in_it(self, task_dir: Path):
+        (task_dir / "reference").mkdir()
+        (task_dir / "reference" / "playbook.yaml").write_text("steps: []\n")
+        (task_dir / "task.yaml").write_text("id: sample-task-01\n")
+        names = self._names(build_context(task_dir))
+        assert "Dockerfile" in names
+        assert "workspace/src/app.py" in names
+        assert not any(name.split("/")[0] in {"verify", "reference"} for name in names)
+        assert "task.yaml" not in names
+
+    def test_copy_dot_cannot_reach_the_hidden_tests(self, task_dir: Path, sample_task):
+        """A Dockerfile that copies the whole context gets a context without them in it."""
+        from docker.errors import ImageNotFound
+
+        (task_dir / "Dockerfile").write_text("FROM python:3.12-slim\nCOPY . /workspace/\n")
+        built: dict[str, object] = {}
+
+        class Images:
+            def get(self, tag: str) -> None:
+                raise ImageNotFound(tag)
+
+            def build(self, **kwargs: object) -> None:
+                built.update(kwargs)
+
+        class Client:
+            images = Images()
+
+        build_task_image(sample_task, task_dir, client=Client())
+        assert built["custom_context"] is True
+        assert "path" not in built
+        names = self._names(built["fileobj"])
+        assert not any(name.split("/")[0] == "verify" for name in names)
+
+    def test_a_link_in_the_workspace_stays_a_link(self, task_dir: Path):
+        import tarfile
+
+        (task_dir / "workspace" / "latest").symlink_to("src")
+        context = build_context(task_dir)
+        with tarfile.open(fileobj=context, mode="r") as archive:
+            member = archive.getmember("workspace/latest")
+        assert member.issym()
+        assert member.linkname == "src"
 
 
 class TestSanitisedPath:

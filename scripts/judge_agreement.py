@@ -228,11 +228,18 @@ def check_independence(second: str, first: str | None, agents: set[str]) -> None
 
     The point is a reading from somewhere else. The same model, or another model from the
     same publisher, shares too much training to count as a second opinion, and a model that
-    is one of the agents under test would be grading its own runs.
+    is one of the agents under test would be grading its own runs. A first judge nobody
+    named is refused too: two of these checks would pass by default, and the report would
+    compare against a judge it cannot name.
     """
-    if first is not None and second == first:
+    if first is None:
+        raise RequestError(
+            "the first judge is not named. Promote the panel first, which writes "
+            "fixtures/model-runs.provenance.json with the judge it ran"
+        )
+    if second == first:
         raise RequestError("the second judge is the first judge")
-    if first is not None and _family(second) == _family(first):
+    if _family(second) == _family(first):
         raise RequestError(
             f"the second judge comes from the first judge's family, {_family(first)}"
         )

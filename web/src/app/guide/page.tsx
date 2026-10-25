@@ -144,10 +144,10 @@ export default function GuidePage() {
           </li>
         </ul>
         <p>
-          The agent works inside a <Term>sandbox</Term>, a sealed container with no internet and no
-          way out. That keeps every run clean and comparable, and it keeps the agent away from the
-          hidden tests. When the agent stops, the tests are copied in and run, and then every step
-          of the attempt is scored.
+          The agent works inside a <Term>sandbox</Term>, a locked down container with no internet.
+          That keeps every run clean and comparable, and it keeps the agent away from the hidden
+          tests. When the agent stops, the tests are copied in and run, and then every step of the
+          attempt is scored.
         </p>
       </Section>
 
@@ -198,8 +198,9 @@ export default function GuidePage() {
           </li>
         </ol>
         <p>
-          Two of these come from an AI judge reading the run. The rest are mechanical rules, which
-          means anyone can recompute them from the record and get the same answer.
+          One of these, context drift, comes from an AI judge reading the run. The other nine are
+          mechanical rules, which means anyone can recompute them from the record and get the same
+          answer.
         </p>
       </Section>
 
@@ -229,10 +230,10 @@ export default function GuidePage() {
         </ul>
         <p>
           Eight of the eleven are decided by plain rules. Three need judgement about intent, so an
-          AI judge decides them. The useful part is that failure modes are computed even on runs
-          that passed. An agent that got the tests green but made a mess, or reached for a
-          destructive command and got lucky, is a problem that succeeded. A pass rate cannot show
-          that. The failure modes can.
+          AI judge decides them, reading only the runs that failed. The useful part is that the
+          eight rule based modes are computed even on runs that passed. An agent that got the tests
+          green but made a mess, or reached for a destructive command and got lucky, is a problem
+          that succeeded. A pass rate cannot show that. The failure modes can.
         </p>
       </Section>
 
@@ -245,9 +246,10 @@ export default function GuidePage() {
               the readings above. Two things to notice. Every number carries a spread, like{" "}
               <Term>35.4% +/- 2.1</Term>, which says how much the result wobbled between runs, so a
               fluke cannot pass for a finding. And there are two kinds of agent, clearly labeled.
-              Most rows are <Term>scripted policies</Term>, small hand-written stand-ins that each
-              imitate one bad habit on purpose, used to check the harness itself. Only the rows
-              without a <Term>stub:</Term> prefix, tagged real model, are actual AI models.
+              The table opens on the real models, and a filter adds the{" "}
+              <Term>scripted policies</Term>, small hand-written stand-ins that each imitate one bad
+              habit on purpose, used to check the harness itself. Only the rows without a{" "}
+              <Term>stub:</Term> prefix, tagged real model, are actual AI models.
             </p>
             <p>
               Below the table, <Term>How sure these numbers are</Term> draws each real model as a
