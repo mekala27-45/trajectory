@@ -79,7 +79,13 @@ def render(report: dict[str, Any]) -> str:
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for task in tasks:
-        files = ", ".join(f"`{name}`" for name in task["files"]) or "none"
+        # A reference that edits a file in place with sed writes no file, so the files its
+        # mutants changed are named instead, marked as edited.
+        edited = sorted(
+            {mutant["path"] for mutant in task["mutants"] if "path" in mutant} - set(task["files"])
+        )
+        names = [f"`{name}`" for name in task["files"]] + [f"`{name}` (sed)" for name in edited]
+        files = ", ".join(names) or "none"
         if not task["scored"]:
             reason = task["control_detail"] or "no mutant could be scored"
             lines.append(

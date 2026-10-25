@@ -41,9 +41,18 @@ says so.
 ### How strong the hidden tests are
 
 `trajectory tasks mutate` replays each reference with one small change in a file it writes,
-the slip a model makes, and runs the hidden tests on the result. A survivor is a near miss
-the reward would pay in full, and every one is listed by file, line and change in
-`docs/verifier-strength.md`, held to its report in CI and reproduced on Docker by
+the slip a model makes, and runs the hidden tests on the result. On Docker the hidden tests
+caught 75 of 94 near misses across eleven tasks; the twelfth repairs its repository with git
+commands and has nothing to mutate. Each of the 19 survivors is listed by file, line and
+change in `docs/verifier-strength.md` and read by hand: 6 are equivalent to the original, 5
+pass only because of the task's data, and 8 are real gaps, every one at an edge of the
+input. Leaving out the equivalent ones, the tests catch 75 of 88.
+
+A kill has to happen twice. The first local run counted one catch that a container run did
+not. The mutant is equivalent on the task's data, so a test failed for another reason, most
+likely the suite's time budget on a loaded machine. Every kill is
+now replayed once more, and one that does not happen again is scored as unstable, not
+caught. The figures are held to their report in CI and reproduced on Docker by
 `mutation.yml` whenever a task or the verifier changes.
 
 ### How sure a number is

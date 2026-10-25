@@ -53,8 +53,9 @@ mutant rather than hidden in a percentage.
 - Backend: docker
 - Harness version: `0.3.0`
 - Sample: up to 12 mutants per task, fixed per task
-- Mutants scored: 91 across 10 task(s)
-- Killed: 72 of 91 (79.1%), 70 by a failing assertion and 2 by a crash or a failed build
+- Mutants scored: 94 across 11 task(s)
+- Killed: 75 of 94 (79.8%), 73 by a failing assertion and 2 by a crash or a failed build
+- Confirmation: every kill was replayed once more; 0 mutant(s) failed once, passed the second time, and count as not killed
 
 | task | solution files | sites | scored | killed | by a crash | unstable | survived | score |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -64,12 +65,12 @@ mutant rather than hidden in a percentage.
 | log-forensics-01 | `analyse.py` | 15 | 12 | 8 | 0 | 0 | 4 | 66.7% |
 | py-dep-conflict-01 | `requirements.txt` | 6 | 6 | 6 | 0 | 0 | 0 | 100.0% |
 | py-etl-schema-01 | `src/warehouse/pipeline.py` | 23 | 12 | 11 | 0 | 0 | 1 | 91.7% |
-| py-failing-suite-01 | none | 2 | 2 | 2 | 0 | 0 | 0 | 100.0% |
+| py-failing-suite-01 | `src/daterange/core.py` (sed) | 2 | 2 | 2 | 0 | 0 | 0 | 100.0% |
 | py-flaky-test-01 | `src/sampler/core.py` | 18 | 12 | 7 | 0 | 0 | 5 | 58.3% |
 | py-perf-01 | `src/rollup/core.py` | 9 | 9 | 7 | 1 | 0 | 2 | 77.8% |
 | sql-migration-01 | `migrations/0002_add_status.down.sql`, `migrations/0002_add_status.up.sql` | 24 | 12 | 8 | 0 | 0 | 4 | 66.7% |
-| ts-api-contract-01 | `src/orders.ts`, `src/shipments.ts`, `src/status.ts` | 0 | 0 | | | | | n/a: no operator applies to the source the reference writes |
-| ts-build-break-01 | `packages/app/src/main.ts` | 2 | 2 | 2 | 0 | 0 | 0 | 100.0% |
+| ts-api-contract-01 | `src/orders.ts`, `src/shipments.ts`, `src/status.ts` | 2 | 2 | 2 | 0 | 0 | 0 | 100.0% |
+| ts-build-break-01 | `packages/app/src/main.ts` | 3 | 3 | 3 | 0 | 0 | 0 | 100.0% |
 
 ### Survivors
 
@@ -146,8 +147,8 @@ the fix is a fixture rather than a test.
   result type that is no longer frozen, so it can be changed after it is made and can no
   longer be hashed. No test tries either.
 
-Leaving the six equivalent mutants out, the hidden tests caught 72 of 85 near misses,
-84.7%. Every gap sits at an edge: an empty input, the two ends of a range, a property no
+Leaving the six equivalent mutants out, the hidden tests caught 75 of 88 near misses,
+85.2%. Every gap sits at an edge: an empty input, the two ends of a range, a property no
 caller in the task uses. That is the usual shape of a hand written suite, which tests the
 cases the task is about, and it says where a policy could be paid for a near miss: code
 that is right on the common path and wrong at the edges.
@@ -174,3 +175,8 @@ Postgres clusters were running at once. A reward with that in it pays the same a
 differently on a busy machine, which is a reward problem in its own right, and a
 measurement that counted the failure would have credited the tests with a catch they
 never made. So every kill is now replayed once more and has to fail again.
+
+In the container run published above, every kill happened again and no mutant was
+unstable. Rerun locally under the rule, the same migration mutant passed all ten tests, so
+the earlier failure did not come back. The rule costs one more replay per kill, and it is
+there for the run where the machine is busier than the change is wrong.
