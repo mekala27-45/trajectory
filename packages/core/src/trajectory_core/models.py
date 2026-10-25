@@ -539,6 +539,23 @@ class Verification(StrictModel):
             "task graded by exit code alone declares the exit_code parser instead."
         ),
     )
+    canary: str | None = Field(
+        default=None,
+        description=(
+            "Name of the must fail test the harness planted among the hidden tests when "
+            "they were installed, or None when the task's runner has no per test report. "
+            "The counts above leave it out. A report that does not show it failing cannot "
+            "be trusted, so the run cannot pass."
+        ),
+    )
+    tampered: bool = Field(
+        default=False,
+        description=(
+            "True when the runner claimed success with the planted test in its set, or "
+            "reported the planted test as passing. The report is not believed: the run "
+            "cannot pass and none of its tests count as passed."
+        ),
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

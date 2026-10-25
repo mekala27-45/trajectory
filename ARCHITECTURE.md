@@ -136,23 +136,31 @@ An agent that can read the verification tests will read them, and the benchmark 
 worthless from the first time that happens quietly. Every other design choice here is
 negotiable; this one is not.
 
-## The second property: the grader does not run a file the agent planted in its path
+## The second property: the grader sees the workspace and nothing else the agent touched
 
 Keeping the tests out of reach stops an agent learning what they check. It does not stop
-an agent changing what they see. The verifier runs in the container the agent just used,
-with the agent's workspace as its working directory, and an interpreter puts that directory
-at the front of its import path. A file the agent left there, named after a module the
-tests import, would be loaded in its place.
+an agent changing what they see. Three things stand between the two.
 
-So verification runs with `PYTHONSAFEPATH` and `PYTHONNOUSERSITE`, which remove the implicit
-directory and the user site from the path, and output the parser cannot read scores zero
-rather than falling back to the exit code, which stops a solution ending the test process
-early. Failure mode F11 flags a run that left a file by one of a few known hook names
-behind. The flags are the tripwire, the hardening and the counting are the defence, and
-one route is left open on purpose rather than claimed shut: where a hidden test imports the
-solution, the solution runs inside the grader's process. Closing that needs the verifier to
-run against a copy of the workspace with the solution behind a process boundary, which this
-harness does not do yet. [docs/grader-audit.md](docs/grader-audit.md) has the detail.
+The workspace moves before it is graded. When the agent stops, its processes are stopped
+and its workspace, alone, is copied into a fresh container from the same clean image, and
+the agent's container is removed. Nothing the agent left running and nothing it wrote
+outside the workspace is present when the tests run.
+
+The import path is hardened. An interpreter puts the working directory at the front of its
+import path, so a file the agent left in the workspace, named after a module the tests
+import, would be loaded in its place. Verification runs with `PYTHONSAFEPATH` and
+`PYTHONNOUSERSITE`, which remove the implicit directory and the user site from the path, and
+output the parser cannot read scores zero rather than falling back to the exit code, which
+stops a solution ending the test process early.
+
+The report is checked. A test written fresh for each run, which fails for any correct
+runner, is planted among the hidden tests, and a report that claims success with it in the
+set is not believed. Failure mode F11 flags that, and a run that left a file by one of a few
+known hook names behind. The flags are the tripwire and the isolation, hardening and
+counting are the defence. One route is narrowed rather than claimed shut: where a hidden
+test imports the solution, the solution runs inside the grader's process, and a report bent
+for particular tests would get past the planted one. [docs/grader-audit.md](docs/grader-audit.md)
+has the detail.
 
 ## Why these dependencies
 

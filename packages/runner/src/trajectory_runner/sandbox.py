@@ -34,6 +34,7 @@ import sys
 import tarfile
 import tempfile
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
@@ -124,6 +125,12 @@ head -c "$TRAJ_CAP" "$__e"
 rm -f "$__o" "$__e"
 """
 
+# Run as the agent user before the workspace leaves its container. kill -1 reaches every
+# process the agent user owns except the container's first process and the shell itself:
+# a polite TERM first, so a server inside the workspace can close its files, then KILL for
+# anything that ignored it.
+_STOP_EVERYTHING = "kill -TERM -1 2>/dev/null; sleep 2; kill -KILL -1 2>/dev/null; exit 0"
+
 _MANIFEST_CMD = (
     "find . -type f "
     + " ".join(f"-not -path './{d}/*'" for d in EXCLUDED_DIRS)
@@ -173,6 +180,7 @@ class Sandbox(Protocol):
     """What the agent loop and the verifier need from an execution environment."""
 
     backend: SandboxBackend
+    task_dir: Path
 
     def start(self) -> None:
         """Bring the environment up. Prefer the context manager, which guarantees cleanup."""
@@ -213,8 +221,12 @@ class Sandbox(Protocol):
         """Hash every file in the workspace."""
         ...
 
-    def install_verify(self) -> None:
-        """Copy the hidden tests in. Only ever called after the agent phase."""
+    def isolate_for_verify(self) -> None:
+        """Leave nothing of the agent phase behind but the workspace, before verifying."""
+        ...
+
+    def install_verify(self, extra: Mapping[str, str] | None = None) -> None:
+        """Copy the hidden tests in, plus any extra files. Only after the agent phase."""
         ...
 
     def image_id(self) -> str | None:
@@ -333,11 +345,26 @@ def _parse_manifest(text: str, *, total_files: int) -> WorkspaceManifest:
     return WorkspaceManifest(files=files, truncated=total_files > MANIFEST_FILE_LIMIT)
 
 
-def _tar_bytes(source: Path, arcname: str) -> bytes:
-    """Pack a directory into an uncompressed tar archive in memory."""
+def _check_extra(extra: Mapping[str, str] | None) -> dict[str, str]:
+    """Extra hidden test files are plain names in the test directory, never paths."""
+    files = dict(extra or {})
+    for name in files:
+        if not name or name in (".", "..") or "/" in name or "\\" in name:
+            raise SandboxError(f"an extra hidden test file must be a plain name, not {name!r}")
+    return files
+
+
+def _tar_bytes(source: Path, arcname: str, extra: Mapping[str, str] | None = None) -> bytes:
+    """Pack a directory into an uncompressed tar archive in memory, plus any extra files."""
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w") as tar:
         tar.add(source, arcname=arcname)
+        for name, content in _check_extra(extra).items():
+            data = content.encode()
+            info = tarfile.TarInfo(name=f"{arcname}/{name}")
+            info.size = len(data)
+            info.mode = 0o644
+            tar.addfile(info, io.BytesIO(data))
     return buffer.getvalue()
 
 
@@ -527,7 +554,9 @@ class DockerSandbox:
         self._image_tag = image_tag
         self._client = client
         self._container: Any = None
+        self._tag: str = image_tag or ""
         self._verify_installed = False
+        self._isolated = False
 
     def __enter__(self) -> Self:
         """Build the image if needed and start the container."""
@@ -555,10 +584,29 @@ class DockerSandbox:
         self._client = client
 
         tag = self._image_tag or build_task_image(self.task, self.task_dir, client=client)
+        self._tag = tag
         log.info("sandbox.start", task=self.task.id, image=tag)
+        self._container = self._run_container(tag)
 
+        if self.task.setup_cmd:
+            result = self.exec(
+                self.task.setup_cmd,
+                timeout_s=self.task.command_timeout_seconds,
+                cap_bytes=16384,
+            )
+            if result.exit_code != 0:
+                raise SandboxError(
+                    f"setup_cmd for {self.task.id} exited {result.exit_code}: "
+                    f"{result.combined[-2000:]}"
+                )
+
+    def _run_container(self, tag: str) -> Any:  # noqa: ANN401  docker sdk is untyped
+        """Start one container from the task image, with every limit the sandbox promises."""
+        from docker.errors import DockerException
+
+        client = self._client
         try:
-            self._container = client.containers.run(
+            return client.containers.run(
                 tag,
                 command=["sleep", "infinity"],
                 detach=True,
@@ -585,17 +633,51 @@ class DockerSandbox:
         except DockerException as exc:
             raise SandboxError(f"starting a container for {self.task.id} failed: {exc}") from exc
 
-        if self.task.setup_cmd:
-            result = self.exec(
-                self.task.setup_cmd,
-                timeout_s=self.task.command_timeout_seconds,
-                cap_bytes=16384,
+    def isolate_for_verify(self) -> None:
+        """Carry the final workspace, and nothing else, into a fresh container.
+
+        The agent's container has run every command the agent issued, and whatever those
+        commands left outside the workspace is still in it: a process still running, a
+        file under the home directory or /tmp, anything written where the agent user could
+        write. None of that is the solution, and all of it would be present while the
+        hidden tests ran. So the processes are stopped, gently first so a database inside
+        the workspace closes its files cleanly, the workspace is copied out, and a new
+        container from the same clean image takes it in. The old container is removed. The
+        first command the new container ever runs is the verification.
+        """
+        if self._isolated:
+            return
+        old = self._require()
+        stopped = old.exec_run(["sh", "-c", _STOP_EVERYTHING], user=AGENT_USER)
+        if stopped.exit_code != 0:
+            raise SandboxError(f"stopping the agent's processes failed: {stopped.output!r}")
+        try:
+            stream, _ = old.get_archive(WORKSPACE_CONTAINER_PATH)
+            archive = b"".join(stream)
+        except Exception as exc:
+            raise SandboxError(f"copying the workspace out failed: {exc}") from exc
+
+        fresh = self._run_container(self._tag)
+        try:
+            cleared = fresh.exec_run(
+                ["find", WORKSPACE_CONTAINER_PATH, "-mindepth", "1", "-delete"], user=AGENT_USER
             )
-            if result.exit_code != 0:
-                raise SandboxError(
-                    f"setup_cmd for {self.task.id} exited {result.exit_code}: "
-                    f"{result.combined[-2000:]}"
-                )
+            if cleared.exit_code != 0:
+                raise SandboxError(f"clearing the fresh workspace failed: {cleared.output!r}")
+            if not fresh.put_archive(str(Path(WORKSPACE_CONTAINER_PATH).parent), archive):
+                raise SandboxError("copying the workspace into the fresh container failed")
+        except Exception:
+            fresh.remove(force=True, v=True)
+            raise
+
+        self._container = fresh
+        self._isolated = True
+        self._verify_installed = False
+        try:
+            old.remove(force=True, v=True)
+        except Exception as exc:  # noqa: BLE001  cleanup must never mask the verification
+            log.warning("sandbox.cleanup_failed", task=self.task.id, error=str(exc)[:200])
+        log.info("sandbox.isolated", task=self.task.id, workspace_bytes=len(archive))
 
     def close(self) -> None:
         """Remove the container. Safe to call more than once."""
@@ -697,8 +779,8 @@ class DockerSandbox:
         total = int(count.stdout.strip() or 0) if count.exit_code == 0 else 0
         return _parse_manifest(listing.stdout, total_files=total)
 
-    def install_verify(self) -> None:
-        """Copy the hidden tests into the container.
+    def install_verify(self, extra: Mapping[str, str] | None = None) -> None:
+        """Copy the hidden tests into the container, with any extra files beside them.
 
         Called by the verifier once the agent phase has ended, and never before.
         """
@@ -708,7 +790,7 @@ class DockerSandbox:
         verify_dir = self.task_dir / "verify"
         if not verify_dir.is_dir():
             raise SandboxError(f"task {self.task.id} has no verify/ directory")
-        archive = _tar_bytes(verify_dir, arcname=Path(VERIFY_CONTAINER_PATH).name)
+        archive = _tar_bytes(verify_dir, arcname=Path(VERIFY_CONTAINER_PATH).name, extra=extra)
         if not container.put_archive("/", archive):
             raise SandboxError("installing the hidden tests failed")
         self._verify_installed = True
@@ -959,14 +1041,25 @@ class LocalSandbox:
         total = int(count.stdout.strip() or 0) if count.exit_code == 0 else 0
         return _parse_manifest(listing.stdout, total_files=total)
 
-    def install_verify(self) -> None:
+    def isolate_for_verify(self) -> None:
+        """Nothing to isolate. The local backend has no boundary to begin with.
+
+        Its commands run as the operator's own processes on the operator's own machine, so
+        there is no clean environment to move the workspace into. That is the same reason
+        its rows are kept apart from container rows on every leaderboard.
+        """
+
+    def install_verify(self, extra: Mapping[str, str] | None = None) -> None:
         """Copy the hidden tests into the sandbox root, next to the workspace."""
         if self._verify_installed:
             return
         source = self.task_dir / "verify"
         if not source.is_dir():
             raise SandboxError(f"task {self.task.id} has no verify/ directory")
+        files = _check_extra(extra)
         shutil.copytree(source, self.root / "verify", symlinks=False)
+        for name, content in files.items():
+            (self.root / "verify" / name).write_text(content, encoding="utf-8")
         self._verify_installed = True
         log.debug("sandbox.verify_installed", task=self.task.id, backend="local")
 

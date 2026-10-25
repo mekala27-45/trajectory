@@ -130,6 +130,8 @@ class RunRow(SQLModel, table=True):
     tests_total: int
     verification_exit_code: int | None = Field(default=None)
     verification_parse_ok: bool = Field(default=True)
+    verification_canary: str | None = Field(default=None, max_length=64)
+    verification_tampered: bool = Field(default=False)
     stderr_tail: str = Field(default="", sa_column=Column(Text, nullable=False))
 
     partial_credit: float

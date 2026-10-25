@@ -70,6 +70,8 @@ def store_run(session: Session, run: Run, *, bundle_id: str | None = None) -> No
             tests_total=verification.tests_total if verification else 0,
             verification_exit_code=verification.exit_code if verification else None,
             verification_parse_ok=verification.parse_ok if verification else True,
+            verification_canary=verification.canary if verification else None,
+            verification_tampered=verification.tampered if verification else False,
             stderr_tail=verification.stderr_tail if verification else "",
             partial_credit=metrics.partial_credit if metrics else 0.0,
             step_efficiency=metrics.step_efficiency if metrics else None,
@@ -413,6 +415,8 @@ def get_run(session: Session, run_id: str, *, with_steps: bool = True) -> Run | 
             duration_ms=0,
             exit_code=row.verification_exit_code if row.verification_exit_code is not None else 0,
             parse_ok=row.verification_parse_ok,
+            canary=row.verification_canary,
+            tampered=row.verification_tampered,
         ),
         score=TrajectoryScore(
             solved=row.solved,

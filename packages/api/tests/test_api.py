@@ -344,6 +344,20 @@ class TestReadRoutes:
         assert body["runner_fingerprint"]["sandbox_backend"] == "docker"
         assert body["score"]["step_efficiency"] is not None
 
+    def test_the_planted_test_and_the_tamper_flag_survive_the_database(
+        self, client: TestClient, auth
+    ):
+        """A run read back through the API says what its record on disk says."""
+        run = build_run(steps=3)
+        assert run.verification is not None
+        run.verification = run.verification.model_copy(
+            update={"canary": "test_ledger_3fa2c1", "tampered": True, "passed": False}
+        )
+        ingest(client, auth, [run])
+        verification = client.get(f"/v1/runs/{run.id}").json()["verification"]
+        assert verification["canary"] == "test_ledger_3fa2c1"
+        assert verification["tampered"] is True
+
     def test_steps_can_be_omitted_for_a_lighter_response(self, client: TestClient, auth):
         run = build_run(steps=5)
         ingest(client, auth, [run])

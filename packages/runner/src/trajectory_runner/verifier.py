@@ -20,7 +20,8 @@ import time
 import structlog
 
 from trajectory_core.models import Task, Verification, VerifyParser
-from trajectory_runner.sandbox import Sandbox
+from trajectory_runner.canary import FAILED_TESTS_EXIT_CODE, Canary, plant
+from trajectory_runner.sandbox import ExecResult, Sandbox
 
 log = structlog.get_logger(__name__)
 
@@ -143,8 +144,50 @@ def parse_output(parser: VerifyParser, output: str) -> tuple[int, int] | None:
     return _PARSERS[parser](output)
 
 
+def _judge_canary(
+    canary: Canary, result: ExecResult, parsed: tuple[int, int], duration_ms: int, tail: str
+) -> Verification:
+    """Read a parsed report that had the planted test in its set.
+
+    Three outcomes. The runner reported the planted test failing and exited the way a
+    runner does when a test failed: the report is believed, and the planted test comes out
+    of the counts. The runner claimed success, or reported the planted test passing: the
+    report is not believed, nothing counts as passed, and the run is marked tampered. The
+    runner never mentioned the planted test, which a run cut short by a timeout or a crash
+    can do honestly: the counts stand, but nothing confirms them, so the run cannot pass.
+    """
+    tests_passed, tests_total = parsed
+    output = result.combined
+
+    def record(passed: bool, counted: int, total: int, *, tampered: bool = False) -> Verification:
+        return Verification(
+            passed=passed,
+            tests_passed=counted,
+            tests_total=total,
+            stderr_tail=tail,
+            duration_ms=duration_ms,
+            exit_code=result.exit_code,
+            parse_ok=True,
+            canary=canary.name,
+            tampered=tampered,
+        )
+
+    if result.exit_code == 0 or canary.reported_passed(output):
+        return record(False, 0, max(tests_total - 1, 1), tampered=True)
+    if not canary.reported_failed(output):
+        return record(False, tests_passed, tests_total)
+    real_total = tests_total - 1
+    clean = result.exit_code == FAILED_TESTS_EXIT_CODE
+    return record(clean and real_total > 0 and tests_passed == real_total, tests_passed, real_total)
+
+
 def verify(task: Task, sandbox: Sandbox) -> Verification:
-    """Install the hidden tests, run them, and turn the result into a `Verification`.
+    """Isolate the workspace, install the hidden tests, run them, and read the result.
+
+    The workspace is first moved into a clean environment where the backend has one, so
+    nothing the agent left running or wrote outside the workspace is present while the
+    tests run. A must fail test is planted among the hidden tests where the runner reports
+    per test, so a report of every test passing can be checked: see `canary`.
 
     Args:
         task: The task being verified.
@@ -158,7 +201,9 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
     """
     started = time.monotonic()
     try:
-        sandbox.install_verify()
+        sandbox.isolate_for_verify()
+        canary = plant(task.verify_parser, sandbox.task_dir / "verify")
+        sandbox.install_verify(extra=canary.files() if canary else None)
     except Exception as exc:
         raise VerificationError(f"installing the hidden tests for {task.id} failed: {exc}") from exc
 
@@ -172,8 +217,13 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
 
     parsed = parse_output(task.verify_parser, result.combined)
     exit_passed = result.exit_code == 0
+    tail = result.combined[-OUTPUT_TAIL_BYTES:]
 
-    if parsed is None:
+    if parsed is not None and canary is not None:
+        reported = _judge_canary(canary, result, parsed, duration_ms, tail)
+        if reported.tampered:
+            log.warning("verify.tampered", task=task.id, canary=canary.name)
+    elif parsed is None:
         # Only a task whose parser is the exit code is graded by the exit code. For any
         # other parser, output it cannot read means no test reported, and the result is
         # marked unparsed so the count below fails it closed.
@@ -181,10 +231,11 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
             passed=exit_passed,
             tests_passed=1 if exit_passed else 0,
             tests_total=1,
-            stderr_tail=result.combined[-OUTPUT_TAIL_BYTES:],
+            stderr_tail=tail,
             duration_ms=duration_ms,
             exit_code=result.exit_code,
             parse_ok=task.verify_parser is VerifyParser.EXIT_CODE,
+            canary=canary.name if canary else None,
         )
     else:
         tests_passed, tests_total = parsed
@@ -194,7 +245,7 @@ def verify(task: Task, sandbox: Sandbox) -> Verification:
             passed=exit_passed and tests_passed == tests_total and tests_total > 0,
             tests_passed=tests_passed,
             tests_total=tests_total,
-            stderr_tail=result.combined[-OUTPUT_TAIL_BYTES:],
+            stderr_tail=tail,
             duration_ms=duration_ms,
             exit_code=result.exit_code,
             parse_ok=True,

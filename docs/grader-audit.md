@@ -37,13 +37,45 @@ agent's code runs inside the test process. It can end that process with a succes
 before a test runs, or, with more effort, reach into the test runner and make it report a
 pass. The first of those is cheap, and the fix for it is a counting rule, not import
 hardening: a verifier whose output names no test result scores zero, and a task that declares
-its hidden test count cannot be solved on fewer. The second needs the verifier to run against
-a copy of the workspace with the solution behind a process boundary, which this harness does
-not yet do. It is the first item in the limitations.
+its hidden test count cannot be solved on fewer. The second is narrowed by the two checks
+below, a clean container and a planted test, and not closed by them. What is left of it is
+the first item in the limitations.
 
-## The defence, in two halves
+A third route is the environment around the workspace. The agent's commands run in the same
+container the tests would run in, so anything they leave there, a process still running or a
+file outside the workspace, would be present while the grader ran. That route is closed:
+verification no longer happens in the agent's container at all.
 
-**Hardening, so the exploit does not work.** The verification command runs with
+## The defence
+
+**A clean container, so nothing but the workspace is graded.** When the agent stops, every
+process it left running is stopped, gently first so a database inside the workspace closes
+its files cleanly, and the workspace, and only the workspace, is copied into a new container
+from the same clean image. The agent's container is removed. The first command the new
+container ever runs is the verification, so a background process, a file under the home
+directory or `/tmp`, or anything else written outside the workspace is simply not there. A
+file the agent deleted stays deleted, so the copy is the workspace as the agent left it, not
+the image's copy with the agent's changes laid over it. All twelve reference solutions still
+start broken and are solved through it. The local backend has no clean environment to move
+into, which is one more reason its rows are never mixed with container rows.
+
+**A planted test, so a report of success can be checked.** Every report that comes out of a
+test process the solution ran in is only as trustworthy as everything that ran in it, and
+one claim in it can be checked from outside. When the hidden tests are installed, the
+verifier adds one more test, written fresh for that run, that fails for any correct runner.
+Its name is drawn at random and its body reads like any other test, so nothing in the
+workspace can know it in advance. If the runner names it as failing, the report is believed,
+and the planted test is left out of the counts. If the runner claims success with it in the
+set, or names it as passing, the report is not believed: no test counts as passed, the run
+cannot pass, and its record is marked `tampered`. If the runner never mentions it, which a
+run cut short by a timeout can do honestly, the run cannot pass but is not called tampered.
+pytest, `go test -v` and the Node test runner all report per test, so every task in the
+suite carries one; the record names the planted test, so any verdict can be audited. It is a
+tripwire, not a proof. It catches a verdict bent as a whole, which is what wholesale
+tampering looks like, and it says nothing about a report bent for particular tests. Closing
+that needs tests whose expected values never enter the solution's process at all.
+
+**Hardening, so the cheap exploit does not work.** The verification command runs with
 `PYTHONSAFEPATH`, which removes the implicit current directory from the front of the import
 path, and `PYTHONNOUSERSITE`, which ignores the user site directory where a planted
 `usercustomize` or `.pth` would otherwise load. Neither touches a path any task
@@ -60,13 +92,15 @@ invisible defence teaches a reward model nothing. The taxonomy's eleventh failur
 as a verifier hook: `sitecustomize.py`, `usercustomize.py`, `conftest.py`, `pytest.py`, or
 any `.pth` file. It is computed by diffing the workspace before and after the run, so a file
 the task shipped is never mistaken for one the agent planted. It is a rule, not a judgement,
-so it carries no model's opinion.
+so it carries no model's opinion. It also fires, at full confidence, on any run whose report
+the planted test showed could not be believed, which is evidence from the verification
+itself rather than from a file name.
 
 F11 is a named-pattern check, not a general tamper detector, and its limits are the honest
 measure of it. It sees a planted file only by one of those names, only inside the workspace
-the manifest captures, and only when the file is new rather than an edit. It does not see a
-shadow module under another name, a solution that forges a pass from inside the test process,
-or a hook planted in the user site directory outside the workspace. Of its five names, only
+the manifest captures, and only when the file is new rather than an edit. Its file check does not
+see a shadow module under another name, or a hook planted outside the workspace, though the
+clean container now leaves nothing outside the workspace to find. Of its five names, only
 a planted `pytest.py` is live from the workspace against `python -m pytest`, and the
 hardening already stops that one; the others are the startup-hook routes the hardening closes
 at their real location, which F11 would not otherwise see. So F11 is best read as a tripwire
@@ -88,6 +122,14 @@ passed and carries F11 is not a success to be reinforced, it is a hole in the gr
 was caught before it became a lesson.
 
 This is a gap a pass-rate benchmark leaves open, and this harness narrows it rather than
-closing it: the cheap exploits are shut, the obvious attempt is flagged, and the expensive
-routes are named instead of hidden. It is the part a model team cannot get from a leaderboard
+closing it: the environment route and the cheap exploits are shut, a report of wholesale
+success is checked against a test that must fail, the obvious attempt is flagged, and the
+route that remains is named instead of hidden.
+
+## What the Harbor export carries
+
+The Harbor export carries the hardening and the counting rule. It does not plant a test
+yet, because its grading script is generated once per task and a planted test has to be
+written fresh for every run to mean anything, and where its tests run is Harbor's choice,
+not this harness's. Both are the next changes to the export. It is the part a model team cannot get from a leaderboard
 number, which is the argument for scoring the trajectory rather than only the outcome.

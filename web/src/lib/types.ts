@@ -121,6 +121,14 @@ export interface Verification {
   exit_code: number;
   /** False when the output could not be parsed into a passed and total count. */
   parse_ok: boolean;
+  /**
+   * The must fail test the harness planted among the hidden tests, left out of the counts.
+   * Absent on records made before the harness planted one, and on runners with no per
+   * test report.
+   */
+  canary?: string | null;
+  /** True when the report claimed success with the planted test in its set. Not believed. */
+  tampered?: boolean;
   /** Computed on the Python side: fraction of hidden tests that passed. */
   partial_credit?: number;
 }

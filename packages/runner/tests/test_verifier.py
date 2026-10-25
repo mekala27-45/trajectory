@@ -164,12 +164,64 @@ class TestVerifyAgainstASandbox:
             assert sandbox.verify_present() is True
 
     def test_the_exit_code_overrules_a_parser_that_missed_something(self, task_dir, allow_local):
-        """A green count with a red exit code means the parser missed a collection error."""
-        task = self._task(verify_cmd='python -m pytest -q "$VERIFY_DIR"; echo "2 passed"; exit 1')
+        """A green count with a broken runner's exit code is not a pass.
+
+        With the planted test in the set, the runner's tests failed exit is the clean
+        outcome, so the code that overrules a green count is any other: an interrupted
+        run, or a collection error, which pytest reports as 2.
+        """
+        task = self._task(verify_cmd='python -m pytest -q "$VERIFY_DIR"; echo "2 passed"; exit 2')
         with LocalSandbox(task, task_dir) as sandbox:
             sandbox.write_file("src/app.py", "def add(a, b):\n    return a + b\n")
             result = verify(task, sandbox)
         assert result.passed is False
+        assert result.tampered is False
+
+    def test_a_planted_test_is_recorded_and_left_out_of_the_counts(self, task_dir, allow_local):
+        task = self._task()
+        with LocalSandbox(task, task_dir) as sandbox:
+            sandbox.write_file("src/app.py", "def add(a, b):\n    return a + b\n")
+            result = verify(task, sandbox)
+            planted = sorted(p.name for p in (sandbox.root / "verify").iterdir())
+        assert result.canary is not None and result.canary.startswith("test_")
+        assert f"{result.canary}.py" in planted
+        assert result.passed is True
+        assert result.tampered is False
+        assert (result.tests_passed, result.tests_total) == (2, 2)
+        # The runner exits as it does for any failing test, because the planted one fails.
+        assert result.exit_code == 1
+
+    def test_a_report_of_success_with_the_planted_test_in_the_set_is_not_believed(
+        self, task_dir, allow_local
+    ):
+        """A report that says every test passed cannot be right when one of them must fail."""
+        task = self._task(
+            verify_cmd='python -m pytest -q "$VERIFY_DIR" >/dev/null 2>&1; '
+            'echo "3 passed in 0.01s"; exit 0'
+        )
+        with LocalSandbox(task, task_dir) as sandbox:
+            sandbox.write_file("src/app.py", "def add(a, b):\n    return a + b\n")
+            result = verify(task, sandbox)
+        assert result.tampered is True
+        assert result.passed is False
+        assert result.tests_passed == 0
+        assert result.partial_credit == 0.0
+
+    def test_a_report_that_never_mentions_the_planted_test_cannot_pass(self, task_dir, allow_local):
+        """A run cut short can leave it out honestly, so it is not called tampered."""
+        task = self._task(verify_cmd='echo "2 passed, 1 failed in 0.01s"; exit 1')
+        with LocalSandbox(task, task_dir) as sandbox:
+            result = verify(task, sandbox)
+        assert result.passed is False
+        assert result.tampered is False
+        assert (result.tests_passed, result.tests_total) == (2, 3)
+
+    def test_an_exit_code_task_gets_no_planted_test(self, task_dir, allow_local):
+        task = self._task(verify_cmd="test -f src/app.py", verify_parser=VerifyParser.EXIT_CODE)
+        with LocalSandbox(task, task_dir) as sandbox:
+            result = verify(task, sandbox)
+        assert result.canary is None
+        assert result.passed is True
 
     def test_unparseable_output_fails_closed_whatever_the_exit_code(self, task_dir, allow_local):
         """No test reported, so none is known to have passed, even on exit code 0."""

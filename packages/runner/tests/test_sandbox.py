@@ -598,6 +598,56 @@ class TestDockerSandbox:
             result = sandbox.exec("sleep 30", timeout_s=2, cap_bytes=1024)
             assert result.timed_out is True
 
+    def test_verification_gets_a_fresh_container_with_only_the_workspace(
+        self, sample_task, task_dir
+    ):
+        """Nothing the agent left outside the workspace survives into verification."""
+        import docker
+
+        client = docker.from_env()
+        with DockerSandbox(sample_task, task_dir) as sandbox:
+            sandbox.write_file("src/app.py", "def add(a, b):\n    return a + b\n")
+            sandbox.exec(
+                "rm -f README.md; echo left > /tmp/left_in_tmp; echo left > ~/left_in_home; "
+                "nohup sleep 600 >/dev/null 2>&1 &",
+                timeout_s=30,
+                cap_bytes=4096,
+            )
+            before = sandbox._require().id
+            sandbox.isolate_for_verify()
+            after = sandbox._require().id
+            assert after != before
+            with pytest.raises(docker.errors.NotFound):
+                client.containers.get(before)
+
+            def run(command: str) -> str:
+                return sandbox.exec(command, timeout_s=30, cap_bytes=16384).stdout.strip()
+
+            assert "return a + b" in run("cat src/app.py")
+            # A deletion carries over too: the fresh image's copy of the file is not revived.
+            assert run("test -e README.md && echo present || echo absent") == "absent"
+            assert run("test -e /tmp/left_in_tmp && echo present || echo absent") == "absent"
+            assert run("test -e ~/left_in_home && echo present || echo absent") == "absent"
+            assert run("pgrep -x sleep -a | grep -c 600 || true") == "0"
+            assert run("stat -c %U src/app.py") == "agent"
+
+            sandbox.install_verify()
+            result = sandbox.exec(sample_task.verify_cmd, timeout_s=180, cap_bytes=16384)
+            assert "2 passed" in result.combined
+
+    def test_isolation_is_done_once(self, sample_task, task_dir):
+        with DockerSandbox(sample_task, task_dir) as sandbox:
+            sandbox.isolate_for_verify()
+            first = sandbox._require().id
+            sandbox.isolate_for_verify()
+            assert sandbox._require().id == first
+
+    def test_extra_hidden_files_arrive_beside_the_hidden_tests(self, sample_task, task_dir):
+        with DockerSandbox(sample_task, task_dir) as sandbox:
+            sandbox.install_verify(extra={"test_extra.py": "def test_x():\n    assert True\n"})
+            listing = sandbox.exec("ls /verify", timeout_s=30, cap_bytes=4096).stdout.split()
+        assert {"test_app.py", "test_extra.py"} <= set(listing)
+
     def test_image_build_is_cached(self, sample_task, task_dir):
         from trajectory_runner.sandbox import build_task_image
 

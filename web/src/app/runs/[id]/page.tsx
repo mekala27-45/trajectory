@@ -95,6 +95,14 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
               verification output not parsed
             </Chip>
           ) : null}
+          {verification?.tampered ? (
+            <Chip
+              tone="bad"
+              title="The hidden test run claimed success with the planted must fail test in its set, so its report was not believed and no test counts as passed."
+            >
+              report not believed
+            </Chip>
+          ) : null}
         </div>
       </header>
 
@@ -122,7 +130,31 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
               ? `${verification.tests_passed} of ${verification.tests_total} passed`
               : "verification did not run"}
           </Field>
-          <Field label="Verify exit code">{verification ? verification.exit_code : "n/a"}</Field>
+          <Field
+            label="Verify exit code"
+            title={
+              verification?.canary
+                ? "With a planted test that must fail in the set, a clean pass exits 1, the code a runner gives when a test failed."
+                : undefined
+            }
+          >
+            {verification ? verification.exit_code : "n/a"}
+          </Field>
+          <Field
+            label="Planted test"
+            title="A test written fresh for this run, which fails for any correct runner, planted among the hidden tests and left out of the counts. A report that does not show it failing is not believed."
+          >
+            {verification?.canary ? (
+              <span className="break-all">
+                {verification.canary}
+                <span className="text-dim">
+                  {verification.tampered ? ", report not believed" : ", left out of the counts"}
+                </span>
+              </span>
+            ) : (
+              <span className="text-dim">none</span>
+            )}
+          </Field>
           <Field label="Verify duration">
             {verification ? millis(verification.duration_ms) : "n/a"}
           </Field>

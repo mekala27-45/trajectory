@@ -59,11 +59,13 @@ document away:
   Harbor's own models, with a sample graded three ways. Runs export to ATIF, and
   `trajectory import atif` scores a trajectory from Claude Code, Codex, mini-swe-agent or
   OpenHands with the metrics its record can support. [docs/interop.md](docs/interop.md).
-- **It resists reward hacking, and names the attempt.** The verifier does not read the
-  implicit import paths a file the agent dropped in its workspace would use, which closes
-  the cheapest way to shadow what the hidden tests import, and failure mode **F11 grader
-  tampering** flags a startup hook left behind. A run that games its grader is the one thing
-  a pass rate cannot show. [docs/grader-audit.md](docs/grader-audit.md).
+- **It resists reward hacking, and names the attempt.** Verification runs in a fresh
+  container that holds the final workspace and nothing else the agent touched, with a test
+  planted fresh for every run that has to fail: a report of success it does not survive is
+  not believed. The verifier does not read the implicit import paths a dropped file would
+  use, and failure mode **F11 grader tampering** flags a startup hook left behind or a report
+  the planted test caught. A run that games its grader is the one thing a pass rate cannot
+  show. [docs/grader-audit.md](docs/grader-audit.md).
 - **It runs real models for free.** The same suite drives a real language model through a
   no-card tier, under a shared call ceiling and rate limit rather than a dollar budget, with
   a one-call smoke that fails before a full matrix starts. [docs/real-models.md](docs/real-models.md).
@@ -258,11 +260,12 @@ Not buried, because they decide whether the rest is worth reading.
   model at two seeds, the second seed cut short by the call ceiling, which makes it a
   first measurement, not a ranking.
 - **The grader is hardened, not unbeatable.** The cheap exploits are closed: a planted
-  import-path module cannot shadow the hidden tests, and a verifier run that reports no test
-  scores zero. One route is left open and named rather than hidden: because a hidden test
-  imports the solution, the solution runs in the grader's process and could forge a pass
-  from there. Closing it needs verification against a copy of the workspace with the
-  solution behind a process boundary, which is the next piece of work.
+  import-path module cannot shadow the hidden tests, a verifier run that reports no test
+  scores zero, and nothing the agent left outside its workspace is present when the tests
+  run. One route is narrowed and named rather than closed: because a hidden test imports the
+  solution, the solution runs in the grader's process. A planted test that must fail catches
+  a report bent as a whole, but not one bent for particular tests. Closing that needs tests
+  whose expected values never enter the solution's process.
   [docs/grader-audit.md](docs/grader-audit.md) sets out the whole surface.
 - **The published matrix ran on the unisolated sandbox until 16 September 2026**, because
   the authoring machine had no Docker daemon. It now runs in containers, and re-recording it
