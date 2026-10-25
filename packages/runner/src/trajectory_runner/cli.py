@@ -1302,8 +1302,8 @@ def _markdown_report(
         "",
         "## Leaderboard",
         "",
-        "Every cell is a mean across seeds with one population standard deviation. A pass "
-        "rate without that spread is not a result.",
+        "Every rate is a mean across seeds with one population standard deviation; cost and "
+        "wall clock are plain means. A pass rate without that spread is not a result.",
         "",
         "| model | runs | solve rate | partial credit | step efficiency | tool validity | "
         "redundancy | recovery | premature finish | cost per solved | mean wall clock |",

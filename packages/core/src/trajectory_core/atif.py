@@ -33,6 +33,8 @@ from pydantic import ValidationError
 
 from trajectory_core.failure_modes import classify_rules
 from trajectory_core.models import (
+    Detector,
+    FailureModeHit,
     Run,
     RunConfig,
     RunnerFingerprint,
@@ -272,6 +274,15 @@ def run_to_atif(
                     else None
                 ),
                 "failure_modes": [hit.id.value for hit in run.failure_modes],
+                # The rules are recomputed on import, but a judge's verdict cannot be: it was
+                # a model's reading of the run. Its hits and its drift travel whole, so a
+                # judged run imports back judged.
+                "judge_hits": [
+                    hit.model_dump(mode="json")
+                    for hit in run.failure_modes
+                    if hit.detector is Detector.JUDGE
+                ],
+                "context_drift": run.score.context_drift if run.score else None,
                 "seed": run.config.seed,
                 "temperature": run.config.temperature,
                 "sandbox_backend": run.config.sandbox_backend.value,
@@ -477,8 +488,16 @@ def atif_to_run(doc: dict[str, Any], task: Task, *, reward: float | None = None)
     finished = _timestamp(recorded.get("finished_at"), max(last_stamp, first_stamp))
 
     run.seal(finished_at=finished)
-    run.failure_modes = rank_failure_modes(classify_rules(run, task))
-    run.score = score(run, task)
+    judged = [
+        FailureModeHit.model_validate(hit)
+        for hit in recorded.get("judge_hits") or []
+        if isinstance(hit, dict)
+    ]
+    run.failure_modes = rank_failure_modes([*classify_rules(run, task), *judged])
+    drift = recorded.get("context_drift")
+    run.score = score(
+        run, task, context_drift=float(drift) if isinstance(drift, int | float) else None
+    )
     return run
 
 

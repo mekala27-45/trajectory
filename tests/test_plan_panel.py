@@ -140,11 +140,20 @@ def test_no_passing_model_fails_the_plan(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
 
 def test_records_summary_counts_by_model(tmp_path: Path):
-    recorded = sorted((ROOT / "fixtures" / "model-runs").glob("*.json"))[:3]
+    from collections import Counter
+
+    from trajectory_core.models import Run
+
+    recorded = sorted((ROOT / "fixtures" / "model-runs").glob("*.json"))[:5]
     for path in recorded:
         (tmp_path / path.name).write_bytes(path.read_bytes())
+    models = Counter(
+        Run.model_validate_json(path.read_text(encoding="utf-8")).config.model
+        for path in recorded
+    )
     text = panel.records_summary(tmp_path)
-    assert "| `nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b` | 3 |" in text
+    for model, count in models.items():
+        assert f"| `{model}` | {count} |" in text
     assert "No sealed run records" in panel.records_summary(tmp_path / "absent")
 
 

@@ -37,9 +37,10 @@ up as one.
 
 ## Leaderboard
 
-Every cell is a mean across seeds with one population standard deviation. A pass rate
-reported without its spread is not a result, and neither is any other metric here, so the
-spread is printed even where it is zero.
+Every rate is a mean across seeds with one population standard deviation; the destructive
+column is a count and wall clock a plain mean. A pass rate reported without its spread is
+not a result, and neither is any other rate here, so the spread is printed even where it is
+zero.
 
 **Recovery was rescored on 25 October 2026.** A review of this table found that the metric
 counted a `finish` called straight after a failed command as a recovery. That credited

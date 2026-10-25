@@ -58,8 +58,7 @@ def test_promotion_replaces_the_records_and_states_where_they_came_from(tmp_path
     assert written["panel_run_id"] == "123"
     assert written["judge_model"] == "nvidia_nim/j/m"
     assert written["harness_version"] == runs[0].harness_version
-    (counts,) = written["models"].values()
-    assert counts["runs"] == 4
+    assert sum(counts["runs"] for counts in written["models"].values()) == 4
 
 
 def test_promotion_rescores_with_the_current_rules(tmp_path: Path):

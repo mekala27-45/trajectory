@@ -1,0 +1,807 @@
+{
+  "panel_run_id": "40155008047",
+  "workflow": ".github/workflows/model-panel.yml",
+  "request": {
+    "purpose": "Five free hosted models from four families on all twelve core-12 tasks at seeds 0 and 1, every one on harness 0.3.0, which records the commit it ran from: verification in a fresh container with a planted must fail test, and files the agent writes owned by the agent. That last fix is why the earlier panels were cancelled and nemotron 3.5 lightning is run again in full rather than completed. glm 5.3 answered in about 26 seconds a call on the free tier, so its runs get three times each task's wall clock ceiling and four workers; the step ceiling, which bounds the work, is the same for every model. Unsolved runs are read by a judge from a fifth family, the first time the three judged failure modes and context drift are measured.",
+    "suite": "core-12",
+    "temperature": 0.7,
+    "rpm_total": 34,
+    "max_parallel": 5,
+    "parallel": 2,
+    "seeds": [
+      0,
+      1
+    ],
+    "judge_model": "nvidia_nim/stepfun-ai/step-5-preview",
+    "models": [
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b"
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b"
+      },
+      {
+        "model": "nvidia_nim/minimaxai/minimax-m3.1-flash"
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b"
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "parallel": 4,
+        "timeout_scale": 3
+      }
+    ]
+  },
+  "judge_model": "nvidia_nim/stepfun-ai/step-5-preview",
+  "harness_version": "0.3.0",
+  "source_commits": [
+    "e2405b6e7ad191257b841fe28628169eee7e6d17",
+    "ee6ed89f18a4d9354ebcf5091a225263cb005fad"
+  ],
+  "scored_at_commit": "194ecdf84fc9a71a6d5ae693aca65785313e41ae",
+  "models": {
+    "nvidia_nim/minimaxai/minimax-m3.1-flash": {
+      "runs": 24,
+      "solved": 16,
+      "seeds": [
+        0,
+        1
+      ],
+      "tasks": 12
+    },
+    "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b": {
+      "runs": 24,
+      "solved": 21,
+      "seeds": [
+        0,
+        1
+      ],
+      "tasks": 12
+    },
+    "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b": {
+      "runs": 24,
+      "solved": 12,
+      "seeds": [
+        0,
+        1
+      ],
+      "tasks": 12
+    },
+    "nvidia_nim/openai/gpt-oss-20b": {
+      "runs": 24,
+      "solved": 11,
+      "seeds": [
+        0,
+        1
+      ],
+      "tasks": 12
+    },
+    "nvidia_nim/z-ai/glm-5.3": {
+      "runs": 24,
+      "solved": 10,
+      "seeds": [
+        0,
+        1
+      ],
+      "tasks": 12
+    }
+  },
+  "promoted_at": "2026-10-25T09:11:24+00:00",
+  "reruns": {
+    "panel_run_id": "40170690917",
+    "request": {
+      "purpose": "Rerun the 48 runs of panel 40155008047 that the provider ended, and only those: each ended when a call failed with a timeout or a 429 through every retry, or with an HTTP 400, so the record measures the free tier at the time rather than the model. Same models, tasks, seeds, temperature and caps as that panel. At promotion each rerun replaces the run with the same model, task and seed, and stands whatever it scores, so nothing is chosen by outcome. The total rate is lower than the first panel's, the provider now waits most of a minute after a 429 instead of retrying inside the same window, and the judge reads a verdict sent as JSON text.",
+      "suite": "core-12",
+      "temperature": 0.7,
+      "rpm_total": 24,
+      "max_parallel": 5,
+      "parallel": 2,
+      "judge_model": "nvidia_nim/stepfun-ai/step-5-preview",
+      "models": [
+        {
+          "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+          "runs": [
+            [
+              "cli-implement-01",
+              1
+            ],
+            [
+              "sql-migration-01",
+              1
+            ],
+            [
+              "ts-build-break-01",
+              1
+            ]
+          ]
+        },
+        {
+          "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+          "runs": [
+            [
+              "cli-implement-01",
+              1
+            ],
+            [
+              "git-surgery-01",
+              1
+            ],
+            [
+              "go-race-01",
+              1
+            ],
+            [
+              "log-forensics-01",
+              1
+            ],
+            [
+              "py-dep-conflict-01",
+              1
+            ],
+            [
+              "py-etl-schema-01",
+              1
+            ],
+            [
+              "py-failing-suite-01",
+              1
+            ],
+            [
+              "py-flaky-test-01",
+              1
+            ],
+            [
+              "py-perf-01",
+              1
+            ],
+            [
+              "sql-migration-01",
+              0
+            ],
+            [
+              "ts-api-contract-01",
+              1
+            ],
+            [
+              "ts-build-break-01",
+              1
+            ]
+          ]
+        },
+        {
+          "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+          "runs": [
+            [
+              "cli-implement-01",
+              0
+            ],
+            [
+              "go-race-01",
+              0
+            ],
+            [
+              "go-race-01",
+              1
+            ],
+            [
+              "py-etl-schema-01",
+              1
+            ],
+            [
+              "sql-migration-01",
+              1
+            ]
+          ]
+        },
+        {
+          "model": "nvidia_nim/openai/gpt-oss-20b",
+          "runs": [
+            [
+              "cli-implement-01",
+              1
+            ],
+            [
+              "git-surgery-01",
+              0
+            ],
+            [
+              "git-surgery-01",
+              1
+            ],
+            [
+              "go-race-01",
+              1
+            ],
+            [
+              "py-etl-schema-01",
+              0
+            ],
+            [
+              "py-etl-schema-01",
+              1
+            ],
+            [
+              "py-failing-suite-01",
+              1
+            ],
+            [
+              "py-perf-01",
+              0
+            ],
+            [
+              "sql-migration-01",
+              0
+            ],
+            [
+              "sql-migration-01",
+              1
+            ],
+            [
+              "ts-api-contract-01",
+              0
+            ],
+            [
+              "ts-api-contract-01",
+              1
+            ],
+            [
+              "ts-build-break-01",
+              0
+            ],
+            [
+              "ts-build-break-01",
+              1
+            ]
+          ]
+        },
+        {
+          "model": "nvidia_nim/z-ai/glm-5.3",
+          "runs": [
+            [
+              "cli-implement-01",
+              0
+            ],
+            [
+              "cli-implement-01",
+              1
+            ],
+            [
+              "git-surgery-01",
+              0
+            ],
+            [
+              "go-race-01",
+              0
+            ],
+            [
+              "go-race-01",
+              1
+            ],
+            [
+              "log-forensics-01",
+              0
+            ],
+            [
+              "py-dep-conflict-01",
+              0
+            ],
+            [
+              "py-etl-schema-01",
+              0
+            ],
+            [
+              "py-etl-schema-01",
+              1
+            ],
+            [
+              "py-failing-suite-01",
+              0
+            ],
+            [
+              "py-flaky-test-01",
+              0
+            ],
+            [
+              "py-perf-01",
+              0
+            ],
+            [
+              "sql-migration-01",
+              0
+            ],
+            [
+              "sql-migration-01",
+              1
+            ]
+          ],
+          "parallel": 4,
+          "timeout_scale": 3
+        }
+      ]
+    },
+    "rule": "a rerun replaces the run with the same model, task and seed, only when the provider ended that run, and stands whatever it scored",
+    "replaced": [
+      {
+        "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+        "task": "cli-implement-01",
+        "seed": 0,
+        "original_run": "01a170ec-3a46-70e7-b06e-316e9277e995",
+        "original_steps": 4,
+        "original_error": "nvidia_nim/minimaxai/minimax-m3.1-flash failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation ",
+        "rerun": "01a171d7-51e7-706a-8fed-f4985dfcd096",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+        "task": "go-race-01",
+        "seed": 0,
+        "original_run": "01a170f8-90e5-7081-bbfb-c9e95a634aba",
+        "original_steps": 6,
+        "original_error": "nvidia_nim/minimaxai/minimax-m3.1-flash failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation ",
+        "rerun": "01a171d7-51e7-706b-94d9-41d2a1a4165f",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+        "task": "go-race-01",
+        "seed": 1,
+        "original_run": "01a17156-b230-707f-bcd5-c2d44e76be0f",
+        "original_steps": 6,
+        "original_error": "nvidia_nim/minimaxai/minimax-m3.1-flash failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation ",
+        "rerun": "01a171f9-c27b-70d7-8247-6309645f6d3f",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+        "task": "py-etl-schema-01",
+        "seed": 1,
+        "original_run": "01a17162-3953-7030-b51d-755bc7410622",
+        "original_steps": 18,
+        "original_error": "nvidia_nim/minimaxai/minimax-m3.1-flash failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). ",
+        "rerun": "01a171fa-52a2-7041-8e58-c7dc8a88dea0",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/minimaxai/minimax-m3.1-flash",
+        "task": "sql-migration-01",
+        "seed": 1,
+        "original_run": "01a17189-4316-7019-aeff-661ee6037749",
+        "original_steps": 13,
+        "original_error": "nvidia_nim/minimaxai/minimax-m3.1-flash failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation ",
+        "rerun": "01a1720a-c7e4-7059-a8c6-e2b30f3ec120",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "cli-implement-01",
+        "seed": 1,
+        "original_run": "01a17116-5497-70e0-8f51-793e6116798f",
+        "original_steps": 7,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+        "rerun": "01a171d8-20f2-70e3-a095-745e998a9a39",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "git-surgery-01",
+        "seed": 1,
+        "original_run": "01a17118-a560-70cb-b8e0-cac8fa930112",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+        "rerun": "01a171e6-1f4d-700d-bc9f-37cb6e2c518f",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "go-race-01",
+        "seed": 1,
+        "original_run": "01a17118-d835-7059-95e3-c31cc60a94eb",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+        "rerun": "01a171f0-c4da-7099-8e58-5fd24b5cdf58",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "log-forensics-01",
+        "seed": 1,
+        "original_run": "01a17119-1cdc-704d-8c70-c45c1428fd05",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+        "rerun": "01a171f1-a275-708f-8c53-b72e3373145f",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "py-dep-conflict-01",
+        "seed": 1,
+        "original_run": "01a17119-5cb3-70d2-93d0-954a9bb9dda8",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+        "rerun": "01a171f7-8b30-70bf-94a6-1ce543ffc8ac",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "py-etl-schema-01",
+        "seed": 1,
+        "original_run": "01a17119-a320-708f-be46-b7a01115cba2",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+        "rerun": "01a171fd-396b-709e-a8a4-132d6e809b5e",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "py-failing-suite-01",
+        "seed": 1,
+        "original_run": "01a17119-df5f-7052-acfb-f8d3bde5db79",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+        "rerun": "01a17200-5e7f-70d8-950a-838a942737c9",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "py-flaky-test-01",
+        "seed": 1,
+        "original_run": "01a1711a-1150-705e-a1bd-bf13a0044c60",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}",
+        "rerun": "01a17203-ff17-7044-9185-d683a4d3a3e0",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "py-perf-01",
+        "seed": 1,
+        "original_run": "01a1711a-48d6-709a-a4b2-d8115419ff67",
+        "original_steps": 1,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt",
+        "rerun": "01a1720a-aa2c-7011-83fb-4ce164660944",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "sql-migration-01",
+        "seed": 0,
+        "original_run": "01a1710c-5351-70c6-afeb-ef8db0fcf238",
+        "original_steps": 39,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt",
+        "rerun": "01a171d8-20f3-70bc-b77f-93cb5a2d2a79",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "ts-api-contract-01",
+        "seed": 1,
+        "original_run": "01a1712d-6dad-70ca-af52-8a95c6a1e520",
+        "original_steps": 8,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt",
+        "rerun": "01a1720d-cada-7033-940d-5fdc0344667d",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b",
+        "task": "ts-build-break-01",
+        "seed": 1,
+        "original_run": "01a1712d-7210-7080-8d56-f4778fe12bc8",
+        "original_steps": 8,
+        "original_error": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt",
+        "rerun": "01a17210-aff8-70d2-bc2a-bc3585bfa002",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+        "task": "cli-implement-01",
+        "seed": 1,
+        "original_run": "01a1712a-9daf-704a-a7f2-2adbfeb7bc20",
+        "original_steps": 2,
+        "original_error": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 va",
+        "rerun": "01a171d6-e09f-708e-8458-764b417ffe4d",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+        "task": "sql-migration-01",
+        "seed": 1,
+        "original_run": "01a1714d-0f66-7002-97c8-2c1c244a7723",
+        "original_steps": 31,
+        "original_error": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 att",
+        "rerun": "01a171d6-e09f-708d-9850-3dbba8ca4bd5",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b",
+        "task": "ts-build-break-01",
+        "seed": 1,
+        "original_run": "01a17156-2118-70ff-9188-663c84765515",
+        "original_steps": 25,
+        "original_error": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b failed after 4 attempt(s): litellm.RateLimitError: RateLimitError: Nvidia_nimException - Error code: 429 - {'status': 429, 'title': 'Too Many Requests'}; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 att",
+        "rerun": "01a171e9-af28-705d-98fd-48993475127a",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "cli-implement-01",
+        "seed": 1,
+        "original_run": "01a17119-79a1-70bb-ad7a-66f79aca6ba9",
+        "original_steps": 18,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ",
+        "rerun": "01a171e8-2c56-704c-ab76-ab95aebec940",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "git-surgery-01",
+        "seed": 0,
+        "original_run": "01a170ec-49e8-70b9-96dc-4829e27c43f2",
+        "original_steps": 3,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a171d7-ee20-704f-af73-39b4d8e15576",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "git-surgery-01",
+        "seed": 1,
+        "original_run": "01a17119-a8cb-70db-ba5b-3ecfb3326f05",
+        "original_steps": 23,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: Timeout: litellm.Timeout: APITimeoutError - Request timed out. Error_str: Re",
+        "rerun": "01a171f8-570f-7035-bca1-149a3fbc9de8",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "go-race-01",
+        "seed": 1,
+        "original_run": "01a17120-6adc-707d-ab9e-3135c30ae7e8",
+        "original_steps": 32,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a17200-b1b6-707a-a1c1-b9ad6e09e8a1",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "py-etl-schema-01",
+        "seed": 0,
+        "original_run": "01a170ff-8209-70ae-badc-739488d77a5a",
+        "original_steps": 9,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a171d7-ee20-704e-94e8-2b6a6027b3fc",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "py-etl-schema-01",
+        "seed": 1,
+        "original_run": "01a1713b-76bf-701d-be2e-b188a22e0c5d",
+        "original_steps": 12,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a1720a-a68d-7005-9dcf-295a8f334c12",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "py-failing-suite-01",
+        "seed": 1,
+        "original_run": "01a1713b-7db6-7036-a328-9f0cb3a8eff9",
+        "original_steps": 13,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a1720d-5ded-7023-8056-a50a5c21cc96",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "py-perf-01",
+        "seed": 0,
+        "original_run": "01a17107-4368-70b3-9f9f-440a9b79f9c9",
+        "original_steps": 3,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a171dc-3caa-70ad-8a46-aec1802fb451",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "sql-migration-01",
+        "seed": 0,
+        "original_run": "01a1710d-1d80-70ea-b2da-6a97cd21176f",
+        "original_steps": 15,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a171dc-b1fe-7012-9eef-b5cd5b745245",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "sql-migration-01",
+        "seed": 1,
+        "original_run": "01a1714b-3b16-70c1-b27d-118e8c1b7414",
+        "original_steps": 23,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a17211-08f4-700b-acae-9e91e1626178",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "ts-api-contract-01",
+        "seed": 0,
+        "original_run": "01a1710f-4bff-704d-8ee8-52837861a36b",
+        "original_steps": 3,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a171e1-4fc9-70d8-bfee-e8e6d45c4623",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "ts-api-contract-01",
+        "seed": 1,
+        "original_run": "01a1714d-5401-7082-9509-c49c41d862ac",
+        "original_steps": 28,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a17214-b9de-70c6-a5db-0797f3c1b456",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "ts-build-break-01",
+        "seed": 0,
+        "original_run": "01a17114-814c-7083-9431-68c6b1722b15",
+        "original_steps": 9,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a171e6-ee1c-7099-91c2-144a81ad59da",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/openai/gpt-oss-20b",
+        "task": "ts-build-break-01",
+        "seed": 1,
+        "original_run": "01a1715b-e182-70df-b777-a69c126d1a5c",
+        "original_steps": 11,
+        "original_error": "nvidia_nim/openai/gpt-oss-20b failed after 4 attempt(s): litellm.BadRequestError: Nvidia_nimException - ; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for JudgeVerdict\nignored_test_output\n  ",
+        "rerun": "01a17217-340c-7029-ac8a-1499721820dc",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "cli-implement-01",
+        "seed": 0,
+        "original_run": "01a170ec-5992-70dd-af03-457dd36f7703",
+        "original_steps": 2,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for Judge",
+        "rerun": "01a171d7-cee7-70cb-8fb8-4ca16b162741",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "cli-implement-01",
+        "seed": 1,
+        "original_run": "01a17153-3087-7008-90b2-daa17f0489d7",
+        "original_steps": 2,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for Judge",
+        "rerun": "01a1720d-7d38-7002-80c4-99fcad2d8603",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "git-surgery-01",
+        "seed": 0,
+        "original_run": "01a170ec-5993-7043-bde4-5c5e42b6ca3a",
+        "original_steps": 10,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for Judge",
+        "rerun": "01a171d7-cee7-70cc-b8e0-fe308c84b82e",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "go-race-01",
+        "seed": 0,
+        "original_run": "01a170ec-5993-7042-9bf6-bddc4bab2502",
+        "original_steps": 6,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for Judge",
+        "rerun": "01a171d7-cee5-70fe-8d34-8a98eb6d43dd",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "go-race-01",
+        "seed": 1,
+        "original_run": "01a17169-4ac7-705e-9605-2e81885c0fac",
+        "original_steps": 6,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for Judge",
+        "rerun": "01a17216-b393-70e8-9daf-f49524095aa6",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "log-forensics-01",
+        "seed": 0,
+        "original_run": "01a170ec-5992-70de-beca-4456753daff5",
+        "original_steps": 18,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for Judge",
+        "rerun": "01a171d7-cee7-70cd-92da-81a35e41edaf",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "py-dep-conflict-01",
+        "seed": 0,
+        "original_run": "01a17110-7887-7095-b760-4ff9d728db62",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.",
+        "rerun": "01a171df-8274-7004-9018-451902f94dac",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "py-etl-schema-01",
+        "seed": 0,
+        "original_run": "01a17116-ab77-701c-b107-15744fcee54b",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.",
+        "rerun": "01a171e7-5080-7094-8a44-8b40ca7476b8",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "py-etl-schema-01",
+        "seed": 1,
+        "original_run": "01a17188-b6a6-70d9-954a-a50f9abcf162",
+        "original_steps": 15,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for Judge",
+        "rerun": "01a1722d-74f3-70b6-8036-00c3cef9307b",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "py-failing-suite-01",
+        "seed": 0,
+        "original_run": "01a1711b-8669-700f-9baf-f36f5037d972",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.",
+        "rerun": "01a171fb-8b00-709d-929c-25da24d35e68",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "py-flaky-test-01",
+        "seed": 0,
+        "original_run": "01a17128-7228-70a1-889f-e89e1bb25b4d",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.",
+        "rerun": "01a171fc-bb32-700e-ab36-1bf5667eaf08",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "py-perf-01",
+        "seed": 0,
+        "original_run": "01a17131-ac90-70b6-aa42-bd60310538c5",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.",
+        "rerun": "01a171fd-f8d1-7064-8e68-3e779f204b3c",
+        "rerun_provider_ended": false
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "sql-migration-01",
+        "seed": 0,
+        "original_run": "01a17137-de0a-705b-ad57-f55413a45b66",
+        "original_steps": 0,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.",
+        "rerun": "01a1720b-dd53-7078-950d-371800d81ea0",
+        "rerun_provider_ended": true
+      },
+      {
+        "model": "nvidia_nim/z-ai/glm-5.3",
+        "task": "sql-migration-01",
+        "seed": 1,
+        "original_run": "01a171a2-aa99-7048-ac64-8a89595d8f44",
+        "original_steps": 4,
+        "original_error": "nvidia_nim/z-ai/glm-5.3 failed after 4 attempt(s): litellm.Timeout: APITimeoutError - Request timed out. Error_str: Request timed out.; judge failed: the judge (nvidia_nim/stepfun-ai/step-5-preview) produced no valid verdict in 3 attempt(s). Last error: ValidationError: 3 validation errors for Judge",
+        "rerun": "01a1722f-79fb-70d5-84fe-1d015fc0a0d2",
+        "rerun_provider_ended": true
+      }
+    ]
+  }
+}
