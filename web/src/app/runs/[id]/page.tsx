@@ -272,6 +272,20 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
           <Field label="Docker">{run.runner_fingerprint.docker_version ?? "n/a"}</Field>
           <Field label="CPUs">{run.runner_fingerprint.cpu_count}</Field>
           <Field label="CI">{run.runner_fingerprint.ci ? "yes" : "no"}</Field>
+          <Field label="Commit" title="The repository commit the harness ran from.">
+            {run.runner_fingerprint.source_commit ? (
+              <a
+                href={`https://github.com/mekala27-45/trajectory/commit/${run.runner_fingerprint.source_commit}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent underline underline-offset-2"
+              >
+                {run.runner_fingerprint.source_commit.slice(0, 7)}
+              </a>
+            ) : (
+              <span className="text-dim">not recorded</span>
+            )}
+          </Field>
           <Field label="Command timeout">{run.config.command_timeout_seconds}s</Field>
           <Field label="Run timeout">{run.config.timeout_seconds}s</Field>
           <Field label="Output cap">{run.config.max_output_bytes} bytes</Field>

@@ -210,6 +210,8 @@ export interface RunnerFingerprint {
   docker_version: string | null;
   sandbox_backend: SandboxBackend;
   ci: boolean;
+  /** The repository commit the harness ran from. Absent on records made before it was kept. */
+  source_commit?: string | null;
 }
 
 // -------------------------------------------------------------------------- run

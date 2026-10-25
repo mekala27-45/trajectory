@@ -15,13 +15,14 @@ from __future__ import annotations
 import platform
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Annotated, Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from trajectory_core.ids import uuid7_str
 
-HARNESS_VERSION = "0.2.0"
+HARNESS_VERSION = "0.3.0"
 
 SCHEMA_VERSION = 1
 """Bumped whenever a change to these models is not backward compatible.
@@ -705,6 +706,15 @@ class RunnerFingerprint(StrictModel):
     )
     sandbox_backend: SandboxBackend = Field(description="Which sandbox produced the run.")
     ci: bool = Field(default=False, description="True when produced by a CI runner.")
+    source_commit: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "The commit of this repository the harness ran from, when it could be read. A "
+            "version number names a release; between releases only the commit says exactly "
+            "which code produced a record."
+        ),
+    )
 
     @classmethod
     def capture(
@@ -726,7 +736,31 @@ class RunnerFingerprint(StrictModel):
             docker_version=docker_version,
             sandbox_backend=sandbox_backend,
             ci=ci,
+            source_commit=_source_commit(),
         )
+
+
+def _source_commit() -> str | None:
+    """The commit the harness is running from: CI's own variable, else git, else nothing."""
+    import os as _os
+    import re as _re
+    import subprocess as _subprocess
+
+    sha = _os.environ.get("GITHUB_SHA")
+    if not sha:
+        try:
+            done = _subprocess.run(
+                ["git", "rev-parse", "HEAD"],  # noqa: S607  the developer's own git
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+                cwd=Path(__file__).resolve().parent,
+            )
+        except (OSError, _subprocess.SubprocessError):
+            return None
+        sha = done.stdout.strip() if done.returncode == 0 else ""
+    return sha if _re.fullmatch(r"[0-9a-f]{7,64}", sha or "") else None
 
 
 # ------------------------------------------------------------------------------ run

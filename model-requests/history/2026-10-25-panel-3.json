@@ -1,0 +1,17 @@
+{
+  "purpose": "Five free hosted models from four families on all twelve core-12 tasks at seeds 0 and 1, every one on the same harness: verification in a fresh container with a planted must fail test, and files the agent writes owned by the agent. That last fix is why the earlier panels were cancelled and nemotron 3.5 lightning is run again in full rather than completed. glm 5.3 answered in about 26 seconds a call on the free tier, so its runs get three times each task's wall clock ceiling and four workers; the step ceiling, which bounds the work, is the same for every model. Unsolved runs are read by a judge from a fifth family, the first time the three judged failure modes and context drift are measured.",
+  "suite": "core-12",
+  "temperature": 0.7,
+  "rpm_total": 34,
+  "max_parallel": 5,
+  "parallel": 2,
+  "seeds": [0, 1],
+  "judge_model": "nvidia_nim/stepfun-ai/step-5-preview",
+  "models": [
+    { "model": "nvidia_nim/nvidia/nemotron-3.5-lightning-30b-a3b" },
+    { "model": "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b" },
+    { "model": "nvidia_nim/minimaxai/minimax-m3.1-flash" },
+    { "model": "nvidia_nim/openai/gpt-oss-20b" },
+    { "model": "nvidia_nim/z-ai/glm-5.3", "parallel": 4, "timeout_scale": 3 }
+  ]
+}
